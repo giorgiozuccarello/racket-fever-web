@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
@@ -37,6 +38,7 @@ export default function Home() {
           <a href="#giocatori">Per i Giocatori</a>
           <a href="#prezzi">Prezzi</a>
           <a href="#chisiamo">Chi Siamo</a>
+          <Link className="btn btn-outline nav-login-btn" href="/admin">Accedi</Link>
           <a className="btn" href="#richiesta">Porta l&apos;app nel tuo circolo</a>
         </div>
       </nav>

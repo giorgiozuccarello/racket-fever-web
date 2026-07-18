@@ -58,6 +58,7 @@ nav{
 .btn:hover,.btn:focus-visible{background:var(--terra-chiara);transform:translateY(-1px)}
 .btn-outline{background:transparent;border:2px solid currentColor;color:inherit}
 .btn-outline:hover,.btn-outline:focus-visible{background:rgba(255,255,255,.1)}
+.nav-login-btn{padding:.6rem 1.1rem;font-size:.8rem}
 :focus-visible{outline:3px solid var(--terra-chiara);outline-offset:2px}
 
 /* ---------- HERO ---------- */
@@ -189,6 +190,7 @@ footer li a:hover{opacity:1;text-decoration:underline}
 
 @media (max-width:900px){
   .nav-links a:not(.btn){display:none}
+  .nav-links{gap:.6rem}
   .hero-grid,.sodalizio,.prezzi-grid{grid-template-columns:1fr}
   .feat{grid-template-columns:1fr 1fr}
   .foot-grid{grid-template-columns:1fr 1fr}
@@ -199,3 +201,62 @@ footer li a:hover{opacity:1;text-decoration:underline}
   .strip{grid-template-columns:1fr}
   .strip div{border-left:none;border-top:1.5px solid rgba(245,241,230,.25)}
 }
+
+/* ============================================================
+   AREA ADMIN — login, splash, dashboard, banner installazione PWA
+   ============================================================ */
+
+.admin-splash{
+  min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  background:var(--pino);color:var(--riga);
+}
+
+.admin-login-root{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:var(--pino);padding:2rem 1.2rem;
+}
+.admin-login-card{
+  width:100%;max-width:380px;background:rgba(0,0,0,0.12);
+  border:1.5px solid rgba(245,241,230,.2);border-radius:16px;
+  padding:2.4rem 2rem;
+}
+.admin-login-brand{text-align:center;margin-bottom:1.6rem}
+.admin-login-brand .logo-mark{margin:0 auto;width:44px;height:44px}
+.admin-login-card label{
+  display:block;font-family:var(--font-spline-mono),monospace;font-size:.7rem;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--riga);opacity:.85;
+  margin:1.1rem 0 .4rem;
+}
+.admin-login-card input{
+  width:100%;padding:.8rem 1rem;font-family:var(--font-archivo),sans-serif;font-size:.95rem;
+  border:none;border-radius:10px;background:var(--carta);color:var(--inchiostro);
+}
+.admin-login-card input:focus{outline:3px solid var(--terra-chiara);outline-offset:1px}
+.admin-login-card .btn{width:100%;margin-top:1.4rem;padding:.9rem;border-radius:10px;text-align:center}
+.admin-login-error{color:#FFB4A8;font-size:.85rem;margin-top:.8rem}
+.admin-login-hint{color:rgba(245,241,230,.6);font-size:.75rem;text-align:center;margin-top:1.4rem;line-height:1.5}
+
+.admin-shell{min-height:100vh;background:var(--carta)}
+.admin-header{
+  background:var(--pino);color:var(--riga);
+  display:flex;justify-content:space-between;align-items:center;
+  padding:1.4rem clamp(1rem,4vw,2.5rem);
+}
+.admin-logout-btn{padding:.6rem 1.2rem;font-size:.8rem;border-radius:8px}
+.admin-main{padding:clamp(1.5rem,4vw,2.5rem)}
+.admin-placeholder-card{
+  background:#fff;border:2px solid #E4E0D5;border-radius:14px;
+  padding:1.6rem;color:var(--grigio);font-size:.95rem;line-height:1.6;max-width:640px;
+}
+
+.install-banner{
+  position:relative;background:var(--terra);color:var(--riga);
+  padding:1rem 2.6rem 1rem 1.4rem;font-size:.88rem;line-height:1.5;
+}
+.install-banner-row{display:flex;align-items:center;justify-content:space-between;gap:1.2rem;flex-wrap:wrap}
+.install-banner .btn{background:var(--pino);padding:.6rem 1.2rem;font-size:.82rem;border-radius:8px;flex-shrink:0}
+.install-banner-close{
+  position:absolute;top:.6rem;right:.8rem;background:none;border:none;
+  color:var(--riga);font-size:1.3rem;line-height:1;cursor:pointer;opacity:.75;
+}
+.install-banner-close:hover{opacity:1}

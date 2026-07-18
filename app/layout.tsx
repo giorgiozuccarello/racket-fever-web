@@ -19,6 +19,14 @@ export const metadata: Metadata = {
   title: 'Racket Fever — La piattaforma italiana per i circoli tennis',
   description:
     "App e gestionale per circoli tennis: prenotazioni, tornei, community. Gratis per il circolo, un'app brandizzata per ogni club.",
+  icons: {
+    icon: '/icons/icon-192.png',
+    apple: '/icons/icon-180.png',
+  },
+};
+
+export const viewport = {
+  themeColor: '#0E3B2E',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
