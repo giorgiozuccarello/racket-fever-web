@@ -12,6 +12,7 @@ export interface Circolo {
   password: string;
   tema: { primario: string; accento: string };
   limiteOreSettimanali: number; // 0 = nessun limite
+  logoUrl?: string | null; // se assente, si mostra la sigla nel cerchio
 }
 
 // Al massimo UNA tariffa speciale per campo: una fascia oraria con

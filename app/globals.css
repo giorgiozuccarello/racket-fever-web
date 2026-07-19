@@ -378,3 +378,4 @@ footer li a:hover{opacity:1;text-decoration:underline}
   font-family:var(--font-spline-mono),monospace;font-size:.82rem;color:var(--terra);
 }
 .superadmin-swatch{width:26px;height:26px;border-radius:13px;flex-shrink:0}
+.superadmin-logo-preview{width:84px;height:84px;border-radius:42px;object-fit:cover}
