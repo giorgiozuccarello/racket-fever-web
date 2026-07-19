@@ -34,13 +34,16 @@ const firebaseConfig = {
   appId: '1:855486484632:web:dd84b4e27e2a5525f980ed',
 };
 
+// Colori standard forniti di default a ogni nuovo circolo. Sarà poi
+// l'Admin Circolo a poterli cambiare quando vuole, dalla sezione
+// "Personalizza App" della propria Dashboard.
+const TEMA_STANDARD = { primario: '#0E3B2E', accento: '#B0451F' };
+
 export interface DatiOnboarding {
   nomeCircolo: string;
   citta: string;
   sigla: string;
   passwordCircolo: string;
-  colorePrimario: string;
-  coloreAccento: string;
   nomeAdmin: string;
   cognomeAdmin: string;
   emailAdmin: string;
@@ -71,7 +74,7 @@ export async function creaCircoloConAdmin(dati: DatiOnboarding): Promise<string>
     citta: dati.citta.trim(),
     sigla: dati.sigla.trim().toUpperCase(),
     password: dati.passwordCircolo.trim(),
-    tema: { primario: dati.colorePrimario, accento: dati.coloreAccento },
+    tema: TEMA_STANDARD,
     limiteOreSettimanali: 0,
   });
 

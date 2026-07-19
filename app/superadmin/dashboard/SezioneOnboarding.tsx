@@ -15,8 +15,6 @@ export default function SezioneOnboarding() {
   const [citta, setCitta] = useState('');
   const [sigla, setSigla] = useState('');
   const [passwordCircolo, setPasswordCircolo] = useState('');
-  const [colorePrimario, setColorePrimario] = useState('#0E3B2E');
-  const [coloreAccento, setColoreAccento] = useState('#B0451F');
   const [nomeAdmin, setNomeAdmin] = useState('');
   const [cognomeAdmin, setCognomeAdmin] = useState('');
   const [emailAdmin, setEmailAdmin] = useState('');
@@ -27,7 +25,6 @@ export default function SezioneOnboarding() {
 
   const reset = () => {
     setNomeCircolo(''); setCitta(''); setSigla(''); setPasswordCircolo('');
-    setColorePrimario('#0E3B2E'); setColoreAccento('#B0451F');
     setNomeAdmin(''); setCognomeAdmin(''); setEmailAdmin(''); setPasswordAdmin('');
   };
 
@@ -48,7 +45,7 @@ export default function SezioneOnboarding() {
     setCreando(true);
     try {
       await creaCircoloConAdmin({
-        nomeCircolo, citta, sigla, passwordCircolo, colorePrimario, coloreAccento,
+        nomeCircolo, citta, sigla, passwordCircolo,
         nomeAdmin, cognomeAdmin, emailAdmin, passwordAdmin,
       });
       setSuccesso({ nomeCircolo, passwordCircolo, emailAdmin, passwordAdmin });
@@ -71,7 +68,9 @@ export default function SezioneOnboarding() {
       <div className="admin-card">
         <div className="admin-card-title">Circolo creato ✓</div>
         <p className="admin-card-hint">
-          Comunica queste credenziali al presidente/segreteria di <b>{successo.nomeCircolo}</b>:
+          Comunica queste credenziali al presidente/segreteria di <b>{successo.nomeCircolo}</b>.
+          I colori dell&apos;app sono impostati sullo standard: potrà personalizzarli quando vuole
+          dalla propria Dashboard, sezione &quot;Personalizza App&quot;.
         </p>
         <div className="superadmin-credenziali">
           <div><span>Password circolo (per i soci)</span><code>{successo.passwordCircolo}</code></div>
@@ -87,8 +86,9 @@ export default function SezioneOnboarding() {
     <div className="admin-card">
       <div className="admin-card-title">Nuovo circolo</div>
       <p className="admin-card-hint">
-        Crea il circolo e il suo primo account Admin. Il presidente potrà poi impostare
-        campi, prezzi e tutto il resto dalla propria Dashboard.
+        Crea il circolo e il suo primo account Admin, con i colori standard.
+        Il presidente potrà poi personalizzare tema, logo, campi e prezzi
+        dalla propria Dashboard.
       </p>
 
       <label className="admin-label">Nome del circolo</label>
@@ -107,17 +107,6 @@ export default function SezioneOnboarding() {
 
       <label className="admin-label">Password d&apos;accesso soci</label>
       <input className="admin-input" value={passwordCircolo} onChange={(e) => setPasswordCircolo(e.target.value)} placeholder="es. esempio2026" />
-
-      <div className="admin-row">
-        <div>
-          <label className="admin-label">Colore primario</label>
-          <input type="color" className="superadmin-color" value={colorePrimario} onChange={(e) => setColorePrimario(e.target.value)} />
-        </div>
-        <div>
-          <label className="admin-label">Colore accento</label>
-          <input type="color" className="superadmin-color" value={coloreAccento} onChange={(e) => setColoreAccento(e.target.value)} />
-        </div>
-      </div>
 
       <div className="superadmin-subtitolo">Primo Admin Circolo</div>
 

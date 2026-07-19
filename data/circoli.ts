@@ -45,12 +45,22 @@ export interface Blocco {
   etichetta: string;
 }
 
-export const ORARI = [
-  '08:00', '09:00', '10:00', '11:00', '12:00',
-  '16:00', '17:00', '18:00', '19:00', '20:00', '21:00', '22:00',
-];
+// Genera le fasce orarie a mezz'ora tra due orari (inclusi).
+function generaOrari(inizio: string, fine: string): string[] {
+  const risultato: string[] = [];
+  let [h, m] = inizio.split(':').map(Number);
+  const [hf, mf] = fine.split(':').map(Number);
+  while (h < hf || (h === hf && m <= mf)) {
+    risultato.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    m += 30;
+    if (m >= 60) { m = 0; h += 1; }
+  }
+  return risultato;
+}
+
+export const ORARI = [...generaOrari('08:00', '12:00'), ...generaOrari('16:00', '22:00')];
 
 // Usato SOLO nei menu a tendina dell'Admin (orario di fine di una
 // tariffa speciale o di un blocco): arriva a 23:00 così si può
-// coprire per intero anche l'ultimo slot prenotabile (22:00).
-export const ORARI_ESTESI = [...ORARI, '23:00'];
+// coprire per intero anche l'ultimo slot prenotabile (22:00-22:30).
+export const ORARI_ESTESI = [...ORARI, '22:30', '23:00'];

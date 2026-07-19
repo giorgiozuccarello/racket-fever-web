@@ -11,7 +11,7 @@ import { ascoltaCircolo, ascoltaCampi, ascoltaBlocchi } from '../../../data/circ
 import { ascoltaPrenotazioniCircolo, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
 import InstallPrompt from '../InstallPrompt';
 import SezionePassword from './SezionePassword';
-import SezioneLogo from './SezioneLogo';
+import SezionePersonalizzaApp from './SezionePersonalizzaApp';
 import SezioneCampi from './SezioneCampi';
 import SezioneLimite from './SezioneLimite';
 import SezionePrezzi from './SezionePrezzi';
@@ -84,7 +84,7 @@ export default function AdminDashboard() {
       </header>
 
       <main className="admin-main">
-        <SezioneLogo circolo={circolo} />
+        <SezionePersonalizzaApp circolo={circolo} />
         <SezionePassword circolo={circolo} />
         <SezioneCampi circoloId={circolo.id} campi={campi} />
         <SezioneLimite circolo={circolo} />
