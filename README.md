@@ -1,27 +1,30 @@
 # 🎾 Racket Fever — Sito Web (Next.js)
 
-Sito istituzionale + Dashboard Admin Circolo (installabile come app
-desktop, PWA) + presto Dashboard Super Admin. Stesso progetto Firebase
-dell'app mobile: stessi utenti, stessi circoli, stesso database.
+Sito istituzionale + Dashboard Admin Circolo (PWA) + Dashboard Super
+Admin. Stesso progetto Firebase dell'app mobile.
 
 ---
 
-## Novità — Dashboard Admin completa + installabilità PWA
+## Novità — Dashboard Super Admin (Layer 1)
 
-- **`/admin`** — verifica la sessione e smista a login o dashboard
-- **`/admin/login`** — login Admin Circolo (stesse credenziali dell'app mobile)
-- **`/admin/dashboard`** — Dashboard completa, stesse funzionalità già
-  operative nell'app mobile: Password del circolo, Campi, Limite ore
-  settimanali, Prezzi delle ore (per campo + tariffa speciale), Orari
-  riservati, Soci & Wallet, Prenotazioni del circolo (con annullo e
-  rimborso automatico)
-- **Installabile come app desktop** (PWA): su Chrome/Edge appare un
-  banner con pulsante "Installa" che crea un'icona vera sul
-  desktop/menu Start; su Safari (Mac) le istruzioni guidano verso
-  "Aggiungi al Dock". Una volta installata, aprendo l'icona si va
-  dritti alla Dashboard se la sessione è già attiva, altrimenti al login.
-- **Pulsante "Accedi"** in home page, per chi ha bisogno di entrare da
-  un dispositivo diverso da quello con la PWA installata
+- **`/superadmin/login`** — login separato, non collegato pubblicamente
+  dal sito (accesso solo diretto via URL)
+- **`/superadmin/dashboard`**:
+  - **Nuovo circolo** — crea un circolo e il suo primo Admin Circolo,
+    in sostituzione dello script `seed.js`. Al termine mostra le
+    credenziali da comunicare al presidente
+  - **Richieste di attivazione** — i lead dal form pubblico del sito,
+    prima invisibili se non dalla Console Firebase
+  - **Circoli attivi** — elenco in sola lettura di tutti i circoli
+
+### Nota tecnica sull'onboarding
+
+Creare un nuovo account Firebase Auth (l'Admin del nuovo circolo) con
+la stessa istanza Firebase con cui il Super Admin ha fatto login
+sostituirebbe automaticamente la sua sessione — comportamento nativo
+di Firebase Auth. `data/onboarding.ts` risolve il problema creando
+l'account su un'istanza Firebase secondaria "usa e getta": la sessione
+del Super Admin non si muove mai.
 
 ---
 
@@ -32,70 +35,54 @@ npm install
 npm run dev
 ```
 
-Poi apri:
 - **http://localhost:3000** — sito istituzionale
-- **http://localhost:3000/admin** — Dashboard Admin (serve un account
-  admin già esistente su Firebase, es. quello creato dallo script di seed)
-
-> Il banner "Installa" e il service worker richiedono **https**: in
-> locale (http) non compariranno. Si testano solo dopo il deploy.
+- **http://localhost:3000/admin** — Dashboard Admin Circolo
+- **http://localhost:3000/superadmin** — Dashboard Super Admin
 
 ---
 
 ## Prima di pubblicare un aggiornamento
 
-1. **`npm install`** se hai aggiunto pacchetti (non è il caso di questo
-   aggiornamento: nessun nuovo pacchetto).
-2. **Regole Firestore**: invariate, nessuna azione richiesta.
-3. **Assicurati che `package-lock.json` sia aggiornato** e incluso nel
-   commit — senza quel file la build fallisce.
-4. `git add .` → `git commit -m "..."` → `git push`. Il deploy parte
-   da solo.
+1. **Ripubblica le regole Firestore** (obbligatorio questa volta):
+   sono state aggiunte la collezione `super_admin` e i permessi per il
+   Super Admin su `circoli`, `responsabili`, `richieste_attivazione`.
+   Copia `firestore.rules` (nel progetto `racket-fever`, l'app mobile
+   — le regole sono uniche per tutto il progetto Firebase) → Firebase
+   Console → Firestore Database → Rules → Pubblica.
+2. **Riesegui lo script di seed** (crea il primo account Super Admin):
+   ```
+   cd racket-fever-seed
+   node seed.js
+   ```
+   Le credenziali del Super Admin vengono stampate a fine script.
+3. `npm install` se necessario, poi `git add .` → `git commit` →
+   `git push`. Il deploy parte da solo.
 
 ---
 
-## Struttura
+## Struttura (novità evidenziate)
 
 ```
 racket-fever-web/
 ├── app/
-│   ├── manifest.ts             # Manifest PWA
-│   ├── layout.tsx              # Font + metadata + icone
-│   ├── globals.css             # Palette sito + stili sezione admin
-│   ├── page.tsx                 # Home istituzionale (+ pulsante Accedi)
-│   └── admin/
-│       ├── page.tsx            # Ingresso: verifica sessione e smista
-│       ├── InstallPrompt.tsx   # Banner "Installa sul desktop"
-│       ├── login/page.tsx      # Login Admin Circolo
+│   ├── admin/                   # Dashboard Admin Circolo (Layer 2)
+│   └── superadmin/               # ⭐ Dashboard Super Admin (Layer 1)
+│       ├── login/page.tsx
 │       └── dashboard/
-│           ├── page.tsx               # Orchestratore: carica dati, mostra sezioni
-│           ├── Modal.tsx              # Modale riutilizzabile
-│           ├── SezionePassword.tsx
-│           ├── SezioneCampi.tsx
-│           ├── SezioneLimite.tsx
-│           ├── SezionePrezzi.tsx
-│           ├── SezioneBlocchi.tsx
-│           ├── SezioneSoci.tsx
-│           └── SezionePrenotazioni.tsx
-├── data/                        # Stesso strato dati dell'app mobile
-│   ├── circoli.ts               # Tipi: Circolo, Campo, Blocco, TariffaSpeciale
-│   ├── circoliRepo.ts           # CRUD Firestore circoli/campi/blocchi
-│   ├── prezzi.ts                # Calcolo prezzo per giorno/orario
-│   ├── prenotazioniRepo.ts      # Transazioni: prenota/cancella/ricarica
-│   ├── notifiche.ts             # Avvisi in-app
-│   ├── users.ts                 # Profilo utente, elenco soci circolo
-│   └── responsabili.ts          # Auth e profilo Admin Circolo
-├── public/
-│   ├── sw.js                    # Service worker minimo (solo installabilità)
-│   └── icons/                   # Icone PWA brandizzate (192/512/180px)
-├── lib/
-│   └── firebase.ts              # Stesso progetto Firebase dell'app mobile
-└── next.config.js
+│           ├── page.tsx
+│           ├── SezioneOnboarding.tsx   # Crea circolo + primo Admin
+│           ├── SezioneRichieste.tsx    # Lead dal form del sito
+│           └── SezioneCircoli.tsx      # Elenco circoli (sola lettura)
+├── data/
+│   ├── onboarding.ts             # ⭐ Crea circolo+admin (istanza Firebase secondaria)
+│   ├── superadmin.ts             # ⭐ Profilo Super Admin
+│   └── richiesteAttivazione.ts   # ⭐ Lead del sito
+└── ...
 ```
 
 ## Prossimi passi
-- [ ] Dashboard Super Admin (onboarding circoli, in sostituzione dello
-      script `seed.js`)
-- [ ] Pagine separate per Blog/News, Privacy, Termini di servizio
-- [ ] Spostare la scrittura del credito su Cloud Function (sicurezza,
-      già annotato in `firestore.rules`)
+- [ ] Statistiche/analytics globali (utenti attivi, revenue, prenotazioni)
+- [ ] Gestione contenuti sito pubblico (CMS Blog/News)
+- [ ] Hardening sicurezza wallet (Cloud Function)
+- [ ] Notifiche email/push reali
+- [ ] Pubblicazione app mobile sugli store (EAS Build)
