@@ -18,6 +18,7 @@ import SezionePrezzi from './SezionePrezzi';
 import SezioneBlocchi from './SezioneBlocchi';
 import SezioneSoci from './SezioneSoci';
 import SezioneDebitiSoci from './SezioneDebitiSoci';
+import SchedaSocioModal from './SchedaSocioModal';
 import SezionePrenotazioni from './SezionePrenotazioni';
 
 export default function AdminDashboard() {
@@ -28,6 +29,7 @@ export default function AdminDashboard() {
   const [blocchi, setBlocchi] = useState<Blocco[]>([]);
   const [soci, setSoci] = useState<SocioCircolo[]>([]);
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneAdmin[]>([]);
+  const [socioSelUid, setSocioSelUid] = useState<string | null>(null);
   const [caricando, setCaricando] = useState(true);
 
   useEffect(() => {
@@ -99,8 +101,14 @@ export default function AdminDashboard() {
         <SezioneLimite circolo={circolo} />
         <SezionePrezzi circoloId={circolo.id} campi={campi} />
         <SezioneBlocchi circoloId={circolo.id} campi={campi} blocchi={blocchi} />
-        <SezioneSoci circoloId={circolo.id} soci={soci} prenotazioni={prenotazioni} />
-        <SezioneDebitiSoci soci={soci} />
+        <SezioneSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
+        <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
+        <SchedaSocioModal
+          circoloId={circolo.id}
+          socio={socioSelUid ? soci.find((x) => x.uid === socioSelUid) ?? null : null}
+          prenotazioni={prenotazioni}
+          onClose={() => setSocioSelUid(null)}
+        />
         <SezionePrenotazioni campi={campi} blocchi={blocchi} prenotazioni={prenotazioni} />
       </main>
     </div>

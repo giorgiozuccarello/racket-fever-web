@@ -2,7 +2,9 @@
 
 import { SocioCircolo } from '../../../data/users';
 
-export default function SezioneDebitiSoci({ soci }: { soci: SocioCircolo[] }) {
+export default function SezioneDebitiSoci({ soci, onSelezionaSocio }: {
+  soci: SocioCircolo[]; onSelezionaSocio: (uid: string) => void;
+}) {
   const debitori = soci.filter((s) => (s.sosUtilizzato ?? 0) > 0);
 
   return (
@@ -16,7 +18,10 @@ export default function SezioneDebitiSoci({ soci }: { soci: SocioCircolo[] }) {
       {debitori.length === 0 && <p className="admin-empty-text">Nessun debito al momento.</p>}
 
       {debitori.map((soc) => (
-        <div key={soc.uid} className="admin-list-row">
+        <div
+          key={soc.uid} className="admin-list-row admin-list-row-clickable"
+          onClick={() => onSelezionaSocio(soc.uid)}
+        >
           {soc.fotoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={soc.fotoUrl} alt="" className="admin-list-avatar" />
