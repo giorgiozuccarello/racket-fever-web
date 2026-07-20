@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Campo, Blocco, ORARI_ESTESI } from '../../../data/circoli';
-import { aggiungiBlocco, rimuoviBlocco } from '../../../data/circoliRepo';
+import { aggiungiBlocco, modificaBlocco, rimuoviBlocco } from '../../../data/circoliRepo';
+import Modal from './Modal';
 
 const GIORNI_SETTIMANA = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 
@@ -17,6 +18,16 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
   const [orarioFine, setOrarioFine] = useState('');
   const [etichetta, setEtichetta] = useState('');
   const [errore, setErrore] = useState('');
+
+  const [modificaBloccoObj, setModificaBloccoObj] = useState<Blocco | null>(null);
+  const [modCampoId, setModCampoId] = useState('');
+  const [modTipo, setModTipo] = useState<'ricorrente' | 'data'>('ricorrente');
+  const [modGiorniSel, setModGiorniSel] = useState<number[]>([]);
+  const [modData, setModData] = useState('');
+  const [modOrarioInizio, setModOrarioInizio] = useState('');
+  const [modOrarioFine, setModOrarioFine] = useState('');
+  const [modEtichetta, setModEtichetta] = useState('');
+  const [modErrore, setModErrore] = useState('');
 
   useEffect(() => {
     if (!campoId && campi[0]) setCampoId(campi[0].id);
@@ -44,6 +55,39 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
     setGiorniSel([]);
   };
 
+  const apriModifica = (b: Blocco) => {
+    setModificaBloccoObj(b);
+    setModCampoId(b.campoId);
+    setModTipo(b.tipo);
+    setModGiorniSel(b.giorniSettimana ?? []);
+    setModData(b.data ?? '');
+    setModOrarioInizio(b.orarioInizio);
+    setModOrarioFine(b.orarioFine);
+    setModEtichetta(b.etichetta);
+    setModErrore('');
+  };
+
+  const toggleModGiorno = (i: number) => {
+    setModGiorniSel((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
+  };
+
+  const salvaModifica = async () => {
+    if (!modificaBloccoObj) return;
+    setModErrore('');
+    if (!modCampoId) { setModErrore('Seleziona un campo.'); return; }
+    if (!modOrarioInizio || !modOrarioFine) { setModErrore("Seleziona l'orario di inizio e di fine."); return; }
+    if (!modEtichetta.trim()) { setModErrore("Inserisci un'etichetta."); return; }
+    if (modTipo === 'ricorrente' && modGiorniSel.length === 0) { setModErrore('Seleziona almeno un giorno.'); return; }
+    if (modTipo === 'data' && !modData.trim()) { setModErrore('Inserisci una data.'); return; }
+
+    const dati: any = { campoId: modCampoId, tipo: modTipo, orarioInizio: modOrarioInizio, orarioFine: modOrarioFine, etichetta: modEtichetta.trim() };
+    if (modTipo === 'ricorrente') dati.giorniSettimana = modGiorniSel;
+    else dati.data = modData.trim();
+
+    await modificaBlocco(circoloId, modificaBloccoObj.id, dati);
+    setModificaBloccoObj(null);
+  };
+
   const nomeCampo = (id: string) => campi.find((c) => c.id === id)?.nome ?? '—';
 
   return (
@@ -65,6 +109,7 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
               {'  '}{b.orarioInizio}–{b.orarioFine}
             </div>
           </div>
+          <button className="admin-icon-btn" onClick={() => apriModifica(b)} aria-label="Modifica">✎</button>
           <button className="admin-icon-btn danger" onClick={() => rimuoviBlocco(circoloId, b.id)} aria-label="Rimuovi">🗑</button>
         </div>
       ))}
@@ -126,6 +171,70 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
       {errore && <div className="admin-error-text">{errore}</div>}
 
       <button className="admin-btn-full" onClick={aggiungi}>+ Aggiungi blocco</button>
+
+      <Modal visible={!!modificaBloccoObj} onClose={() => setModificaBloccoObj(null)}>
+        <div className="admin-modal-title">Modifica orario riservato</div>
+
+        <label className="admin-label">Campo</label>
+        <div className="admin-chip-row">
+          {campi.map((c) => (
+            <button key={c.id} className={`admin-chip ${modCampoId === c.id ? 'selected' : ''}`} onClick={() => setModCampoId(c.id)}>
+              {c.nome}
+            </button>
+          ))}
+        </div>
+
+        <label className="admin-label">Ricorrenza</label>
+        <div className="admin-chip-row">
+          <button className={`admin-chip ${modTipo === 'ricorrente' ? 'selected' : ''}`} onClick={() => setModTipo('ricorrente')}>Ogni settimana</button>
+          <button className={`admin-chip ${modTipo === 'data' ? 'selected' : ''}`} onClick={() => setModTipo('data')}>Data singola</button>
+        </div>
+
+        {modTipo === 'ricorrente' ? (
+          <>
+            <label className="admin-label">Giorni</label>
+            <div className="admin-chip-row">
+              {GIORNI_SETTIMANA.map((g, i) => (
+                <button key={i} className={`admin-chip ${modGiorniSel.includes(i) ? 'selected' : ''}`} onClick={() => toggleModGiorno(i)}>
+                  {g.slice(0, 3)}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            <label className="admin-label">Data (AAAA-MM-GG)</label>
+            <input className="admin-input" value={modData} onChange={(e) => setModData(e.target.value)} placeholder="2026-08-15" />
+          </>
+        )}
+
+        <div className="admin-row">
+          <div>
+            <label className="admin-label">Dalle</label>
+            <select className="admin-select" value={modOrarioInizio} onChange={(e) => setModOrarioInizio(e.target.value)}>
+              <option value="">--</option>
+              {ORARI_ESTESI.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="admin-label">Alle</label>
+            <select className="admin-select" value={modOrarioFine} onChange={(e) => setModOrarioFine(e.target.value)}>
+              <option value="">--</option>
+              {ORARI_ESTESI.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </div>
+        </div>
+
+        <label className="admin-label">Etichetta</label>
+        <input className="admin-input" value={modEtichetta} onChange={(e) => setModEtichetta(e.target.value)} placeholder="Scuola Tennis" />
+
+        {modErrore && <div className="admin-error-text">{modErrore}</div>}
+
+        <div className="admin-modal-btn-row">
+          <button className="admin-modal-btn-cancel" onClick={() => setModificaBloccoObj(null)}>Annulla</button>
+          <button className="admin-modal-btn-confirm" onClick={salvaModifica}>Salva</button>
+        </div>
+      </Modal>
     </div>
   );
 }

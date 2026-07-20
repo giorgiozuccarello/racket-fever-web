@@ -94,6 +94,10 @@ export async function aggiungiBlocco(circoloId: string, blocco: Omit<Blocco, 'id
   await addDoc(collection(db, 'circoli', circoloId, 'blocchi'), blocco);
 }
 
+export async function modificaBlocco(circoloId: string, bloccoId: string, dati: Omit<Blocco, 'id'>) {
+  await updateDoc(doc(db, 'circoli', circoloId, 'blocchi', bloccoId), dati);
+}
+
 export async function rimuoviBlocco(circoloId: string, bloccoId: string) {
   await deleteDoc(doc(db, 'circoli', circoloId, 'blocchi', bloccoId));
 }

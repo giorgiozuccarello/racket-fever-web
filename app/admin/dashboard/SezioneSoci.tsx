@@ -33,6 +33,14 @@ export default function SezioneSoci({ soci }: { soci: SocioCircolo[] }) {
 
       {soci.map((soc) => (
         <div key={soc.uid} className="admin-list-row">
+          {soc.fotoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={soc.fotoUrl} alt="" className="admin-list-avatar" />
+          ) : (
+            <div className="admin-list-avatar admin-list-avatar-fallback">
+              {(soc.nome[0] + soc.cognome[0]).toUpperCase()}
+            </div>
+          )}
           <div style={{ flex: 1 }}>
             <div className="admin-list-main">{soc.nome} {soc.cognome}</div>
             <div className="admin-list-sub">{soc.email}</div>

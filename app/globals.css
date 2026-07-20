@@ -261,14 +261,35 @@ footer li a:hover{opacity:1;text-decoration:underline}
 }
 .install-banner-close:hover{opacity:1}
 
-/* ---------- Sezioni Dashboard ---------- */
-.admin-main{max-width:900px}
-.admin-card{
-  background:#fff;border:2px solid #E4E0D5;border-radius:14px;
-  padding:1.6rem;margin-bottom:1.4rem;
+/* ---------- Sezioni Dashboard — layout a griglia "gestionale" ----------
+   Usiamo un multi-column layout (non CSS grid classico): ogni card
+   ha un'altezza diversa in base al contenuto, e questo approccio le
+   dispone in colonne bilanciate senza dover indovinare le altezze a
+   priori — un effetto "masonry" ottenuto solo con CSS. */
+.admin-main{
+  max-width:1180px;
+  column-count:2; column-gap:1.3rem;
 }
-.admin-card-title{font-family:var(--font-archivo),sans-serif;font-weight:800;font-size:1.05rem;color:var(--inchiostro)}
-.admin-card-hint{color:var(--grigio);font-size:.85rem;margin:.4rem 0 1.1rem;line-height:1.5;max-width:56ch}
+@media (max-width:860px){
+  .admin-main{column-count:1}
+}
+.admin-card{
+  background:#fff; border:1.5px solid #E9E5D9; border-radius:14px;
+  padding:1.5rem 1.6rem; margin-bottom:1.3rem;
+  break-inside:avoid; display:inline-block; width:100%;
+  box-shadow:0 1px 2px rgba(20,31,27,.04), 0 4px 14px rgba(20,31,27,.045);
+}
+.admin-card-title{
+  font-family:var(--font-archivo),sans-serif; font-weight:800; font-size:1.02rem;
+  color:var(--inchiostro); display:flex; align-items:center; gap:.5rem;
+}
+.admin-card-title::before{
+  content:''; width:7px; height:7px; border-radius:4px; background:var(--terra); flex-shrink:0;
+}
+.admin-card-hint{
+  color:var(--grigio); font-weight:400; font-size:.82rem;
+  margin:.35rem 0 1.15rem; line-height:1.55; max-width:52ch;
+}
 .admin-row{display:flex;gap:.7rem;flex-wrap:wrap;margin-bottom:.6rem}
 .admin-row > *{flex:1;min-width:140px}
 .admin-input{
@@ -379,3 +400,8 @@ footer li a:hover{opacity:1;text-decoration:underline}
 }
 .superadmin-swatch{width:26px;height:26px;border-radius:13px;flex-shrink:0}
 .superadmin-logo-preview{width:84px;height:84px;border-radius:42px;object-fit:cover}
+.admin-list-avatar{width:34px;height:34px;border-radius:17px;flex-shrink:0;object-fit:cover}
+.admin-list-avatar-fallback{
+  display:flex;align-items:center;justify-content:center;
+  background:var(--pino);color:#fff;font-weight:800;font-size:.72rem;
+}

@@ -18,7 +18,12 @@ export default function SezioneCircoli() {
 
       {circoli.map((c) => (
         <div key={c.id} className="admin-list-row">
-          <div className="superadmin-swatch" style={{ background: c.tema.primario }} />
+          {c.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={c.logoUrl} alt="" className="admin-list-avatar" />
+          ) : (
+            <div className="superadmin-swatch" style={{ background: c.tema.primario }} />
+          )}
           <div style={{ flex: 1 }}>
             <div className="admin-list-main">{c.nome}</div>
             <div className="admin-list-sub">{c.citta} · {c.sigla}</div>
