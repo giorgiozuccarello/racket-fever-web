@@ -76,9 +76,17 @@ export default function AdminDashboard() {
       <InstallPrompt />
 
       <header className="admin-header">
-        <div>
-          <div className="mono" style={{ opacity: 0.75 }}>ADMIN CIRCOLO</div>
-          <h1 className="display" style={{ fontSize: '1.7rem', marginTop: '.2rem' }}>{circolo.nome}</h1>
+        <div className="admin-header-brand">
+          {circolo.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={circolo.logoUrl} alt="" className="admin-header-logo" />
+          ) : (
+            <div className="admin-header-logo admin-header-logo-fallback">{circolo.sigla}</div>
+          )}
+          <div>
+            <div className="mono" style={{ opacity: 0.75 }}>ADMIN CIRCOLO</div>
+            <h1 className="display" style={{ fontSize: '1.7rem', marginTop: '.2rem' }}>{circolo.nome}</h1>
+          </div>
         </div>
         <button className="btn btn-outline admin-logout-btn" onClick={logout}>Esci</button>
       </header>

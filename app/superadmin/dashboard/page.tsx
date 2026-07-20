@@ -49,9 +49,12 @@ export default function SuperAdminDashboard() {
   return (
     <div className="admin-shell">
       <header className="admin-header">
-        <div>
-          <div className="mono" style={{ opacity: 0.75 }}>SUPER ADMIN</div>
-          <h1 className="display" style={{ fontSize: '1.7rem', marginTop: '.2rem' }}>Ciao, {profilo.nome}</h1>
+        <div className="admin-header-brand">
+          <div className="logo-mark admin-header-logo-mark" aria-hidden="true" />
+          <div>
+            <div className="mono" style={{ opacity: 0.75 }}>SUPER ADMIN</div>
+            <h1 className="display" style={{ fontSize: '1.7rem', marginTop: '.2rem' }}>Ciao, {profilo.nome}</h1>
+          </div>
         </div>
         <button className="btn btn-outline admin-logout-btn" onClick={logout}>Esci</button>
       </header>

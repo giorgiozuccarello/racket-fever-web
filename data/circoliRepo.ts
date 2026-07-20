@@ -10,6 +10,7 @@
 
 import {
   collection, doc, getDoc, onSnapshot, updateDoc, addDoc, deleteDoc, query, orderBy,
+  where, getDocs, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Circolo, Campo, Blocco } from './circoli';
@@ -68,6 +69,23 @@ export async function rinominaCampo(
   circoloId: string, campoId: string, nome: string, superficie: string
 ) {
   await updateDoc(doc(db, 'circoli', circoloId, 'campi', campoId), { nome, superficie });
+
+  // Il nome del campo viene "congelato" dentro ogni prenotazione al
+  // momento della creazione (per mostrarlo velocemente senza dover
+  // ricaricare il campo ogni volta). Se l'Admin rinomina il campo,
+  // aggiorniamo anche quel nome congelato in tutte le prenotazioni
+  // già esistenti, così non restano con il nome vecchio.
+  const q = query(
+    collection(db, 'prenotazioni'),
+    where('circoloId', '==', circoloId),
+    where('campoId', '==', campoId)
+  );
+  const istantanea = await getDocs(q);
+  if (!istantanea.empty) {
+    const batch = writeBatch(db);
+    istantanea.docs.forEach((d) => batch.update(d.ref, { campoNome: nome }));
+    await batch.commit();
+  }
 }
 
 export async function aggiornaCampo(
