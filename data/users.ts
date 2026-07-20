@@ -23,6 +23,7 @@ export interface ProfiloUtente {
   email: string;
   circoloId: string | null;
   credito: number;
+  fotoUrl?: string | null; // se assente, si mostrano le iniziali nel cerchio
 }
 
 export interface SocioCircolo extends ProfiloUtente {
