@@ -81,6 +81,22 @@ export async function ricaricaCredito(uid: string, importo: number): Promise<voi
   });
 }
 
+// Ricarica S.O.S. self-service del socio: aggiorna credito E il
+// contatore di quanto plafond S.O.S. è stato consumato, in un'unica
+// transazione atomica (le due cose devono sempre restare coerenti).
+export async function ricaricaSOS(uid: string, importo: number): Promise<void> {
+  const utenteRef = doc(db, 'utenti', uid);
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(utenteRef);
+    const creditoAttuale = snap.exists() ? ((snap.data().credito as number) ?? 0) : 0;
+    const sosAttuale = snap.exists() ? ((snap.data().sosUtilizzato as number) ?? 0) : 0;
+    tx.update(utenteRef, {
+      credito: creditoAttuale + importo,
+      sosUtilizzato: sosAttuale + importo,
+    });
+  });
+}
+
 // ---------------- Vista Admin: tutte le prenotazioni del circolo ----------------
 
 export interface PrenotazioneAdmin {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SocioCircolo, aggiornaLimiteSOS } from '../../../data/users';
+import { SocioCircolo, aggiornaLimiteSOS, ripristinaSOS } from '../../../data/users';
 import { ricaricaCredito, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
 import { CONTENUTI_DEMO } from '../../../data/contenutiDemo';
 import Modal from './Modal';
@@ -15,6 +15,7 @@ export default function SezioneSoci({ circoloId, soci, prenotazioni }: {
   const [importo, setImporto] = useState('');
   const [inviando, setInviando] = useState(false);
   const [salvandoSOS, setSalvandoSOS] = useState(false);
+  const [ripristinando, setRipristinando] = useState(false);
 
   // Sempre ripescato dalla lista live: se il credito cambia mentre la
   // scheda è aperta, si aggiorna da solo.
@@ -52,6 +53,13 @@ export default function SezioneSoci({ circoloId, soci, prenotazioni }: {
     setSalvandoSOS(true);
     await aggiornaLimiteSOS(socioLive.uid, v);
     setSalvandoSOS(false);
+  };
+
+  const confermaRipristino = async () => {
+    if (!socioLive) return;
+    setRipristinando(true);
+    await ripristinaSOS(socioLive.uid);
+    setRipristinando(false);
   };
 
   return (
@@ -126,6 +134,23 @@ export default function SezioneSoci({ circoloId, soci, prenotazioni }: {
               </button>
             </div>
 
+            <div className="socio-credito-row">
+              <div>
+                <div className="socio-credito-label">Credito S.O.S.</div>
+                <div className="socio-credito-valore">
+                  {socioLive.sosUtilizzato ?? 0}/{socioLive.limiteRicaricaSOS ?? 0}
+                </div>
+              </div>
+              <button
+                className="admin-btn-small"
+                onClick={confermaRipristino}
+                disabled={!socioLive.sosUtilizzato || ripristinando}
+                style={!socioLive.sosUtilizzato ? { opacity: 0.4 } : undefined}
+              >
+                {ripristinando ? 'Attendere…' : 'Ripristina S.O.S.'}
+              </button>
+            </div>
+
             <div className="socio-sos-box">
               <label className="admin-label">Limite ricarica S.O.S.</label>
               <p className="admin-card-hint" style={{ marginBottom: '.6rem' }}>
@@ -143,6 +168,10 @@ export default function SezioneSoci({ circoloId, soci, prenotazioni }: {
               />
               {salvandoSOS && <div className="admin-saving">Salvataggio…</div>}
             </div>
+            <p className="socio-sos-reset-hint">
+              &quot;Ripristina&quot; azzera l&apos;usato quando il socio salda in segreteria,
+              restituendogli tutto il plafond.
+            </p>
           </>
         )}
       </Modal>
