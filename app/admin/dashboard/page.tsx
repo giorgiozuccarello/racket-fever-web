@@ -17,6 +17,7 @@ import SezioneLimite from './SezioneLimite';
 import SezionePrezzi from './SezionePrezzi';
 import SezioneBlocchi from './SezioneBlocchi';
 import SezioneSoci from './SezioneSoci';
+import SezioneDebitiSoci from './SezioneDebitiSoci';
 import SezionePrenotazioni from './SezionePrenotazioni';
 
 export default function AdminDashboard() {
@@ -99,6 +100,7 @@ export default function AdminDashboard() {
         <SezionePrezzi circoloId={circolo.id} campi={campi} />
         <SezioneBlocchi circoloId={circolo.id} campi={campi} blocchi={blocchi} />
         <SezioneSoci circoloId={circolo.id} soci={soci} prenotazioni={prenotazioni} />
+        <SezioneDebitiSoci soci={soci} />
         <SezionePrenotazioni campi={campi} blocchi={blocchi} prenotazioni={prenotazioni} />
       </main>
     </div>

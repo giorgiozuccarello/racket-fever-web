@@ -16,6 +16,7 @@ export default function SezioneSoci({ circoloId, soci, prenotazioni }: {
   const [inviando, setInviando] = useState(false);
   const [salvandoSOS, setSalvandoSOS] = useState(false);
   const [ripristinando, setRipristinando] = useState(false);
+  const [confermaRipristinoAperta, setConfermaRipristinoAperta] = useState(false);
 
   // Sempre ripescato dalla lista live: se il credito cambia mentre la
   // scheda è aperta, si aggiorna da solo.
@@ -60,6 +61,7 @@ export default function SezioneSoci({ circoloId, soci, prenotazioni }: {
     setRipristinando(true);
     await ripristinaSOS(socioLive.uid);
     setRipristinando(false);
+    setConfermaRipristinoAperta(false);
   };
 
   return (
@@ -138,16 +140,20 @@ export default function SezioneSoci({ circoloId, soci, prenotazioni }: {
               <div>
                 <div className="socio-credito-label">Credito S.O.S.</div>
                 <div className="socio-credito-valore">
-                  {socioLive.sosUtilizzato ?? 0}/{socioLive.limiteRicaricaSOS ?? 0}
+                  <span style={{ color: (socioLive.sosUtilizzato ?? 0) > 0 ? '#B3261E' : 'var(--inchiostro)' }}>
+                    €{socioLive.sosUtilizzato ?? 0}
+                  </span>
+                  <span>/{socioLive.limiteRicaricaSOS ?? 0}</span>
                 </div>
+                <div className="socio-debito-hint">Debito verso Circolo: €{socioLive.sosUtilizzato ?? 0}</div>
               </div>
               <button
                 className="admin-btn-small"
-                onClick={confermaRipristino}
+                onClick={() => setConfermaRipristinoAperta(true)}
                 disabled={!socioLive.sosUtilizzato || ripristinando}
                 style={!socioLive.sosUtilizzato ? { opacity: 0.4 } : undefined}
               >
-                {ripristinando ? 'Attendere…' : 'Ripristina S.O.S.'}
+                Ripristina S.O.S.
               </button>
             </div>
 
@@ -174,6 +180,20 @@ export default function SezioneSoci({ circoloId, soci, prenotazioni }: {
             </p>
           </>
         )}
+      </Modal>
+
+      {/* Conferma ripristino — sopra la scheda socio */}
+      <Modal visible={confermaRipristinoAperta} onClose={() => setConfermaRipristinoAperta(false)}>
+        <div className="admin-modal-title">Ripristinare il credito?</div>
+        <div className="admin-modal-sub">
+          Stai azzerando il debito di {socioLive?.nome} {socioLive?.cognome}. Vuoi continuare?
+        </div>
+        <div className="admin-modal-btn-row">
+          <button className="admin-modal-btn-cancel" onClick={() => setConfermaRipristinoAperta(false)}>Annulla</button>
+          <button className="admin-modal-btn-confirm danger" onClick={confermaRipristino} disabled={ripristinando}>
+            {ripristinando ? 'Attendere…' : 'Conferma'}
+          </button>
+        </div>
       </Modal>
 
       {/* Ricarica — sopra la scheda socio */}

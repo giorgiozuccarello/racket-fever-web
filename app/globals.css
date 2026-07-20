@@ -350,7 +350,7 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-list-row:last-child{border-bottom:none}
 .admin-list-main{font-size:.92rem;font-weight:700;color:var(--inchiostro)}
 .admin-list-sub{font-size:.78rem;color:var(--grigio);margin-top:.15rem}
-.admin-list-credito{font-size:.95rem;font-weight:800;color:var(--terra)}
+.admin-list-credito{font-size:.95rem;font-weight:800;color:var(--inchiostro)}
 .admin-empty-text{color:var(--grigio);font-size:.85rem}
 
 .admin-slider-value{font-size:1rem;font-weight:800;color:var(--terra);margin-bottom:.6rem}
@@ -437,6 +437,7 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .socio-sos-box{margin-top:1.1rem;padding-top:1.1rem;border-top:1.5px solid #E9E5D9}
 .socio-sos-valore{font-size:1.05rem;font-weight:900;color:var(--terra);margin-bottom:.4rem}
 .socio-sos-reset-hint{font-size:.72rem;color:var(--grigio);margin-top:.5rem;line-height:1.4;font-style:italic}
+.socio-debito-hint{font-size:.72rem;color:var(--grigio);margin-top:.2rem}
 
 /* ---------- Griglia Prenotazione Campi ---------- */
 .pc-row{display:flex;gap:.5rem;flex-wrap:wrap;padding-top:.6rem;padding-bottom:.2rem}
