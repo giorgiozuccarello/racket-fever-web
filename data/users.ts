@@ -24,6 +24,7 @@ export interface ProfiloUtente {
   circoloId: string | null;
   credito: number;
   fotoUrl?: string | null; // se assente, si mostrano le iniziali nel cerchio
+  limiteRicaricaSOS?: number; // 0/assente = S.O.S. disattivato per questo socio
 }
 
 export interface SocioCircolo extends ProfiloUtente {
@@ -116,4 +117,10 @@ export function ascoltaSociCircolo(circoloId: string, callback: (soci: SocioCirc
     },
     suUnsub
   );
+}
+
+// Imposta il limite di ricarica S.O.S. che il socio può applicarsi da
+// solo in caso di emergenza. 0 = funzione disattivata per quel socio.
+export async function aggiornaLimiteSOS(uid: string, limite: number) {
+  await updateDoc(doc(db, 'utenti', uid), { limiteRicaricaSOS: limite });
 }

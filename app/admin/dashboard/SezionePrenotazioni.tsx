@@ -1,16 +1,48 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { Campo, Blocco, ORARI } from '../../../data/circoli';
 import { PrenotazioneAdmin, cancellaConRimborso } from '../../../data/prenotazioniRepo';
 import { creaNotifica } from '../../../data/notifiche';
+import { formatISO } from '../../../data/settimana';
 import Modal from './Modal';
 
-export default function SezionePrenotazioni({ prenotazioni }: { prenotazioni: PrenotazioneAdmin[] }) {
+const GIORNI_IT_BREVE = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+
+export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
+  campi: Campo[]; blocchi: Blocco[]; prenotazioni: PrenotazioneAdmin[];
+}) {
+  const [selDay, setSelDay] = useState(0);
+  const [selCampoId, setSelCampoId] = useState('');
   const [daAnnullare, setDaAnnullare] = useState<PrenotazioneAdmin | null>(null);
   const [elaborando, setElaborando] = useState(false);
 
-  const oggi = new Date().toISOString().slice(0, 10);
-  const future = prenotazioni.filter((p) => p.data >= oggi);
+  useEffect(() => {
+    if ((!selCampoId || !campi.some((c) => c.id === selCampoId)) && campi[0]) {
+      setSelCampoId(campi[0].id);
+    }
+  }, [campi]);
+
+  const giorni = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date();
+    d.setDate(d.getDate() + i);
+    return d;
+  });
+  const giornoSel = giorni[selDay];
+  const dataSelIso = formatISO(giornoSel);
+
+  const bloccoAttivo = (ora: string): Blocco | undefined => {
+    if (!selCampoId) return undefined;
+    return blocchi.find((b) => {
+      if (b.campoId !== selCampoId) return false;
+      if (ora < b.orarioInizio || ora >= b.orarioFine) return false;
+      if (b.tipo === 'data') return b.data === dataSelIso;
+      return (b.giorniSettimana ?? []).includes(giornoSel.getDay());
+    });
+  };
+
+  const prenotazioneSlot = (ora: string) =>
+    prenotazioni.find((p) => p.campoId === selCampoId && p.data === dataSelIso && p.orario === ora);
 
   const confermaAnnulla = async () => {
     if (!daAnnullare) return;
@@ -33,33 +65,65 @@ export default function SezionePrenotazioni({ prenotazioni }: { prenotazioni: Pr
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Prenotazioni del circolo</div>
+      <div className="admin-card-title">Prenotazione Campi</div>
       <p className="admin-card-hint">
-        Puoi annullare una prenotazione: il credito viene restituito automaticamente
-        al socio, che riceve anche un avviso nella sua area Profilo.
+        Clicca su uno slot occupato per vedere chi ha prenotato ed eventualmente annullare.
       </p>
 
-      {future.length === 0 && <p className="admin-empty-text">Nessuna prenotazione futura.</p>}
+      <div className="pc-row">
+        {giorni.map((d, i) => (
+          <button
+            key={i} onClick={() => setSelDay(i)}
+            className={`pc-day ${i === selDay ? 'selected' : ''}`}
+          >
+            <div className="pc-day-label">{i === 0 ? 'Oggi' : GIORNI_IT_BREVE[d.getDay()]}</div>
+            <div className="pc-day-num">{d.getDate()}</div>
+          </button>
+        ))}
+      </div>
 
-      {future.map((p) => (
-        <div key={p.id} className="admin-list-row">
-          <div style={{ flex: 1 }}>
-            <div className="admin-list-main">{p.utenteNome} {p.utenteCognome}</div>
-            <div className="admin-list-sub">
-              {p.campoNome} · {p.dataLabel} {p.orario} · €{p.prezzo.toFixed(2)}
-              {p.etichetta ? ` · ${p.etichetta}` : ''}
-            </div>
-          </div>
-          <button className="admin-icon-btn danger" onClick={() => setDaAnnullare(p)} aria-label="Annulla">🗑</button>
-        </div>
-      ))}
+      <div className="pc-row">
+        {campi.map((c) => (
+          <button
+            key={c.id} onClick={() => setSelCampoId(c.id)}
+            className={`pc-court ${c.id === selCampoId ? 'selected' : ''}`}
+          >
+            {c.nome}
+          </button>
+        ))}
+      </div>
+
+      <div className="pc-legend">
+        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-libero" /> Libero</span>
+        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-occupato" /> Prenotato</span>
+        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-riservato" /> Riservato</span>
+      </div>
+
+      <div className="pc-grid">
+        {ORARI.map((ora) => {
+          const blocco = bloccoAttivo(ora);
+          const p = !blocco ? prenotazioneSlot(ora) : undefined;
+          return (
+            <button
+              key={ora} disabled={!p} onClick={() => p && setDaAnnullare(p)}
+              className={`pc-slot ${p ? 'occupato' : ''} ${blocco ? 'riservato' : ''}`}
+            >
+              <div className="pc-slot-ora">{ora}</div>
+              <div className="pc-slot-sotto">
+                {p ? `${p.utenteNome} ${p.utenteCognome[0]}.` : blocco ? 'Riservato' : 'Libero'}
+              </div>
+            </button>
+          );
+        })}
+      </div>
 
       <Modal visible={!!daAnnullare} onClose={() => setDaAnnullare(null)}>
-        <div className="admin-modal-title">Annullare la prenotazione?</div>
+        <div className="admin-modal-title">Prenotazione</div>
         <div className="admin-modal-sub">
           {daAnnullare?.utenteNome} {daAnnullare?.utenteCognome}
           <br />
           {daAnnullare?.campoNome} · {daAnnullare?.dataLabel} {daAnnullare?.orario}
+          {daAnnullare?.etichetta ? ` · ${daAnnullare.etichetta}` : ''}
         </div>
         <div className="admin-modal-amount">Rimborso: €{daAnnullare?.prezzo.toFixed(2)}</div>
         <div className="admin-modal-btn-row">

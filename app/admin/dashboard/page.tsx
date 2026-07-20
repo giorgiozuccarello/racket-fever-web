@@ -98,8 +98,8 @@ export default function AdminDashboard() {
         <SezioneLimite circolo={circolo} />
         <SezionePrezzi circoloId={circolo.id} campi={campi} />
         <SezioneBlocchi circoloId={circolo.id} campi={campi} blocchi={blocchi} />
-        <SezioneSoci soci={soci} />
-        <SezionePrenotazioni prenotazioni={prenotazioni} />
+        <SezioneSoci circoloId={circolo.id} soci={soci} prenotazioni={prenotazioni} />
+        <SezionePrenotazioni campi={campi} blocchi={blocchi} prenotazioni={prenotazioni} />
       </main>
     </div>
   );

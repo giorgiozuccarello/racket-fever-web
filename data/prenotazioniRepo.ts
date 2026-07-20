@@ -88,6 +88,7 @@ export interface PrenotazioneAdmin {
   utenteId: string;
   utenteNome: string;
   utenteCognome: string;
+  campoId: string;
   campoNome: string;
   data: string;
   dataLabel: string;
@@ -111,6 +112,7 @@ export function ascoltaPrenotazioniCircolo(
           utenteId: v.utenteId,
           utenteNome: v.utenteNome ?? '',
           utenteCognome: v.utenteCognome ?? '',
+          campoId: v.campoId ?? '',
           campoNome: v.campoNome ?? '',
           data: v.data,
           dataLabel: v.dataLabel ?? v.data,
