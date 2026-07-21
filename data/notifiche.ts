@@ -14,14 +14,16 @@ export interface Notifica {
   id: string;
   testo: string;
   letta: boolean;
+  tipo?: 'lezione' | null; // presente = stile visivo distinto (avviso di lezione)
   creataIl?: { seconds: number };
 }
 
-export async function creaNotifica(utenteId: string, testo: string): Promise<void> {
+export async function creaNotifica(utenteId: string, testo: string, tipo?: 'lezione'): Promise<void> {
   await addDoc(collection(db, 'notifiche'), {
     utenteId,
     testo,
     letta: false,
+    tipo: tipo ?? null,
     creataIl: serverTimestamp(),
   });
 }

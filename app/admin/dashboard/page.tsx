@@ -19,7 +19,10 @@ import SezioneBlocchi from './SezioneBlocchi';
 import SezioneSoci from './SezioneSoci';
 import SezioneDebitiSoci from './SezioneDebitiSoci';
 import SchedaSocioModal from './SchedaSocioModal';
+import SezioneMaestri from './SezioneMaestri';
 import SezionePrenotazioni from './SezionePrenotazioni';
+import SezioneLezioniPrenotate from './SezioneLezioniPrenotate';
+import { ascoltaMaestriCircolo, MaestroConUid } from '../../../data/maestriRepo';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -29,6 +32,7 @@ export default function AdminDashboard() {
   const [blocchi, setBlocchi] = useState<Blocco[]>([]);
   const [soci, setSoci] = useState<SocioCircolo[]>([]);
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneAdmin[]>([]);
+  const [maestri, setMaestri] = useState<MaestroConUid[]>([]);
   const [socioSelUid, setSocioSelUid] = useState<string | null>(null);
   const [caricando, setCaricando] = useState(true);
 
@@ -57,7 +61,8 @@ export default function AdminDashboard() {
     const u3 = ascoltaBlocchi(responsabile.circoloId, setBlocchi);
     const u4 = ascoltaSociCircolo(responsabile.circoloId, setSoci);
     const u5 = ascoltaPrenotazioniCircolo(responsabile.circoloId, setPrenotazioni);
-    return () => { u1(); u2(); u3(); u4(); u5(); };
+    const u6 = ascoltaMaestriCircolo(responsabile.circoloId, setMaestri);
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); };
   }, [responsabile]);
 
   const logout = async () => {
@@ -103,6 +108,7 @@ export default function AdminDashboard() {
         <SezioneBlocchi circoloId={circolo.id} campi={campi} blocchi={blocchi} />
         <SezioneSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
         <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
+        <SezioneMaestri circoloId={circolo.id} maestri={maestri} />
         <SchedaSocioModal
           circoloId={circolo.id}
           socio={socioSelUid ? soci.find((x) => x.uid === socioSelUid) ?? null : null}
@@ -110,6 +116,7 @@ export default function AdminDashboard() {
           onClose={() => setSocioSelUid(null)}
         />
         <SezionePrenotazioni campi={campi} blocchi={blocchi} prenotazioni={prenotazioni} />
+        <SezioneLezioniPrenotate prenotazioni={prenotazioni} />
       </main>
     </div>
   );

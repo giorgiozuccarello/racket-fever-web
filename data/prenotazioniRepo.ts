@@ -8,6 +8,7 @@
 
 import { runTransaction, doc, collection, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
+import { rimuoviDisponibilitaPerSlot } from './disponibilitaLezioni';
 
 export async function prenotaConCredito(params: {
   uid: string;
@@ -50,7 +51,64 @@ export async function prenotaConCredito(params: {
   });
 }
 
-// Usata sia quando il socio annulla la propria prenotazione, sia
+// Prenota una LEZIONE: stessa identica logica di pagamento di
+// prenotaConCredito (il socio paga solo il normale costo del
+// campo — la lezione vera si accorda direttamente con il maestro,
+// fuori piattaforma), con in più il collegamento al maestro e la
+// rimozione delle disponibilità ormai superate su quello slot.
+// Usata sia quando è il socio a prenotare (sceglie tra i maestri
+// disponibili), sia quando è il maestro a prenotare per un socio.
+export async function prenotaLezione(params: {
+  uid: string; // socio che paga e per cui viene creata la prenotazione
+  circoloId: string;
+  campoId: string;
+  campoNome: string;
+  data: string;
+  dataLabel: string;
+  orario: string;
+  prezzo: number;
+  etichetta?: string | null;
+  utenteNome: string;
+  utenteCognome: string;
+  maestroId: string;
+  maestroNome: string;
+  maestroCognome: string;
+}): Promise<void> {
+  const utenteRef = doc(db, 'utenti', params.uid);
+  const prenotazioneRef = doc(collection(db, 'prenotazioni'));
+
+  await runTransaction(db, async (tx) => {
+    const utenteSnap = await tx.get(utenteRef);
+    if (!utenteSnap.exists()) throw new Error('UTENTE_NON_TROVATO');
+
+    const creditoAttuale = (utenteSnap.data().credito as number) ?? 0;
+    if (creditoAttuale < params.prezzo) throw new Error('CREDITO_INSUFFICIENTE');
+
+    tx.update(utenteRef, { credito: creditoAttuale - params.prezzo });
+    tx.set(prenotazioneRef, {
+      utenteId: params.uid,
+      circoloId: params.circoloId,
+      campoId: params.campoId,
+      campoNome: params.campoNome,
+      data: params.data,
+      dataLabel: params.dataLabel,
+      orario: params.orario,
+      prezzo: params.prezzo,
+      etichetta: params.etichetta ?? null,
+      utenteNome: params.utenteNome,
+      utenteCognome: params.utenteCognome,
+      tipo: 'lezione',
+      maestroId: params.maestroId,
+      maestroNome: params.maestroNome,
+      maestroCognome: params.maestroCognome,
+      creataIl: serverTimestamp(),
+    });
+  });
+
+  // Fuori dalla transazione: tocca un'altra collezione con una query,
+  // non un singolo documento noto in anticipo.
+  await rimuoviDisponibilitaPerSlot(params.circoloId, params.campoId, params.data, params.orario);
+}
 // quando l'Admin Circolo annulla la prenotazione di un socio: in
 // entrambi i casi va rimborsato esattamente il prezzo pagato allora
 // (non il prezzo attuale della tariffa, che potrebbe essere cambiato).
@@ -111,6 +169,10 @@ export interface PrenotazioneAdmin {
   orario: string;
   prezzo: number;
   etichetta?: string | null;
+  tipo?: 'campo' | 'lezione';
+  maestroId?: string;
+  maestroNome?: string;
+  maestroCognome?: string;
 }
 
 export function ascoltaPrenotazioniCircolo(
@@ -135,6 +197,10 @@ export function ascoltaPrenotazioniCircolo(
           orario: v.orario,
           prezzo: v.prezzo ?? 0,
           etichetta: v.etichetta ?? null,
+          tipo: v.tipo ?? 'campo',
+          maestroId: v.maestroId,
+          maestroNome: v.maestroNome,
+          maestroCognome: v.maestroCognome,
         } as PrenotazioneAdmin;
       });
       elenco.sort((a, b) => (a.data + a.orario).localeCompare(b.data + b.orario));
