@@ -6,7 +6,7 @@
 // due, così credito e prenotazioni non si disallineano mai.
 // ============================================================
 
-import { runTransaction, doc, collection, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
+import { runTransaction, doc, deleteDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { rimuoviDisponibilitaPerSlot } from './disponibilitaLezioni';
 
@@ -109,9 +109,56 @@ export async function prenotaLezione(params: {
   // non un singolo documento noto in anticipo.
   await rimuoviDisponibilitaPerSlot(params.circoloId, params.campoId, params.data, params.orario);
 }
-// quando l'Admin Circolo annulla la prenotazione di un socio: in
-// entrambi i casi va rimborsato esattamente il prezzo pagato allora
-// (non il prezzo attuale della tariffa, che potrebbe essere cambiato).
+
+// Prenota una lezione con un allievo che NON è socio del circolo
+// (non ha un account/wallet nel sistema): nessuna transazione sul
+// credito, solo un documento che occupa lo slot sulla griglia e
+// tiene traccia della lezione. Il costo del campo, in questo caso,
+// si salda direttamente in segreteria — non c'è un wallet da cui
+// scalarlo. "prezzo" resta comunque calcolato e mostrato (a chi
+// gestisce il circolo/il maestro) come riferimento di quanto va
+// raccolto in contanti, ma non genera alcun addebito automatico.
+export async function prenotaLezioneOspite(params: {
+  circoloId: string;
+  campoId: string;
+  campoNome: string;
+  data: string;
+  dataLabel: string;
+  orario: string;
+  prezzo: number;
+  nomeOspite: string;
+  maestroId: string;
+  maestroNome: string;
+  maestroCognome: string;
+}): Promise<void> {
+  await addDoc(collection(db, 'prenotazioni'), {
+    utenteId: '',
+    utenteNome: params.nomeOspite,
+    utenteCognome: '',
+    circoloId: params.circoloId,
+    campoId: params.campoId,
+    campoNome: params.campoNome,
+    data: params.data,
+    dataLabel: params.dataLabel,
+    orario: params.orario,
+    prezzo: params.prezzo,
+    etichetta: null,
+    tipo: 'lezione',
+    ospite: true,
+    maestroId: params.maestroId,
+    maestroNome: params.maestroNome,
+    maestroCognome: params.maestroCognome,
+    creataIl: serverTimestamp(),
+  });
+
+  await rimuoviDisponibilitaPerSlot(params.circoloId, params.campoId, params.data, params.orario);
+}
+
+// Usata quando il socio annulla la propria prenotazione, quando
+// l'Admin Circolo annulla la prenotazione di un socio, o quando il
+// Maestro annulla una lezione: in tutti i casi va rimborsato
+// esattamente il prezzo pagato allora (non il prezzo attuale della
+// tariffa, che potrebbe essere cambiato).
 export async function cancellaConRimborso(params: {
   uid: string;
   prenotazioneId: string;
@@ -127,6 +174,13 @@ export async function cancellaConRimborso(params: {
     tx.update(utenteRef, { credito: creditoAttuale + params.prezzo });
     tx.delete(prenotazioneRef);
   });
+}
+
+// Cancella una lezione con un allievo NON socio: nessun wallet da cui
+// era stato scalato nulla in origine (vedi prenotaLezioneOspite), quindi
+// qui non c'è alcun rimborso da fare — solo la rimozione dello slot.
+export async function cancellaSenzaRimborso(prenotazioneId: string): Promise<void> {
+  await deleteDoc(doc(db, 'prenotazioni', prenotazioneId));
 }
 
 // Ricarica del wallet da parte della segreteria/Admin Circolo.
@@ -170,6 +224,7 @@ export interface PrenotazioneAdmin {
   prezzo: number;
   etichetta?: string | null;
   tipo?: 'campo' | 'lezione';
+  ospite?: boolean;
   maestroId?: string;
   maestroNome?: string;
   maestroCognome?: string;
@@ -198,6 +253,7 @@ export function ascoltaPrenotazioniCircolo(
           prezzo: v.prezzo ?? 0,
           etichetta: v.etichetta ?? null,
           tipo: v.tipo ?? 'campo',
+          ospite: v.ospite ?? false,
           maestroId: v.maestroId,
           maestroNome: v.maestroNome,
           maestroCognome: v.maestroCognome,

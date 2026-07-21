@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { auth } from '../../../lib/firebase';
 import { leggiResponsabile, ProfiloResponsabile } from '../../../data/responsabili';
+import { leggiSessioneCollaboratore } from '../../../data/collaboratori';
 import { ascoltaSociCircolo, SocioCircolo } from '../../../data/users';
 import { Circolo, Campo, Blocco } from '../../../data/circoli';
 import { ascoltaCircolo, ascoltaCampi, ascoltaBlocchi } from '../../../data/circoliRepo';
 import { ascoltaPrenotazioniCircolo, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
 import InstallPrompt from '../InstallPrompt';
 import SezionePassword from './SezionePassword';
+import SezioneCollaboratori from './SezioneCollaboratori';
 import SezionePersonalizzaApp from './SezionePersonalizzaApp';
 import SezioneCampi from './SezioneCampi';
 import SezioneLimite from './SezioneLimite';
@@ -43,13 +45,19 @@ export default function AdminDashboard() {
         return;
       }
       const r = await leggiResponsabile(user.uid);
-      if (!r) {
-        await signOut(auth);
-        router.replace('/admin/login');
+      if (r) {
+        setResponsabile(r);
+        setCaricando(false);
         return;
       }
-      setResponsabile(r);
-      setCaricando(false);
+      const sessione = await leggiSessioneCollaboratore(user.uid);
+      if (sessione) {
+        setResponsabile({ nome: 'Collaboratore', cognome: '', email: '', circoloId: sessione.circoloId });
+        setCaricando(false);
+        return;
+      }
+      await signOut(auth);
+      router.replace('/admin/login');
     });
     return unsub;
   }, [router]);
@@ -102,6 +110,7 @@ export default function AdminDashboard() {
       <main className="admin-main">
         <SezionePersonalizzaApp circolo={circolo} />
         <SezionePassword circolo={circolo} />
+        <SezioneCollaboratori circoloId={circolo.id} />
         <SezioneCampi circoloId={circolo.id} campi={campi} />
         <SezioneLimite circolo={circolo} />
         <SezionePrezzi circoloId={circolo.id} campi={campi} />

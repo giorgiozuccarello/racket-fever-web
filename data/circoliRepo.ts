@@ -9,7 +9,7 @@
 // ============================================================
 
 import {
-  collection, doc, getDoc, onSnapshot, updateDoc, addDoc, deleteDoc, query, orderBy,
+  collection, doc, getDoc, setDoc, onSnapshot, updateDoc, addDoc, deleteDoc, query, orderBy,
   where, getDocs, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -118,4 +118,26 @@ export async function modificaBlocco(circoloId: string, bloccoId: string, dati: 
 
 export async function rimuoviBlocco(circoloId: string, bloccoId: string) {
   await deleteDoc(doc(db, 'circoli', circoloId, 'blocchi', bloccoId));
+}
+
+// ============================================================
+// ACCESSO COLLABORATORI — una password condivisa a livello di
+// circolo (distinta da quella dei soci) che dà accesso alla
+// Dashboard Admin senza dover creare un account persistente.
+// Vive in un sotto-documento "privato", non nel documento circolo
+// pubblico: solo l'Admin del circolo può leggerla o cambiarla — un
+// socio qualunque non può vederla semplicemente leggendo i dati del
+// circolo, come invece accade (di proposito, per semplicità) con la
+// password d'accesso dei soci.
+// ============================================================
+export function ascoltaPasswordCollaboratore(circoloId: string, callback: (password: string | null) => void) {
+  return onSnapshot(
+    doc(db, 'circoli', circoloId, 'privato', 'collaboratore'),
+    (snap) => callback(snap.exists() ? ((snap.data().password as string) ?? null) : null),
+    (errore) => console.warn('Ascolto password collaboratore interrotto:', errore?.message ?? errore)
+  );
+}
+
+export async function impostaPasswordCollaboratore(circoloId: string, password: string) {
+  await setDoc(doc(db, 'circoli', circoloId, 'privato', 'collaboratore'), { password: password.trim() });
 }

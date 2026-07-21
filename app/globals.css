@@ -235,6 +235,7 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-login-card .btn{width:100%;margin-top:1.4rem;padding:.9rem;border-radius:10px;text-align:center}
 .admin-login-error{color:#FFB4A8;font-size:.85rem;margin-top:.8rem}
 .admin-login-hint{color:rgba(245,241,230,.6);font-size:.75rem;text-align:center;margin-top:1.4rem;line-height:1.5}
+.admin-login-hint a{color:rgba(245,241,230,.75);text-decoration:underline}
 
 .admin-shell{min-height:100vh;background:var(--carta)}
 .admin-header{
@@ -418,6 +419,12 @@ footer li a:hover{opacity:1;text-decoration:underline}
 
 /* ---------- Ricerca soci + scheda socio ---------- */
 .admin-list-row-clickable{cursor:pointer;transition:background .12s}
+.maestro-block{border-bottom:1.5px solid #E9E5D9;padding-bottom:.6rem;margin-bottom:.3rem}
+.admin-checkbox-row{
+  display:flex;align-items:center;gap:.6rem;padding:.3rem 0;cursor:pointer;
+  font-size:.82rem;color:var(--grigio);
+}
+.admin-checkbox-row input[type="checkbox"]{width:16px;height:16px;accent-color:var(--pino);cursor:pointer}
 .admin-list-row-clickable:hover{background:#F7F4EA;margin:0 -.5rem;padding-left:.5rem;padding-right:.5rem;border-radius:8px}
 .socio-detail-head{display:flex;flex-direction:column;align-items:center;text-align:center}
 .socio-detail-avatar{width:84px;height:84px;border-radius:42px;object-fit:cover}

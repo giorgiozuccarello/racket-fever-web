@@ -58,9 +58,25 @@ function generaOrari(inizio: string, fine: string): string[] {
   return risultato;
 }
 
-export const ORARI = [...generaOrari('08:00', '12:00'), ...generaOrari('16:00', '22:00')];
+export const ORARI = [...generaOrari('08:00', '12:00'), ...generaOrari('16:00', '23:00')];
 
 // Usato SOLO nei menu a tendina dell'Admin (orario di fine di una
-// tariffa speciale o di un blocco): arriva a 23:00 così si può
-// coprire per intero anche l'ultimo slot prenotabile (22:00-22:30).
-export const ORARI_ESTESI = [...ORARI, '22:30', '23:00'];
+// tariffa speciale o di un blocco): arriva a 23:30 così si può
+// coprire per intero anche l'ultimo slot prenotabile (23:00-23:30).
+export const ORARI_ESTESI = [...ORARI, '23:30'];
+
+// Orario di fine di uno slot da mezz'ora (es. "18:00" → "18:30").
+export function orarioFineSlot(orario: string): string {
+  const [h, m] = orario.split(':').map(Number);
+  let nm = m + 30;
+  let nh = h;
+  if (nm >= 60) { nm -= 60; nh += 1; }
+  return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
+}
+
+// Fascia oraria completa (es. "18:00 - 18:30"), da usare ovunque
+// TRANNE che nelle celle della griglia (lì resta solo "18:00", per
+// non affollarle): popup, avvisi/notifiche, storico prenotazioni.
+export function fasciaOraria(orario: string): string {
+  return `${orario} - ${orarioFineSlot(orario)}`;
+}

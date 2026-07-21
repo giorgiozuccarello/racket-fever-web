@@ -73,6 +73,9 @@ export default function AdminLogin() {
         <p className="admin-login-hint">
           Le credenziali sono fornite dal team Racket Fever in fase di attivazione del circolo.
         </p>
+        <p className="admin-login-hint">
+          <a href="/admin/collaboratore">Sei un Collaboratore senza account? Entra qui</a>
+        </p>
       </form>
     </div>
   );

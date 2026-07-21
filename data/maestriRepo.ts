@@ -16,7 +16,7 @@ import {
   signOut as signOutSecondaria, User,
 } from 'firebase/auth';
 import {
-  doc, setDoc, getDoc, deleteDoc, collection, onSnapshot, query, where,
+  doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 
@@ -36,6 +36,7 @@ export interface ProfiloMaestro {
   cognome: string;
   email: string;
   circoloId: string;
+  puoAccedereAdmin?: boolean; // se true, questo account può accedere ANCHE come Admin Circolo
 }
 
 export interface MaestroConUid extends ProfiloMaestro {
@@ -62,7 +63,8 @@ export function ascoltaMaestriCircolo(circoloId: string, callback: (m: MaestroCo
 }
 
 export async function creaMaestro(
-  circoloId: string, nome: string, cognome: string, email: string, password: string
+  circoloId: string, nome: string, cognome: string, email: string, password: string,
+  consentiAdmin: boolean = false
 ): Promise<string> {
   const nomeAppTemporanea = `maestro-onboarding-${Date.now()}`;
   const appSecondaria = initializeApp(firebaseConfig, nomeAppTemporanea);
@@ -79,13 +81,41 @@ export async function creaMaestro(
 
   await setDoc(doc(db, 'maestri', uid), {
     nome: nome.trim(), cognome: cognome.trim(), email: email.trim(), circoloId,
+    puoAccedereAdmin: consentiAdmin,
   });
+
+  if (consentiAdmin) {
+    await setDoc(doc(db, 'responsabili', uid), {
+      nome: nome.trim(), cognome: cognome.trim(), email: email.trim(), circoloId,
+    });
+  }
+
   return uid;
 }
 
-export async function rimuoviMaestro(uid: string) {
-  // Rimuove solo il profilo/i permessi: l'account Auth resta (come
-  // già facciamo per i Responsabili) — la cancellazione account va
-  // gestita separatamente se mai servisse.
-  await deleteDoc(doc(db, 'maestri', uid));
+// Concede o revoca, per un Maestro già esistente, il permesso di
+// accedere ANCHE come Admin Circolo (stesso account, stesso login).
+// Concedere crea un documento "responsabili" gemello con lo stesso
+// uid; revocare lo elimina. Senza questo, un Maestro non può in
+// alcun modo entrare in Admin — è bloccato lato regole, non solo
+// lato interfaccia.
+export async function impostaAccessoAdmin(maestro: MaestroConUid, consentito: boolean) {
+  if (consentito) {
+    await setDoc(doc(db, 'responsabili', maestro.uid), {
+      nome: maestro.nome, cognome: maestro.cognome, email: maestro.email, circoloId: maestro.circoloId,
+    });
+  } else {
+    await deleteDoc(doc(db, 'responsabili', maestro.uid));
+  }
+  await updateDoc(doc(db, 'maestri', maestro.uid), { puoAccedereAdmin: consentito });
+}
+
+export async function rimuoviMaestro(maestro: MaestroConUid) {
+  // Rimuove il profilo Maestro e, se presente, anche il gemello
+  // "responsabili" (altrimenti resterebbe un accesso Admin fantasma
+  // per un account che dall'elenco Maestri sembra sparito).
+  if (maestro.puoAccedereAdmin) {
+    await deleteDoc(doc(db, 'responsabili', maestro.uid));
+  }
+  await deleteDoc(doc(db, 'maestri', maestro.uid));
 }

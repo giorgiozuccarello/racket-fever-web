@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MaestroConUid, creaMaestro, rimuoviMaestro } from '../../../data/maestriRepo';
+import { MaestroConUid, creaMaestro, rimuoviMaestro, impostaAccessoAdmin } from '../../../data/maestriRepo';
 
 export default function SezioneMaestri({ circoloId, maestri }: {
   circoloId: string; maestri: MaestroConUid[];
@@ -11,11 +11,13 @@ export default function SezioneMaestri({ circoloId, maestri }: {
   const [cognome, setCognome] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [consentiAdmin, setConsentiAdmin] = useState(false);
   const [errore, setErrore] = useState('');
   const [creando, setCreando] = useState(false);
   const [datiCreati, setDatiCreati] = useState<{ nome: string; email: string; password: string } | null>(null);
+  const [aggiornandoUid, setAggiornandoUid] = useState<string | null>(null);
 
-  const reset = () => { setNome(''); setCognome(''); setEmail(''); setPassword(''); setErrore(''); };
+  const reset = () => { setNome(''); setCognome(''); setEmail(''); setPassword(''); setConsentiAdmin(false); setErrore(''); };
 
   const crea = async () => {
     setErrore('');
@@ -29,7 +31,7 @@ export default function SezioneMaestri({ circoloId, maestri }: {
     }
     setCreando(true);
     try {
-      await creaMaestro(circoloId, nome, cognome, email, password);
+      await creaMaestro(circoloId, nome, cognome, email, password, consentiAdmin);
       setDatiCreati({ nome: `${nome.trim()} ${cognome.trim()}`, email: email.trim(), password });
       reset();
       setFormAperto(false);
@@ -41,12 +43,22 @@ export default function SezioneMaestri({ circoloId, maestri }: {
     }
   };
 
+  const toggleAccessoAdmin = async (m: MaestroConUid) => {
+    setAggiornandoUid(m.uid);
+    try {
+      await impostaAccessoAdmin(m, !m.puoAccedereAdmin);
+    } finally {
+      setAggiornandoUid(null);
+    }
+  };
+
   return (
     <div className="admin-card">
       <div className="admin-card-title">Maestri</div>
       <p className="admin-card-hint">
         Ogni Maestro ha un proprio account, separato dal tuo: gestisce solo la
-        disponibilità per le lezioni, non prezzi, soci o incassi.
+        disponibilità per le lezioni, non prezzi, soci o incassi — a meno che
+        tu non gli conceda esplicitamente anche l&apos;accesso Admin.
       </p>
 
       {maestri.length === 0 && !formAperto && (
@@ -54,12 +66,21 @@ export default function SezioneMaestri({ circoloId, maestri }: {
       )}
 
       {maestri.map((m) => (
-        <div key={m.uid} className="admin-list-row">
-          <div style={{ flex: 1 }}>
-            <div className="admin-list-main">{m.nome} {m.cognome}</div>
-            <div className="admin-list-sub">{m.email}</div>
+        <div key={m.uid} className="maestro-block">
+          <div className="admin-list-row">
+            <div style={{ flex: 1 }}>
+              <div className="admin-list-main">{m.nome} {m.cognome}</div>
+              <div className="admin-list-sub">{m.email}</div>
+            </div>
+            <button className="admin-icon-btn danger" onClick={() => rimuoviMaestro(m)} aria-label="Rimuovi">🗑</button>
           </div>
-          <button className="admin-icon-btn danger" onClick={() => rimuoviMaestro(m.uid)} aria-label="Rimuovi">🗑</button>
+          <label className="admin-checkbox-row">
+            <input
+              type="checkbox" checked={!!m.puoAccedereAdmin}
+              onChange={() => toggleAccessoAdmin(m)} disabled={aggiornandoUid === m.uid}
+            />
+            <span>{aggiornandoUid === m.uid ? 'Aggiornamento…' : 'Può accedere anche come Admin Circolo'}</span>
+          </label>
         </div>
       ))}
 
@@ -84,6 +105,11 @@ export default function SezioneMaestri({ circoloId, maestri }: {
           <input className="admin-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="maestro@circolo.it" />
           <label className="admin-label">Password</label>
           <input className="admin-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Almeno 6 caratteri" />
+
+          <label className="admin-checkbox-row" style={{ marginTop: '.8rem' }}>
+            <input type="checkbox" checked={consentiAdmin} onChange={(e) => setConsentiAdmin(e.target.checked)} />
+            <span>Consenti anche l&apos;accesso come Admin Circolo</span>
+          </label>
 
           {errore && <div className="admin-error-text">{errore}</div>}
 
