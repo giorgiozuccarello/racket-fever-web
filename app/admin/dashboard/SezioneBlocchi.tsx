@@ -17,6 +17,7 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
   const [orarioInizio, setOrarioInizio] = useState('');
   const [orarioFine, setOrarioFine] = useState('');
   const [etichetta, setEtichetta] = useState('');
+  const [nascondiInfo, setNascondiInfo] = useState(false);
   const [errore, setErrore] = useState('');
 
   const [modificaBloccoObj, setModificaBloccoObj] = useState<Blocco | null>(null);
@@ -27,6 +28,7 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
   const [modOrarioInizio, setModOrarioInizio] = useState('');
   const [modOrarioFine, setModOrarioFine] = useState('');
   const [modEtichetta, setModEtichetta] = useState('');
+  const [modNascondiInfo, setModNascondiInfo] = useState(false);
   const [modErrore, setModErrore] = useState('');
 
   useEffect(() => {
@@ -45,7 +47,7 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
     if (tipo === 'ricorrente' && giorniSel.length === 0) { setErrore('Seleziona almeno un giorno.'); return; }
     if (tipo === 'data' && !data.trim()) { setErrore('Inserisci una data.'); return; }
 
-    const nuovoBlocco: any = { campoId, tipo, orarioInizio, orarioFine, etichetta: etichetta.trim() };
+    const nuovoBlocco: any = { campoId, tipo, orarioInizio, orarioFine, etichetta: etichetta.trim(), nascondiInfo };
     if (tipo === 'ricorrente') nuovoBlocco.giorniSettimana = giorniSel;
     else nuovoBlocco.data = data.trim();
 
@@ -53,6 +55,7 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
     setEtichetta('');
     setData('');
     setGiorniSel([]);
+    setNascondiInfo(false);
   };
 
   const apriModifica = (b: Blocco) => {
@@ -64,6 +67,7 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
     setModOrarioInizio(b.orarioInizio);
     setModOrarioFine(b.orarioFine);
     setModEtichetta(b.etichetta);
+    setModNascondiInfo(!!b.nascondiInfo);
     setModErrore('');
   };
 
@@ -80,7 +84,10 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
     if (modTipo === 'ricorrente' && modGiorniSel.length === 0) { setModErrore('Seleziona almeno un giorno.'); return; }
     if (modTipo === 'data' && !modData.trim()) { setModErrore('Inserisci una data.'); return; }
 
-    const dati: any = { campoId: modCampoId, tipo: modTipo, orarioInizio: modOrarioInizio, orarioFine: modOrarioFine, etichetta: modEtichetta.trim() };
+    const dati: any = {
+      campoId: modCampoId, tipo: modTipo, orarioInizio: modOrarioInizio, orarioFine: modOrarioFine,
+      etichetta: modEtichetta.trim(), nascondiInfo: modNascondiInfo,
+    };
     if (modTipo === 'ricorrente') dati.giorniSettimana = modGiorniSel;
     else dati.data = modData.trim();
 
@@ -168,6 +175,11 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
       <label className="admin-label">Etichetta</label>
       <input className="admin-input" value={etichetta} onChange={(e) => setEtichetta(e.target.value)} placeholder="Scuola Tennis" />
 
+      <label className="admin-checkbox-row">
+        <input type="checkbox" checked={nascondiInfo} onChange={(e) => setNascondiInfo(e.target.checked)} />
+        <span>Nascondi Informazioni sulla griglia (i soci vedranno solo &quot;Riservato&quot;)</span>
+      </label>
+
       {errore && <div className="admin-error-text">{errore}</div>}
 
       <button className="admin-btn-full" onClick={aggiungi}>+ Aggiungi blocco</button>
@@ -227,6 +239,11 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
 
         <label className="admin-label">Etichetta</label>
         <input className="admin-input" value={modEtichetta} onChange={(e) => setModEtichetta(e.target.value)} placeholder="Scuola Tennis" />
+
+        <label className="admin-checkbox-row">
+          <input type="checkbox" checked={modNascondiInfo} onChange={(e) => setModNascondiInfo(e.target.checked)} />
+          <span>Nascondi Informazioni sulla griglia (i soci vedranno solo &quot;Riservato&quot;)</span>
+        </label>
 
         {modErrore && <div className="admin-error-text">{modErrore}</div>}
 

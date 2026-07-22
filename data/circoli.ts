@@ -43,6 +43,7 @@ export interface Blocco {
   orarioInizio: string;
   orarioFine: string;
   etichetta: string;
+  nascondiInfo?: boolean; // se true, i soci vedono solo "Riservato", non il motivo
 }
 
 // Genera le fasce orarie a mezz'ora tra due orari (inclusi).

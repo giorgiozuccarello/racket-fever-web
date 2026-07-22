@@ -23,6 +23,7 @@ import SezioneDebitiSoci from './SezioneDebitiSoci';
 import SchedaSocioModal from './SchedaSocioModal';
 import SezioneMaestri from './SezioneMaestri';
 import SezionePrenotazioni from './SezionePrenotazioni';
+import SezioneNotePrenotazioni from './SezioneNotePrenotazioni';
 import SezioneLezioniPrenotate from './SezioneLezioniPrenotate';
 import { ascoltaMaestriCircolo, MaestroConUid } from '../../../data/maestriRepo';
 
@@ -125,6 +126,7 @@ export default function AdminDashboard() {
           onClose={() => setSocioSelUid(null)}
         />
         <SezionePrenotazioni campi={campi} blocchi={blocchi} prenotazioni={prenotazioni} />
+        <SezioneNotePrenotazioni prenotazioni={prenotazioni} />
         <SezioneLezioniPrenotate prenotazioni={prenotazioni} />
       </main>
     </div>

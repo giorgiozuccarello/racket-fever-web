@@ -22,6 +22,11 @@ export async function prenotaConCredito(params: {
   etichetta?: string | null;
   utenteNome: string;
   utenteCognome: string;
+  note?: string;
+  nascondiInfo?: boolean;
+  compagnoId?: string | null;
+  compagnoNome?: string | null;
+  compagnoCognome?: string | null;
 }): Promise<void> {
   const utenteRef = doc(db, 'utenti', params.uid);
   const prenotazioneRef = doc(collection(db, 'prenotazioni'));
@@ -46,6 +51,76 @@ export async function prenotaConCredito(params: {
       etichetta: params.etichetta ?? null,
       utenteNome: params.utenteNome,
       utenteCognome: params.utenteCognome,
+      note: params.note?.trim() || null,
+      nascondiInfo: !!params.nascondiInfo,
+      compagnoId: params.compagnoId ?? null,
+      compagnoNome: params.compagnoNome ?? null,
+      compagnoCognome: params.compagnoCognome ?? null,
+      costoDiviso: false,
+      creataIl: serverTimestamp(),
+    });
+  });
+}
+
+// Prenota un campo con un COMPAGNO che paga metà del costo: transazione
+// su ENTRAMBI i wallet insieme (o vanno a buon fine tutti e due gli
+// addebiti, o nessuno dei due). Va chiamata solo dopo aver già
+// verificato — lato chiamante — che il compagno abbia credito
+// sufficiente per la sua metà; qui rifacciamo comunque il controllo
+// server-side, per sicurezza, prima di scrivere qualunque cosa.
+export async function prenotaConCompagno(params: {
+  uid: string;
+  compagnoId: string;
+  circoloId: string;
+  campoId: string;
+  campoNome: string;
+  data: string;
+  dataLabel: string;
+  orario: string;
+  prezzo: number;
+  etichetta?: string | null;
+  utenteNome: string;
+  utenteCognome: string;
+  compagnoNome: string;
+  compagnoCognome: string;
+  note?: string;
+  nascondiInfo?: boolean;
+}): Promise<void> {
+  const utenteRef = doc(db, 'utenti', params.uid);
+  const compagnoRef = doc(db, 'utenti', params.compagnoId);
+  const prenotazioneRef = doc(collection(db, 'prenotazioni'));
+  const meta = Math.round((params.prezzo / 2) * 100) / 100;
+
+  await runTransaction(db, async (tx) => {
+    const utenteSnap = await tx.get(utenteRef);
+    const compagnoSnap = await tx.get(compagnoRef);
+    if (!utenteSnap.exists() || !compagnoSnap.exists()) throw new Error('UTENTE_NON_TROVATO');
+
+    const creditoUtente = (utenteSnap.data().credito as number) ?? 0;
+    const creditoCompagno = (compagnoSnap.data().credito as number) ?? 0;
+    if (creditoUtente < meta) throw new Error('CREDITO_INSUFFICIENTE');
+    if (creditoCompagno < meta) throw new Error('CREDITO_COMPAGNO_INSUFFICIENTE');
+
+    tx.update(utenteRef, { credito: creditoUtente - meta });
+    tx.update(compagnoRef, { credito: creditoCompagno - meta });
+    tx.set(prenotazioneRef, {
+      utenteId: params.uid,
+      circoloId: params.circoloId,
+      campoId: params.campoId,
+      campoNome: params.campoNome,
+      data: params.data,
+      dataLabel: params.dataLabel,
+      orario: params.orario,
+      prezzo: params.prezzo,
+      etichetta: params.etichetta ?? null,
+      utenteNome: params.utenteNome,
+      utenteCognome: params.utenteCognome,
+      note: params.note?.trim() || null,
+      nascondiInfo: !!params.nascondiInfo,
+      compagnoId: params.compagnoId,
+      compagnoNome: params.compagnoNome,
+      compagnoCognome: params.compagnoCognome,
+      costoDiviso: true,
       creataIl: serverTimestamp(),
     });
   });
@@ -73,6 +148,7 @@ export async function prenotaLezione(params: {
   maestroId: string;
   maestroNome: string;
   maestroCognome: string;
+  nascondiInfo?: boolean;
 }): Promise<void> {
   const utenteRef = doc(db, 'utenti', params.uid);
   const prenotazioneRef = doc(collection(db, 'prenotazioni'));
@@ -101,6 +177,7 @@ export async function prenotaLezione(params: {
       maestroId: params.maestroId,
       maestroNome: params.maestroNome,
       maestroCognome: params.maestroCognome,
+      nascondiInfo: !!params.nascondiInfo,
       creataIl: serverTimestamp(),
     });
   });
@@ -130,6 +207,7 @@ export async function prenotaLezioneOspite(params: {
   maestroId: string;
   maestroNome: string;
   maestroCognome: string;
+  nascondiInfo?: boolean;
 }): Promise<void> {
   await addDoc(collection(db, 'prenotazioni'), {
     utenteId: '',
@@ -148,6 +226,7 @@ export async function prenotaLezioneOspite(params: {
     maestroId: params.maestroId,
     maestroNome: params.maestroNome,
     maestroCognome: params.maestroCognome,
+    nascondiInfo: !!params.nascondiInfo,
     creataIl: serverTimestamp(),
   });
 
@@ -228,6 +307,12 @@ export interface PrenotazioneAdmin {
   maestroId?: string;
   maestroNome?: string;
   maestroCognome?: string;
+  compagnoId?: string;
+  compagnoNome?: string;
+  compagnoCognome?: string;
+  costoDiviso?: boolean; // true se il prezzo è stato effettivamente diviso col compagno
+  note?: string;
+  nascondiInfo?: boolean; // se true, altri soci vedono solo "Prenotato", non i dettagli
 }
 
 export function ascoltaPrenotazioniCircolo(
@@ -257,6 +342,12 @@ export function ascoltaPrenotazioniCircolo(
           maestroId: v.maestroId,
           maestroNome: v.maestroNome,
           maestroCognome: v.maestroCognome,
+          compagnoId: v.compagnoId,
+          compagnoNome: v.compagnoNome,
+          compagnoCognome: v.compagnoCognome,
+          costoDiviso: v.costoDiviso ?? false,
+          note: v.note ?? '',
+          nascondiInfo: v.nascondiInfo ?? false,
         } as PrenotazioneAdmin;
       });
       elenco.sort((a, b) => (a.data + a.orario).localeCompare(b.data + b.orario));

@@ -26,6 +26,7 @@ export interface ProfiloUtente {
   fotoUrl?: string | null; // se assente, si mostrano le iniziali nel cerchio
   limiteRicaricaSOS?: number; // 0/assente = S.O.S. non ancora attivato per questo socio
   sosUtilizzato?: number; // quanto del plafond S.O.S. è già stato usato dall'ultimo Ripristina
+  limitePrenotazioniPersonale?: number; // 0/assente = usa il limite generale del circolo
 }
 
 export interface SocioCircolo extends ProfiloUtente {
@@ -124,6 +125,13 @@ export function ascoltaSociCircolo(circoloId: string, callback: (soci: SocioCirc
 // solo in caso di emergenza. 0 = funzione disattivata per quel socio.
 export async function aggiornaLimiteSOS(uid: string, limite: number) {
   await updateDoc(doc(db, 'utenti', uid), { limiteRicaricaSOS: limite });
+}
+
+// Limite di prenotazioni settimanali specifico per un socio — se
+// impostato (> 0), sostituisce quello generale del circolo solo per
+// lui. 0 = usa il limite del circolo.
+export async function aggiornaLimitePersonale(uid: string, limite: number) {
+  await updateDoc(doc(db, 'utenti', uid), { limitePrenotazioniPersonale: limite });
 }
 
 // L'Admin usa questo quando il socio è passato fisicamente in

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SocioCircolo, aggiornaLimiteSOS, ripristinaSOS } from '../../../data/users';
+import { SocioCircolo, aggiornaLimiteSOS, aggiornaLimitePersonale, ripristinaSOS } from '../../../data/users';
 import { ricaricaCredito, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
 import { CONTENUTI_DEMO } from '../../../data/contenutiDemo';
 import Modal from './Modal';
@@ -13,6 +13,7 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
   const [importo, setImporto] = useState('');
   const [inviando, setInviando] = useState(false);
   const [salvandoSOS, setSalvandoSOS] = useState(false);
+  const [salvandoLimite, setSalvandoLimite] = useState(false);
   const [ripristinando, setRipristinando] = useState(false);
   const [confermaRipristinoAperta, setConfermaRipristinoAperta] = useState(false);
 
@@ -39,6 +40,13 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
     setSalvandoSOS(true);
     await aggiornaLimiteSOS(socio.uid, v);
     setSalvandoSOS(false);
+  };
+
+  const salvaLimitePersonale = async (v: number) => {
+    if (!socio) return;
+    setSalvandoLimite(true);
+    await aggiornaLimitePersonale(socio.uid, v);
+    setSalvandoLimite(false);
   };
 
   const confermaRipristino = async () => {
@@ -130,6 +138,25 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
               &quot;Ripristina&quot; azzera l&apos;usato quando il socio salda in segreteria,
               restituendogli tutto il plafond.
             </p>
+
+            <div className="socio-sos-box">
+              <label className="admin-label">Limite prenotazioni settimanali (personale)</label>
+              <p className="admin-card-hint" style={{ marginBottom: '.6rem' }}>
+                Sostituisce, solo per questo socio, il limite generale del circolo.
+              </p>
+              <div className="socio-sos-valore">
+                {(socio.limitePrenotazioniPersonale ?? 0) === 0
+                  ? 'Usa il limite del circolo'
+                  : `${socio.limitePrenotazioniPersonale} ${socio.limitePrenotazioniPersonale === 1 ? 'ora' : 'ore'} / settimana`}
+              </div>
+              <input
+                type="range" min={0} max={10} step={1}
+                value={socio.limitePrenotazioniPersonale ?? 0}
+                onChange={(e) => salvaLimitePersonale(Number(e.target.value))}
+                style={{ width: '100%' }}
+              />
+              {salvandoLimite && <div className="admin-saving">Salvataggio…</div>}
+            </div>
           </>
         )}
       </Modal>
