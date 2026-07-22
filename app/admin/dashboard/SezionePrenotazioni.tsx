@@ -1,13 +1,27 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Campo, Blocco, ORARI } from '../../../data/circoli';
+import { Campo, Blocco, ORARI, fasciaOraria } from '../../../data/circoli';
 import { PrenotazioneAdmin, cancellaConRimborso } from '../../../data/prenotazioniRepo';
 import { creaNotifica } from '../../../data/notifiche';
 import { formatISO } from '../../../data/settimana';
 import Modal from './Modal';
 
 const GIORNI_IT_BREVE = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+
+// Titolo prominente del pop-up di una prenotazione: chi gioca, con chi —
+// la stessa regola in tutta l'app: le info contano più dell'azione.
+function intestazionePrenotazione(p: PrenotazioneAdmin): string {
+  if (p.tipo === 'lezione') {
+    return p.prenotataDa === 'maestro'
+      ? `${p.maestroNome} ${p.maestroCognome} lezione con ${p.utenteNome} ${p.utenteCognome}`
+      : `${p.utenteNome} ${p.utenteCognome} lezione con ${p.maestroNome} ${p.maestroCognome}`;
+  }
+  if (p.compagnoNome) {
+    return `${p.utenteNome} ${p.utenteCognome} gioca con ${p.compagnoNome} ${p.compagnoCognome}`;
+  }
+  return `${p.utenteNome} ${p.utenteCognome}`;
+}
 
 export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
   campi: Campo[]; blocchi: Blocco[]; prenotazioni: PrenotazioneAdmin[];
@@ -118,14 +132,16 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
       </div>
 
       <Modal visible={!!daAnnullare} onClose={() => setDaAnnullare(null)}>
-        <div className="admin-modal-title">Prenotazione</div>
+        <div className="admin-modal-title" style={{ textTransform: 'none', fontSize: '1rem' }}>
+          {daAnnullare ? intestazionePrenotazione(daAnnullare) : ''}
+        </div>
         <div className="admin-modal-sub">
-          {daAnnullare?.utenteNome} {daAnnullare?.utenteCognome}
-          <br />
-          {daAnnullare?.campoNome} · {daAnnullare?.dataLabel} {daAnnullare?.orario}
+          {daAnnullare?.campoNome} · {daAnnullare?.dataLabel} {daAnnullare ? fasciaOraria(daAnnullare.orario) : ''}
           {daAnnullare?.etichetta ? ` · ${daAnnullare.etichetta}` : ''}
         </div>
-        <div className="admin-modal-amount">Rimborso: €{daAnnullare?.prezzo.toFixed(2)}</div>
+        <div className="admin-modal-amount" style={{ fontSize: '.9rem', opacity: 0.75 }}>
+          {daAnnullare?.utenteId ? `Rimborso: €${daAnnullare?.prezzo.toFixed(2)}` : 'Nessun rimborso (allievo non socio)'}
+        </div>
         <div className="admin-modal-btn-row">
           <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Indietro</button>
           <button className="admin-modal-btn-confirm danger" onClick={confermaAnnulla} disabled={elaborando}>

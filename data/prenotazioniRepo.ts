@@ -149,6 +149,7 @@ export async function prenotaLezione(params: {
   maestroNome: string;
   maestroCognome: string;
   nascondiInfo?: boolean;
+  prenotataDa: 'socio' | 'maestro';
 }): Promise<void> {
   const utenteRef = doc(db, 'utenti', params.uid);
   const prenotazioneRef = doc(collection(db, 'prenotazioni'));
@@ -178,6 +179,7 @@ export async function prenotaLezione(params: {
       maestroNome: params.maestroNome,
       maestroCognome: params.maestroCognome,
       nascondiInfo: !!params.nascondiInfo,
+      prenotataDa: params.prenotataDa,
       creataIl: serverTimestamp(),
     });
   });
@@ -226,6 +228,7 @@ export async function prenotaLezioneOspite(params: {
     maestroId: params.maestroId,
     maestroNome: params.maestroNome,
     maestroCognome: params.maestroCognome,
+    prenotataDa: 'maestro',
     nascondiInfo: !!params.nascondiInfo,
     creataIl: serverTimestamp(),
   });
@@ -303,6 +306,7 @@ export interface PrenotazioneAdmin {
   prezzo: number;
   etichetta?: string | null;
   tipo?: 'campo' | 'lezione';
+  prenotataDa?: 'socio' | 'maestro'; // solo per tipo==='lezione': chi ha avviato la prenotazione
   ospite?: boolean;
   maestroId?: string;
   maestroNome?: string;
@@ -338,6 +342,7 @@ export function ascoltaPrenotazioniCircolo(
           prezzo: v.prezzo ?? 0,
           etichetta: v.etichetta ?? null,
           tipo: v.tipo ?? 'campo',
+          prenotataDa: v.prenotataDa,
           ospite: v.ospite ?? false,
           maestroId: v.maestroId,
           maestroNome: v.maestroNome,
