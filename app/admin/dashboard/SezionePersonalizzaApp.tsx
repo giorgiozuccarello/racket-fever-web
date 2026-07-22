@@ -20,41 +20,66 @@ export default function SezionePersonalizzaApp({ circolo }: { circolo: Circolo }
   );
 }
 
+// 10 temi predefiniti, bicolore — stessi ovunque, nessun colore libero.
+// I nomi richiamano i colpi del tennis, in coerenza col resto del brand.
+// (placeholder di partenza: la lista definitiva arriverà dal cliente)
+const TEMI: { nome: string; primario: string; accento: string }[] = [
+  { nome: 'Dritto', primario: '#0E3B2E', accento: '#B0451F' },
+  { nome: 'Rovescio', primario: '#16324F', accento: '#E0724B' },
+  { nome: 'Smash', primario: '#5C1A2E', accento: '#C9932E' },
+  { nome: 'Dropshot', primario: '#0B4F4A', accento: '#E8895F' },
+  { nome: 'Slice', primario: '#33312E', accento: '#8B9A4B' },
+  { nome: 'Volée', primario: '#3B2A4A', accento: '#4FAE96' },
+  { nome: 'Ace', primario: '#151515', accento: '#4A7FB5' },
+  { nome: 'Topspin', primario: '#1F4E3D', accento: '#C79A3E' },
+  { nome: 'Passante', primario: '#123B4F', accento: '#D98F72' },
+  { nome: 'Lob', primario: '#2C3E66', accento: '#C9A227' },
+];
+
 function SezioneTema({ circolo }: { circolo: Circolo }) {
-  const [primario, setPrimario] = useState(circolo.tema.primario);
-  const [secondario, setSecondario] = useState(circolo.tema.accento);
   const [salvando, setSalvando] = useState(false);
   const [ok, setOk] = useState(false);
 
-  const salva = async (nuovoPrimario: string, nuovoSecondario: string) => {
+  const scegli = async (tema: { primario: string; accento: string }) => {
     setSalvando(true);
-    await aggiornaCircolo(circolo.id, { tema: { primario: nuovoPrimario, accento: nuovoSecondario } });
+    await aggiornaCircolo(circolo.id, { tema: { primario: tema.primario, accento: tema.accento } });
     setSalvando(false);
     setOk(true);
     setTimeout(() => setOk(false), 1800);
   };
 
+  const eAttuale = (t: { primario: string; accento: string }) =>
+    t.primario.toLowerCase() === circolo.tema.primario.toLowerCase()
+    && t.accento.toLowerCase() === circolo.tema.accento.toLowerCase();
+
   return (
-    <div className="admin-row">
-      <div>
-        <label className="admin-label">Colore primario</label>
-        <input
-          type="color" className="superadmin-color" value={primario}
-          onChange={(e) => { setPrimario(e.target.value); salva(e.target.value, secondario); }}
-        />
+    <div>
+      <p className="admin-card-hint">
+        Un solo clic cambia entrambi i colori insieme, sempre in coppie pensate per
+        restare leggibili — stesso identico risultato su ogni dispositivo.
+      </p>
+      <div className="tema-grid">
+        {TEMI.map((t) => {
+          const selezionato = eAttuale(t);
+          return (
+            <button
+              key={t.nome} type="button" className="tema-box"
+              onClick={() => scegli(t)}
+            >
+              <span
+                className={`tema-swatch${selezionato ? ' tema-swatch-sel' : ''}`}
+                style={{ background: `linear-gradient(135deg, ${t.primario} 50%, ${t.accento} 50%)` }}
+              >
+                {selezionato && <span className="tema-check">✓</span>}
+              </span>
+              <span className="tema-label">{t.nome}</span>
+            </button>
+          );
+        })}
       </div>
-      <div>
-        <label className="admin-label">Colore secondario</label>
-        <input
-          type="color" className="superadmin-color" value={secondario}
-          onChange={(e) => { setSecondario(e.target.value); salva(primario, e.target.value); }}
-        />
-      </div>
-      <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: 2 }}>
-        <span style={{ fontSize: '.8rem', color: 'var(--grigio)' }}>
-          {salvando ? 'Salvataggio…' : ok ? 'Salvato ✓' : ''}
-        </span>
-      </div>
+      <span style={{ fontSize: '.75rem', color: 'var(--grigio)' }}>
+        {salvando ? 'Salvataggio…' : ok ? 'Salvato ✓' : ''}
+      </span>
     </div>
   );
 }

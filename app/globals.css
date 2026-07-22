@@ -395,6 +395,23 @@ footer li a:hover{opacity:1;text-decoration:underline}
   width:100%;height:40px;border:2px solid #E4E0D5;border-radius:8px;
   padding:2px;cursor:pointer;background:#fff;
 }
+.tema-grid{display:flex;flex-wrap:wrap;gap:1rem;margin-top:.6rem}
+.tema-box{
+  display:flex;flex-direction:column;align-items:center;width:68px;
+  background:none;border:none;cursor:pointer;padding:0;
+}
+.tema-swatch{
+  width:56px;height:56px;border-radius:12px;display:block;
+  border:2.5px solid transparent;position:relative;
+  transition:border-color .12s;
+}
+.tema-swatch-sel{border-color:var(--inchiostro)}
+.tema-check{
+  position:absolute;bottom:4px;left:4px;width:18px;height:18px;border-radius:50%;
+  background:rgba(0,0,0,.35);color:#fff;font-size:.7rem;font-weight:900;
+  display:flex;align-items:center;justify-content:center;
+}
+.tema-label{font-size:.68rem;color:var(--grigio);margin-top:.35rem;font-weight:600}
 .superadmin-credenziali{
   background:var(--carta);border:2px solid #E4E0D5;border-radius:10px;
   padding:1rem;margin:.8rem 0;
