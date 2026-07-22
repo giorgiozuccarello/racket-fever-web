@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import { Campo, Blocco, ORARI, fasciaOraria } from '../../../data/circoli';
-import { PrenotazioneAdmin, cancellaConRimborso } from '../../../data/prenotazioniRepo';
+import { PrenotazioneAdmin, cancellaConRimborso, cancellaConRimborsoDiviso, cancellaSenzaRimborso } from '../../../data/prenotazioniRepo';
 import { creaNotifica } from '../../../data/notifiche';
+import { creaNotificaMaestro } from '../../../data/notificheMaestro';
 import { formatISO } from '../../../data/settimana';
 import Modal from './Modal';
 
@@ -62,15 +63,41 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
     if (!daAnnullare) return;
     setElaborando(true);
     try {
-      await cancellaConRimborso({
-        uid: daAnnullare.utenteId,
-        prenotazioneId: daAnnullare.id,
-        prezzo: daAnnullare.prezzo,
-      });
-      await creaNotifica(
-        daAnnullare.utenteId,
-        `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${daAnnullare.orario}. Credito rimborsato: €${daAnnullare.prezzo.toFixed(2)}.`
-      );
+      if (!daAnnullare.utenteId) {
+        await cancellaSenzaRimborso(daAnnullare.id);
+      } else if (daAnnullare.costoDiviso && daAnnullare.compagnoId) {
+        const meta = (daAnnullare.prezzo / 2).toFixed(2);
+        await cancellaConRimborsoDiviso({
+          utenteId: daAnnullare.utenteId,
+          compagnoId: daAnnullare.compagnoId,
+          prenotazioneId: daAnnullare.id,
+          prezzoTotale: daAnnullare.prezzo,
+        });
+        await creaNotifica(
+          daAnnullare.utenteId,
+          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua metà: €${meta}.`
+        );
+        await creaNotifica(
+          daAnnullare.compagnoId,
+          `Il circolo ha annullato la prenotazione con ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua metà: €${meta}.`
+        );
+      } else {
+        await cancellaConRimborso({
+          uid: daAnnullare.utenteId,
+          prenotazioneId: daAnnullare.id,
+          prezzo: daAnnullare.prezzo,
+        });
+        await creaNotifica(
+          daAnnullare.utenteId,
+          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Credito rimborsato: €${daAnnullare.prezzo.toFixed(2)}.`
+        );
+      }
+      if (daAnnullare.tipo === 'lezione' && daAnnullare.maestroId) {
+        await creaNotificaMaestro(
+          daAnnullare.maestroId,
+          `Il circolo ha annullato la lezione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}.`
+        );
+      }
       setDaAnnullare(null);
     } finally {
       setElaborando(false);
@@ -140,7 +167,11 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
           {daAnnullare?.etichetta ? ` · ${daAnnullare.etichetta}` : ''}
         </div>
         <div className="admin-modal-amount" style={{ fontSize: '.9rem', opacity: 0.75 }}>
-          {daAnnullare?.utenteId ? `Rimborso: €${daAnnullare?.prezzo.toFixed(2)}` : 'Nessun rimborso (allievo non socio)'}
+          {!daAnnullare?.utenteId
+            ? 'Nessun rimborso (allievo non socio)'
+            : daAnnullare?.costoDiviso
+              ? `Saranno rimborsati entrambi: ${daAnnullare.utenteNome} e ${daAnnullare.compagnoNome} · €${(daAnnullare.prezzo / 2).toFixed(2)} a testa`
+              : `Rimborso: €${daAnnullare?.prezzo.toFixed(2)}`}
         </div>
         <div className="admin-modal-btn-row">
           <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Indietro</button>

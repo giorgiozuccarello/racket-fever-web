@@ -258,6 +258,35 @@ export async function cancellaConRimborso(params: {
   });
 }
 
+// Cancella una prenotazione con costo diviso: rimborsa metà a ciascuno
+// dei due soci coinvolti, in un'unica transazione (o vanno a buon fine
+// entrambi gli accrediti, o nessuno dei due). Va usata SOLO quando
+// costoDiviso è davvero true — se il compagno non aveva pagato nulla
+// (credito insufficiente al momento della prenotazione), la cancellazione
+// resta quella normale a carico del solo socio che ha prenotato.
+export async function cancellaConRimborsoDiviso(params: {
+  utenteId: string;
+  compagnoId: string;
+  prenotazioneId: string;
+  prezzoTotale: number;
+}): Promise<void> {
+  const utenteRef = doc(db, 'utenti', params.utenteId);
+  const compagnoRef = doc(db, 'utenti', params.compagnoId);
+  const prenotazioneRef = doc(db, 'prenotazioni', params.prenotazioneId);
+  const meta = Math.round((params.prezzoTotale / 2) * 100) / 100;
+
+  await runTransaction(db, async (tx) => {
+    const utenteSnap = await tx.get(utenteRef);
+    const compagnoSnap = await tx.get(compagnoRef);
+    const creditoUtente = utenteSnap.exists() ? ((utenteSnap.data().credito as number) ?? 0) : 0;
+    const creditoCompagno = compagnoSnap.exists() ? ((compagnoSnap.data().credito as number) ?? 0) : 0;
+
+    tx.update(utenteRef, { credito: creditoUtente + meta });
+    tx.update(compagnoRef, { credito: creditoCompagno + meta });
+    tx.delete(prenotazioneRef);
+  });
+}
+
 // Cancella una lezione con un allievo NON socio: nessun wallet da cui
 // era stato scalato nulla in origine (vedi prenotaLezioneOspite), quindi
 // qui non c'è alcun rimborso da fare — solo la rimozione dello slot.
