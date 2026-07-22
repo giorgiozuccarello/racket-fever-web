@@ -6,7 +6,7 @@
 // due, così credito e prenotazioni non si disallineano mai.
 // ============================================================
 
-import { runTransaction, doc, deleteDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
+import { runTransaction, doc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { rimuoviDisponibilitaPerSlot } from './disponibilitaLezioni';
 
@@ -302,6 +302,13 @@ export async function ricaricaCredito(uid: string, importo: number): Promise<voi
     const attuale = snap.exists() ? ((snap.data().credito as number) ?? 0) : 0;
     tx.update(utenteRef, { credito: attuale + importo });
   });
+}
+
+// Azzera del tutto il credito di un socio — per i casi in cui smette
+// di usare il wallet e la segreteria lo rimborsa in contanti/altro
+// canale reale, fuori dall'app.
+export async function azzeraCredito(uid: string): Promise<void> {
+  await updateDoc(doc(db, 'utenti', uid), { credito: 0 });
 }
 
 // Ricarica S.O.S. self-service del socio: aggiorna credito E il

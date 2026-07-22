@@ -30,6 +30,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
   const [selDay, setSelDay] = useState(0);
   const [selCampoId, setSelCampoId] = useState('');
   const [daAnnullare, setDaAnnullare] = useState<PrenotazioneAdmin | null>(null);
+  const [bloccoInfo, setBloccoInfo] = useState<Blocco | null>(null);
   const [elaborando, setElaborando] = useState(false);
 
   useEffect(() => {
@@ -137,6 +138,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
       <div className="pc-legend">
         <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-libero" /> Libero</span>
         <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-occupato" /> Prenotato</span>
+        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-lezione" /> Lezione</span>
         <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-riservato" /> Riservato</span>
       </div>
 
@@ -144,19 +146,33 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
         {ORARI.map((ora) => {
           const blocco = bloccoAttivo(ora);
           const p = !blocco ? prenotazioneSlot(ora) : undefined;
+          const eLezione = p?.tipo === 'lezione';
+          let sotto = 'Libero';
+          if (p) sotto = p.utenteCognome ? `${p.utenteNome} ${p.utenteCognome[0]}.` : p.utenteNome;
+          else if (blocco) sotto = 'Riservato';
           return (
             <button
-              key={ora} disabled={!p} onClick={() => p && setDaAnnullare(p)}
-              className={`pc-slot ${p ? 'occupato' : ''} ${blocco ? 'riservato' : ''}`}
+              key={ora}
+              onClick={() => { if (p) setDaAnnullare(p); else if (blocco) setBloccoInfo(blocco); }}
+              className={`pc-slot ${p ? 'occupato' : ''} ${eLezione ? 'lezione' : ''} ${blocco ? 'riservato' : ''}`}
             >
               <div className="pc-slot-ora">{ora}</div>
-              <div className="pc-slot-sotto">
-                {p ? `${p.utenteNome} ${p.utenteCognome[0]}.` : blocco ? 'Riservato' : 'Libero'}
-              </div>
+              <div className="pc-slot-sotto">{sotto}</div>
             </button>
           );
         })}
       </div>
+
+      <Modal visible={!!bloccoInfo} onClose={() => setBloccoInfo(null)}>
+        <div className="admin-modal-title">Orario riservato</div>
+        <div className="admin-modal-sub">
+          {campi.find((c) => c.id === bloccoInfo?.campoId)?.nome} · {bloccoInfo?.orarioInizio} - {bloccoInfo?.orarioFine}
+        </div>
+        <p style={{ marginTop: '1rem', fontWeight: 700 }}>{bloccoInfo?.etichetta}</p>
+        <button className="admin-modal-btn-cancel" onClick={() => setBloccoInfo(null)} style={{ marginTop: '1rem' }}>
+          Chiudi
+        </button>
+      </Modal>
 
       <Modal visible={!!daAnnullare} onClose={() => setDaAnnullare(null)}>
         <div className="admin-modal-title" style={{ textTransform: 'none', fontSize: '1rem' }}>

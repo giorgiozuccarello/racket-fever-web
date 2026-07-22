@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { SocioCircolo, aggiornaLimiteSOS, aggiornaLimitePersonale, ripristinaSOS } from '../../../data/users';
-import { ricaricaCredito, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
+import { creaNotifica } from '../../../data/notifiche';
+import { ricaricaCredito, azzeraCredito, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
 import { CONTENUTI_DEMO } from '../../../data/contenutiDemo';
 import Modal from './Modal';
 
@@ -16,6 +17,8 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
   const [salvandoLimite, setSalvandoLimite] = useState(false);
   const [ripristinando, setRipristinando] = useState(false);
   const [confermaRipristinoAperta, setConfermaRipristinoAperta] = useState(false);
+  const [confermaAzzeraAperta, setConfermaAzzeraAperta] = useState(false);
+  const [azzerando, setAzzerando] = useState(false);
 
   const numeroPrenotazioni = (uid: string) => prenotazioni.filter((p) => p.utenteId === uid).length;
 
@@ -57,6 +60,18 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
     setConfermaRipristinoAperta(false);
   };
 
+  const confermaAzzeraCredito = async () => {
+    if (!socio) return;
+    setAzzerando(true);
+    await azzeraCredito(socio.uid);
+    await creaNotifica(
+      socio.uid,
+      `Il circolo ha azzerato il tuo credito wallet (era €${(socio.credito ?? 0).toFixed(2)}). Se non ti torna, rivolgiti alla segreteria.`
+    );
+    setAzzerando(false);
+    setConfermaAzzeraAperta(false);
+  };
+
   return (
     <>
       <Modal visible={!!socio} onClose={onClose}>
@@ -91,9 +106,14 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
                 <div className="socio-credito-label">Credito</div>
                 <div className="socio-credito-valore">€{(socio.credito ?? 0).toFixed(2)}</div>
               </div>
-              <button className="admin-btn-small" onClick={() => { setImporto(''); setRicaricaAperta(true); }}>
-                + Ricarica
-              </button>
+              <div className="socio-credito-btns">
+                <button className="admin-btn-small" onClick={() => { setImporto(''); setRicaricaAperta(true); }}>
+                  + Ricarica
+                </button>
+                <button className="admin-btn-danger-small" onClick={() => setConfermaAzzeraAperta(true)}>
+                  Azzera Credito
+                </button>
+              </div>
             </div>
 
             <div className="socio-credito-row">
@@ -171,6 +191,21 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
           <button className="admin-modal-btn-cancel" onClick={() => setConfermaRipristinoAperta(false)}>Annulla</button>
           <button className="admin-modal-btn-confirm danger" onClick={confermaRipristino} disabled={ripristinando}>
             {ripristinando ? 'Attendere…' : 'Conferma'}
+          </button>
+        </div>
+      </Modal>
+
+      {/* Azzera Credito — sopra la scheda socio */}
+      <Modal visible={confermaAzzeraAperta} onClose={() => setConfermaAzzeraAperta(false)}>
+        <div className="admin-modal-title">Azzera Credito di {socio?.nome} {socio?.cognome}</div>
+        <div className="admin-modal-sub">
+          Il credito attuale (€{(socio?.credito ?? 0).toFixed(2)}) verrà portato a zero. Usalo solo se la
+          segreteria ha già restituito i soldi reali fuori dall&apos;app.
+        </div>
+        <div className="admin-modal-btn-row">
+          <button className="admin-modal-btn-cancel" onClick={() => setConfermaAzzeraAperta(false)}>Annulla</button>
+          <button className="admin-modal-btn-confirm danger" onClick={confermaAzzeraCredito} disabled={azzerando}>
+            {azzerando ? 'Attendere…' : 'Azzera Credito'}
           </button>
         </div>
       </Modal>
