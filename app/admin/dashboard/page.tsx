@@ -22,6 +22,7 @@ import SezioneSoci from './SezioneSoci';
 import SezioneDebitiSoci from './SezioneDebitiSoci';
 import SchedaSocioModal from './SchedaSocioModal';
 import SezioneMaestri from './SezioneMaestri';
+import SezioneClassificaSociale from './SezioneClassificaSociale';
 import SezionePrenotazioni from './SezionePrenotazioni';
 import SezioneNotePrenotazioni from './SezioneNotePrenotazioni';
 import SezioneLezioniPrenotate from './SezioneLezioniPrenotate';
@@ -119,6 +120,7 @@ export default function AdminDashboard() {
         <SezioneSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
         <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
         <SezioneMaestri circoloId={circolo.id} maestri={maestri} />
+        <SezioneClassificaSociale soci={soci} />
         <SchedaSocioModal
           circoloId={circolo.id}
           socio={socioSelUid ? soci.find((x) => x.uid === socioSelUid) ?? null : null}

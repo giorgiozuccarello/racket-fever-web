@@ -27,6 +27,8 @@ export interface ProfiloUtente {
   limiteRicaricaSOS?: number; // 0/assente = S.O.S. non ancora attivato per questo socio
   sosUtilizzato?: number; // quanto del plafond S.O.S. è già stato usato dall'ultimo Ripristina
   limitePrenotazioniPersonale?: number; // 0/assente = usa il limite generale del circolo
+  classificaFitp?: string | null; // dichiarata dal socio stesso, es. "3.4" o "NC" — non verificata
+  posizioneClassificaSociale?: number | null; // assente = il socio non è (ancora) in classifica
 }
 
 export interface SocioCircolo extends ProfiloUtente {
@@ -139,4 +141,31 @@ export async function aggiornaLimitePersonale(uid: string, limite: number) {
 // restituendogli tutto il plafond da usare di nuovo in emergenza.
 export async function ripristinaSOS(uid: string) {
   await updateDoc(doc(db, 'utenti', uid), { sosUtilizzato: 0 });
+}
+
+// ============================================================
+// CLASSIFICA — FITP (dichiarata dal socio) e Sociale (gestita
+// dall'Admin, posizione numerica intera e univoca all'interno del
+// circolo — le sfide future si baseranno su queste posizioni per
+// riordinare la classifica, quindi devono restare sempre coerenti).
+// ============================================================
+
+// Il socio dichiara da sé la propria classifica FITP — nessuna
+// verifica automatica, è un dato "sulla parola".
+export async function impostaClassificaFitp(uid: string, valore: string) {
+  await updateDoc(doc(db, 'utenti', uid), { classificaFitp: valore });
+}
+
+// L'Admin assegna o modifica la posizione di un socio in Classifica
+// Sociale. Il controllo "la posizione è già occupata?" va fatto PRIMA
+// di chiamare questa funzione (lato chiamante, con l'elenco soci già
+// caricato) — qui scriviamo soltanto.
+export async function impostaPosizioneClassificaSociale(uid: string, posizione: number) {
+  await updateDoc(doc(db, 'utenti', uid), { posizioneClassificaSociale: posizione });
+}
+
+// Toglie un socio dalla Classifica Sociale (resta comunque socio del
+// circolo, semplicemente non compare più in classifica).
+export async function rimuoviDaClassificaSociale(uid: string) {
+  await updateDoc(doc(db, 'utenti', uid), { posizioneClassificaSociale: null });
 }
