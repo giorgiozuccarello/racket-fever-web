@@ -120,7 +120,7 @@ export default function AdminDashboard() {
         <SezioneSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
         <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
         <SezioneMaestri circoloId={circolo.id} maestri={maestri} />
-        <SezioneClassificaSociale soci={soci} />
+        <SezioneClassificaSociale circolo={circolo} soci={soci} />
         <SchedaSocioModal
           circoloId={circolo.id}
           socio={socioSelUid ? soci.find((x) => x.uid === socioSelUid) ?? null : null}

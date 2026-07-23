@@ -13,7 +13,19 @@ export interface Circolo {
   tema: { primario: string; accento: string };
   limiteOreSettimanali: number; // 0 = nessun limite
   logoUrl?: string | null; // se assente, si mostra la sigla nel cerchio
+  gradienteClassifica?: { da: string; a: string } | null; // sfondo della schermata Classifica Sociale
 }
+
+// 5 gradienti scuri predefiniti per lo sfondo della Classifica Sociale —
+// stessa filosofia dei Temi colori: nessun colore libero, solo scelte
+// pensate in anticipo per restare leggibili.
+export const GRADIENTI_CLASSIFICA: { nome: string; da: string; a: string }[] = [
+  { nome: 'Notte', da: '#0B1F3A', a: '#1E5C8A' },
+  { nome: 'Abisso', da: '#0A0E27', a: '#2C3E66' },
+  { nome: 'Oceano', da: '#0C2340', a: '#155263' },
+  { nome: 'Indaco', da: '#1A1B4B', a: '#4A5FA5' },
+  { nome: 'Ardesia', da: '#101822', a: '#2E4057' },
+];
 
 // Al massimo UNA tariffa speciale per campo: una fascia oraria con
 // un prezzo diverso dal prezzo base (es. "Con illuminazione").

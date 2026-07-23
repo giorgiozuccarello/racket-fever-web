@@ -2,9 +2,11 @@
 
 import { useState } from 'react';
 import { SocioCircolo, impostaPosizioneClassificaSociale, rimuoviDaClassificaSociale } from '../../../data/users';
+import { Circolo, GRADIENTI_CLASSIFICA } from '../../../data/circoli';
+import { aggiornaCircolo } from '../../../data/circoliRepo';
 import Modal from './Modal';
 
-export default function SezioneClassificaSociale({ soci }: { soci: SocioCircolo[] }) {
+export default function SezioneClassificaSociale({ circolo, soci }: { circolo: Circolo; soci: SocioCircolo[] }) {
   const [formAperto, setFormAperto] = useState(false);
   const [filtroSocio, setFiltroSocio] = useState('');
   const [socioScelto, setSocioScelto] = useState<SocioCircolo | null>(null);
@@ -69,6 +71,14 @@ export default function SezioneClassificaSociale({ soci }: { soci: SocioCircolo[
     await rimuoviDaClassificaSociale(uid);
   };
 
+  const [salvandoGradiente, setSalvandoGradiente] = useState(false);
+  const gradienteAttuale = circolo.gradienteClassifica ?? GRADIENTI_CLASSIFICA[0];
+  const scegliGradiente = async (g: { da: string; a: string }) => {
+    setSalvandoGradiente(true);
+    await aggiornaCircolo(circolo.id, { gradienteClassifica: { da: g.da, a: g.a } });
+    setSalvandoGradiente(false);
+  };
+
   return (
     <div className="admin-card">
       <div className="admin-card-title">Classifica Sociale</div>
@@ -77,6 +87,23 @@ export default function SezioneClassificaSociale({ soci }: { soci: SocioCircolo[
         la posizione attuale di ogni socio dalla vecchia lista — in seguito potrai comunque
         correggerla in qualunque momento.
       </p>
+
+      <label className="admin-label">Sfondo della schermata Classifica</label>
+      <div className="tema-grid">
+        {GRADIENTI_CLASSIFICA.map((g) => {
+          const selezionato = gradienteAttuale.da === g.da && gradienteAttuale.a === g.a;
+          return (
+            <button key={g.nome} type="button" className="tema-box" onClick={() => scegliGradiente(g)}>
+              <span
+                className={`tema-swatch${selezionato ? ' tema-swatch-sel' : ''}`}
+                style={{ background: `linear-gradient(160deg, ${g.da}, ${g.a})` }}
+              />
+              <span className="tema-label">{g.nome}</span>
+            </button>
+          );
+        })}
+      </div>
+      {salvandoGradiente && <p className="admin-card-hint" style={{ marginTop: '.3rem' }}>Salvataggio…</p>}
 
       {inClassifica.length === 0 && !formAperto && (
         <p className="admin-empty-text">Nessun socio ancora in classifica.</p>
