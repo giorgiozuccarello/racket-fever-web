@@ -14,6 +14,7 @@ export interface Circolo {
   limiteOreSettimanali: number; // 0 = nessun limite
   logoUrl?: string | null; // se assente, si mostra la sigla nel cerchio
   gradienteClassifica?: { da: string; a: string } | null; // sfondo della schermata Classifica Sociale
+  limiteSfidaPosizioni?: number; // 0/assente = usa il default (5): quante posizioni sopra si può sfidare
 }
 
 // 5 gradienti scuri predefiniti per lo sfondo della Classifica Sociale —
@@ -71,7 +72,7 @@ function generaOrari(inizio: string, fine: string): string[] {
   return risultato;
 }
 
-export const ORARI = [...generaOrari('08:00', '12:00'), ...generaOrari('16:00', '23:00')];
+export const ORARI = generaOrari('08:00', '23:00');
 
 // Usato SOLO nei menu a tendina dell'Admin (orario di fine di una
 // tariffa speciale o di un blocco): arriva a 23:30 così si può

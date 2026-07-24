@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SocioCircolo, aggiornaLimiteSOS, aggiornaLimitePersonale, ripristinaSOS } from '../../../data/users';
+import { SocioCircolo, aggiornaLimitePersonale, ripristinaSOS } from '../../../data/users';
 import { creaNotifica } from '../../../data/notifiche';
 import { ricaricaCredito, azzeraCredito, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
 import { CONTENUTI_DEMO } from '../../../data/contenutiDemo';
@@ -13,7 +13,6 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
   const [ricaricaAperta, setRicaricaAperta] = useState(false);
   const [importo, setImporto] = useState('');
   const [inviando, setInviando] = useState(false);
-  const [salvandoSOS, setSalvandoSOS] = useState(false);
   const [salvandoLimite, setSalvandoLimite] = useState(false);
   const [ripristinando, setRipristinando] = useState(false);
   const [confermaRipristinoAperta, setConfermaRipristinoAperta] = useState(false);
@@ -36,13 +35,6 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
     setInviando(false);
     setRicaricaAperta(false);
     setImporto('');
-  };
-
-  const salvaLimiteSOS = async (v: number) => {
-    if (!socio) return;
-    setSalvandoSOS(true);
-    await aggiornaLimiteSOS(socio.uid, v);
-    setSalvandoSOS(false);
   };
 
   const salvaLimitePersonale = async (v: number) => {
@@ -138,21 +130,16 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
             </div>
 
             <div className="socio-sos-box">
-              <label className="admin-label">Limite ricarica S.O.S.</label>
+              <label className="admin-label">Credito S.O.S.</label>
               <p className="admin-card-hint" style={{ marginBottom: '.6rem' }}>
-                Quanto può ricaricarsi da solo il socio in caso di emergenza, dalla
-                sua app, senza passare da un Admin.
+                Sempre attivo e senza limite: interviene da solo in qualunque prenotazione
+                condivisa (compagno di gioco, Sfida) quando manca credito normale a uno dei
+                due. Va saldato in segreteria — usa &quot;Ripristina&quot; qui sopra quando
+                il socio paga.
               </p>
               <div className="socio-sos-valore">
-                {(socio.limiteRicaricaSOS ?? 0) === 0 ? 'Disattivato' : `Fino a €${socio.limiteRicaricaSOS}`}
+                Usato finora: €{(socio.sosUtilizzato ?? 0).toFixed(2)}
               </div>
-              <input
-                type="range" min={0} max={50} step={10}
-                value={socio.limiteRicaricaSOS ?? 0}
-                onChange={(e) => salvaLimiteSOS(Number(e.target.value))}
-                style={{ width: '100%' }}
-              />
-              {salvandoSOS && <div className="admin-saving">Salvataggio…</div>}
             </div>
             <p className="socio-sos-reset-hint">
               &quot;Ripristina&quot; azzera l&apos;usato quando il socio salda in segreteria,

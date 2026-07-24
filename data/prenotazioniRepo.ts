@@ -27,18 +27,24 @@ export async function prenotaConCredito(params: {
   compagnoId?: string | null;
   compagnoNome?: string | null;
   compagnoCognome?: string | null;
-}): Promise<void> {
+}): Promise<{ sosUsato: boolean }> {
   const utenteRef = doc(db, 'utenti', params.uid);
   const prenotazioneRef = doc(collection(db, 'prenotazioni'));
+  let sosUsato = false;
 
   await runTransaction(db, async (tx) => {
     const utenteSnap = await tx.get(utenteRef);
     if (!utenteSnap.exists()) throw new Error('UTENTE_NON_TROVATO');
 
     const creditoAttuale = (utenteSnap.data().credito as number) ?? 0;
-    if (creditoAttuale < params.prezzo) throw new Error('CREDITO_INSUFFICIENTE');
+    const sosAttuale = (utenteSnap.data().sosUtilizzato as number) ?? 0;
+    const { daCredito, daSOS } = calcolaAddebitoConSOS(creditoAttuale, params.prezzo);
+    sosUsato = daSOS > 0;
 
-    tx.update(utenteRef, { credito: creditoAttuale - params.prezzo });
+    tx.update(utenteRef, {
+      credito: creditoAttuale - daCredito,
+      ...(sosUsato ? { sosUtilizzato: sosAttuale + daSOS } : {}),
+    });
     tx.set(prenotazioneRef, {
       utenteId: params.uid,
       circoloId: params.circoloId,
@@ -60,6 +66,7 @@ export async function prenotaConCredito(params: {
       creataIl: serverTimestamp(),
     });
   });
+  return { sosUsato };
 }
 
 // Prenota un campo con un COMPAGNO che paga metà del costo: transazione
@@ -68,6 +75,17 @@ export async function prenotaConCredito(params: {
 // verificato — lato chiamante — che il compagno abbia credito
 // sufficiente per la sua metà; qui rifacciamo comunque il controllo
 // server-side, per sicurezza, prima di scrivere qualunque cosa.
+// Calcola come coprire un importo: prima il credito normale, poi —
+// per la parte che eventualmente resta scoperta — il Credito S.O.S.,
+// che è SEMPRE disponibile e senza limite (da saldare in segreteria).
+// Nessun socio deve mai restare bloccato da un blocco di credito
+// insufficiente in una prenotazione condivisa (con compagno, o Sfida).
+function calcolaAddebitoConSOS(creditoAttuale: number, importo: number): { daCredito: number; daSOS: number } {
+  const daCredito = Math.min(creditoAttuale, importo);
+  const daSOS = Math.round((importo - daCredito) * 100) / 100;
+  return { daCredito, daSOS };
+}
+
 export async function prenotaConCompagno(params: {
   uid: string;
   compagnoId: string;
@@ -85,11 +103,15 @@ export async function prenotaConCompagno(params: {
   compagnoCognome: string;
   note?: string;
   nascondiInfo?: boolean;
-}): Promise<void> {
+  sfidaId?: string | null;
+}): Promise<{ id: string; sosUsatoUtente: boolean; sosUsatoCompagno: boolean }> {
   const utenteRef = doc(db, 'utenti', params.uid);
   const compagnoRef = doc(db, 'utenti', params.compagnoId);
   const prenotazioneRef = doc(collection(db, 'prenotazioni'));
   const meta = Math.round((params.prezzo / 2) * 100) / 100;
+
+  let sosUsatoUtente = false;
+  let sosUsatoCompagno = false;
 
   await runTransaction(db, async (tx) => {
     const utenteSnap = await tx.get(utenteRef);
@@ -98,11 +120,22 @@ export async function prenotaConCompagno(params: {
 
     const creditoUtente = (utenteSnap.data().credito as number) ?? 0;
     const creditoCompagno = (compagnoSnap.data().credito as number) ?? 0;
-    if (creditoUtente < meta) throw new Error('CREDITO_INSUFFICIENTE');
-    if (creditoCompagno < meta) throw new Error('CREDITO_COMPAGNO_INSUFFICIENTE');
+    const sosUtenteAttuale = (utenteSnap.data().sosUtilizzato as number) ?? 0;
+    const sosCompagnoAttuale = (compagnoSnap.data().sosUtilizzato as number) ?? 0;
 
-    tx.update(utenteRef, { credito: creditoUtente - meta });
-    tx.update(compagnoRef, { credito: creditoCompagno - meta });
+    const { daCredito: daCreditoUtente, daSOS: daSOSUtente } = calcolaAddebitoConSOS(creditoUtente, meta);
+    const { daCredito: daCreditoCompagno, daSOS: daSOSCompagno } = calcolaAddebitoConSOS(creditoCompagno, meta);
+    sosUsatoUtente = daSOSUtente > 0;
+    sosUsatoCompagno = daSOSCompagno > 0;
+
+    tx.update(utenteRef, {
+      credito: creditoUtente - daCreditoUtente,
+      ...(sosUsatoUtente ? { sosUtilizzato: sosUtenteAttuale + daSOSUtente } : {}),
+    });
+    tx.update(compagnoRef, {
+      credito: creditoCompagno - daCreditoCompagno,
+      ...(sosUsatoCompagno ? { sosUtilizzato: sosCompagnoAttuale + daSOSCompagno } : {}),
+    });
     tx.set(prenotazioneRef, {
       utenteId: params.uid,
       circoloId: params.circoloId,
@@ -121,9 +154,11 @@ export async function prenotaConCompagno(params: {
       compagnoNome: params.compagnoNome,
       compagnoCognome: params.compagnoCognome,
       costoDiviso: true,
+      sfidaId: params.sfidaId ?? null,
       creataIl: serverTimestamp(),
     });
   });
+  return { id: prenotazioneRef.id, sosUsatoUtente, sosUsatoCompagno };
 }
 
 // Prenota una LEZIONE: stessa identica logica di pagamento di
@@ -159,9 +194,13 @@ export async function prenotaLezione(params: {
     if (!utenteSnap.exists()) throw new Error('UTENTE_NON_TROVATO');
 
     const creditoAttuale = (utenteSnap.data().credito as number) ?? 0;
-    if (creditoAttuale < params.prezzo) throw new Error('CREDITO_INSUFFICIENTE');
+    const sosAttuale = (utenteSnap.data().sosUtilizzato as number) ?? 0;
+    const { daCredito, daSOS } = calcolaAddebitoConSOS(creditoAttuale, params.prezzo);
 
-    tx.update(utenteRef, { credito: creditoAttuale - params.prezzo });
+    tx.update(utenteRef, {
+      credito: creditoAttuale - daCredito,
+      ...(daSOS > 0 ? { sosUtilizzato: sosAttuale + daSOS } : {}),
+    });
     tx.set(prenotazioneRef, {
       utenteId: params.uid,
       circoloId: params.circoloId,
@@ -343,6 +382,7 @@ export interface PrenotazioneAdmin {
   etichetta?: string | null;
   tipo?: 'campo' | 'lezione';
   prenotataDa?: 'socio' | 'maestro'; // solo per tipo==='lezione': chi ha avviato la prenotazione
+  sfidaId?: string | null; // presente se questa prenotazione nasce da una Sfida Sociale accettata
   ospite?: boolean;
   maestroId?: string;
   maestroNome?: string;
@@ -379,6 +419,7 @@ export function ascoltaPrenotazioniCircolo(
           etichetta: v.etichetta ?? null,
           tipo: v.tipo ?? 'campo',
           prenotataDa: v.prenotataDa,
+          sfidaId: v.sfidaId ?? null,
           ospite: v.ospite ?? false,
           maestroId: v.maestroId,
           maestroNome: v.maestroNome,
