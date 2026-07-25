@@ -173,7 +173,7 @@ export default function AdminDashboard() {
           onClose={() => setSocioSelUid(null)}
         />
         <SezioneCollassabile id="prenotazioni" titolo="Prenotazione Campi" descrizione="Griglia campi — clicca uno slot per i dettagli">
-          <SezionePrenotazioni campi={campi} blocchi={blocchi} prenotazioni={prenotazioni} />
+          <SezionePrenotazioni campi={campi} blocchi={blocchi} prenotazioni={prenotazioni} sfide={sfide} />
         </SezioneCollassabile>
         <SezioneCollassabile id="note" titolo="Note alle Prenotazioni" descrizione="Prenotazioni con note lasciate dai soci">
           <SezioneNotePrenotazioni prenotazioni={prenotazioni} />

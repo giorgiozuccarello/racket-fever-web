@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Campo, Blocco, ORARI, fasciaOraria } from '../../../data/circoli';
 import { PrenotazioneAdmin, cancellaConRimborso, cancellaConRimborsoDiviso, cancellaSenzaRimborso } from '../../../data/prenotazioniRepo';
+import { Sfida } from '../../../data/sfide';
 import { creaNotifica } from '../../../data/notifiche';
 import { creaNotificaMaestro } from '../../../data/notificheMaestro';
 import { formatISO } from '../../../data/settimana';
@@ -24,14 +25,14 @@ function intestazionePrenotazione(p: PrenotazioneAdmin): string {
   return `${p.utenteNome} ${p.utenteCognome}`;
 }
 
-export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
-  campi: Campo[]; blocchi: Blocco[]; prenotazioni: PrenotazioneAdmin[];
+export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfide }: {
+  campi: Campo[]; blocchi: Blocco[]; prenotazioni: PrenotazioneAdmin[]; sfide: Sfida[];
 }) {
   const [selDay, setSelDay] = useState(0);
   const [selCampoId, setSelCampoId] = useState('');
   const [daAnnullare, setDaAnnullare] = useState<PrenotazioneAdmin | null>(null);
   const [bloccoInfo, setBloccoInfo] = useState<Blocco | null>(null);
-  const [avvisoSfidaBloccata, setAvvisoSfidaBloccata] = useState(false);
+  const [sfidaInfo, setSfidaInfo] = useState<Sfida | null>(null);
   const [elaborando, setElaborando] = useState(false);
 
   useEffect(() => {
@@ -156,7 +157,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
             <button
               key={ora}
               onClick={() => {
-                if (p?.sfidaId) setAvvisoSfidaBloccata(true);
+                if (p?.sfidaId) setSfidaInfo(sfide.find((sf) => sf.id === p.sfidaId) ?? null);
                 else if (p) setDaAnnullare(p);
                 else if (blocco) setBloccoInfo(blocco);
               }}
@@ -180,13 +181,38 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
         </button>
       </Modal>
 
-      <Modal visible={avvisoSfidaBloccata} onClose={() => setAvvisoSfidaBloccata(false)}>
-        <div className="admin-modal-title">Non puoi annullare questa prenotazione da qui</div>
+      <Modal visible={!!sfidaInfo} onClose={() => setSfidaInfo(null)}>
+        <div className="admin-modal-title">Sfida in corso</div>
         <p className="admin-card-hint" style={{ textAlign: 'center' }}>
-          Fa parte di una Sfida in corso — vai nella sezione &quot;Sfide in Corso&quot; e usa
-          &quot;Annulla Sfida Corrente&quot; per liberare gli orari collegati.
+          {sfidaInfo?.sfidanteNome} {sfidaInfo?.sfidanteCognome} vs {sfidaInfo?.sfidatoNome} {sfidaInfo?.sfidatoCognome}
         </p>
-        <button className="admin-btn-full" style={{ marginTop: '1rem' }} onClick={() => setAvvisoSfidaBloccata(false)}>
+
+        <div style={{ background: '#F7F4EA', borderRadius: 10, padding: '.8rem', marginTop: '.6rem' }}>
+          <div className="admin-list-sub">
+            Posizioni al lancio: {sfidaInfo?.sfidanteNome} #{sfidaInfo?.posizioneSfidante} · {sfidaInfo?.sfidatoNome} #{sfidaInfo?.posizioneSfidato}
+          </div>
+          {sfidaInfo?.stato === 'accettata' && sfidaInfo?.slotSceltoIndex != null && (
+            <div className="admin-list-sub" style={{ fontWeight: 700, marginTop: '.3rem' }}>
+              {sfidaInfo.proposte[sfidaInfo.slotSceltoIndex]?.dataLabel} · {sfidaInfo.proposte[sfidaInfo.slotSceltoIndex]?.campoNome} · {sfidaInfo.proposte[sfidaInfo.slotSceltoIndex]?.orari[0]} - {sfidaInfo.proposte[sfidaInfo.slotSceltoIndex]?.orari[2]}
+            </div>
+          )}
+          {sfidaInfo?.risultatoSfidante && (
+            <div className="admin-list-sub">
+              {sfidaInfo.sfidanteNome}: {sfidaInfo.risultatoSfidante.esito} {sfidaInfo.risultatoSfidante.punteggio ? `(${sfidaInfo.risultatoSfidante.punteggio})` : ''}
+            </div>
+          )}
+          {sfidaInfo?.risultatoSfidato && (
+            <div className="admin-list-sub">
+              {sfidaInfo.sfidatoNome}: {sfidaInfo.risultatoSfidato.esito} {sfidaInfo.risultatoSfidato.punteggio ? `(${sfidaInfo.risultatoSfidato.punteggio})` : ''}
+            </div>
+          )}
+        </div>
+
+        <p className="admin-card-hint" style={{ textAlign: 'center', marginTop: '.8rem' }}>
+          Per annullarla, vai nella sezione &quot;Sfide in Corso&quot; e usa &quot;Annulla Sfida Corrente&quot;
+          — da qui puoi solo consultarla.
+        </p>
+        <button className="admin-btn-full" style={{ marginTop: '1rem' }} onClick={() => setSfidaInfo(null)}>
           Ho capito
         </button>
       </Modal>

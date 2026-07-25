@@ -297,9 +297,8 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-collassa-titolo{font-family:var(--font-archivo),sans-serif; font-weight:800; font-size:.98rem; color:var(--inchiostro)}
 .admin-collassa-descrizione{font-size:.8rem; color:var(--grigio); margin-top:.2rem; line-height:1.35}
 .admin-collassa-pin{
-  font-size:1rem; opacity:.4; cursor:pointer; padding:.2rem; border-radius:6px; flex-shrink:0;
+  display:flex; align-items:center; cursor:pointer; padding:.2rem; border-radius:6px; flex-shrink:0;
 }
-.admin-collassa-pin.fissata{opacity:1}
 .admin-collassa-pin:hover{background:#F0ECE0}
 .admin-collassa-chevron{color:var(--grigio); font-size:.75rem; flex-shrink:0}
 .admin-collassa-contenuto{margin-top:.5rem}

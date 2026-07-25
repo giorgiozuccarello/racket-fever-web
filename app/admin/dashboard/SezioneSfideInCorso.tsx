@@ -33,7 +33,10 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
     .filter((sf) => sf.stato === 'lanciata' || sf.stato === 'accettata' || sf.stato === 'rinviata')
     .sort((a, b) => (a.creataIl?.seconds ?? 0) - (b.creataIl?.seconds ?? 0));
 
-  const apriConclusione = (sf: Sfida) => {
+  // Ogni riga è cliccabile, qualunque sia lo stato — non solo quelle
+  // accettate: prima le sfide "in attesa" o "rimandate" non aprivano
+  // nulla, ora mostrano sempre le loro informazioni.
+  const apriInfo = (sf: Sfida) => {
     setDaConcludere(sf);
     if (sf.risultatoSfidante && sf.risultatoSfidato) {
       if (sf.risultatoSfidante.esito === 'vinta' && sf.risultatoSfidato.esito === 'persa') {
@@ -111,12 +114,11 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
         const slotScelto = sf.slotSceltoIndex != null ? sf.proposte[sf.slotSceltoIndex] : null;
         const discrepanza = !!sf.risultatoSfidante && !!sf.risultatoSfidato
           && sf.risultatoSfidante.esito === sf.risultatoSfidato.esito;
-        const cliccabile = sf.stato === 'accettata';
         return (
           <div
             key={sf.id}
-            className={`admin-list-row${cliccabile ? ' admin-list-row-clickable' : ''}`}
-            onClick={() => cliccabile && apriConclusione(sf)}
+            className="admin-list-row admin-list-row-clickable"
+            onClick={() => apriInfo(sf)}
           >
             <div style={{ flex: 1 }}>
               <div className="admin-list-main">
@@ -154,54 +156,99 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
                 </>
               )}
             </div>
-            {cliccabile && <span style={{ color: 'var(--grigio)', fontSize: '1.1rem' }}>›</span>}
+            <span style={{ color: 'var(--grigio)', fontSize: '1.1rem' }}>›</span>
           </div>
         );
       })}
 
       <Modal visible={!!daConcludere} onClose={() => setDaConcludere(null)}>
-        <div className="admin-modal-title">Concludi la sfida</div>
+        <div className="admin-modal-title">
+          {daConcludere?.stato === 'accettata' ? 'Concludi la sfida' : 'Info Sfida'}
+        </div>
         <p className="admin-card-hint" style={{ textAlign: 'center' }}>
           {daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} vs {daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome}
         </p>
 
-        <label className="admin-label" style={{ marginTop: '.9rem' }}>Chi ha vinto?</label>
-        <div
-          className="admin-list-row admin-list-row-clickable"
-          onClick={() => setVincitoreScelto(daConcludere?.sfidanteId ?? null)}
-        >
-          <input type="radio" checked={vincitoreScelto === daConcludere?.sfidanteId} onChange={() => {}} style={{ marginRight: '.6rem' }} />
-          <span>{daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} (sfidante)</span>
-        </div>
-        <div
-          className="admin-list-row admin-list-row-clickable"
-          onClick={() => setVincitoreScelto(daConcludere?.sfidatoId ?? null)}
-        >
-          <input type="radio" checked={vincitoreScelto === daConcludere?.sfidatoId} onChange={() => {}} style={{ marginRight: '.6rem' }} />
-          <span>{daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome} (sfidato)</span>
+        <div style={{ background: '#F7F4EA', borderRadius: 10, padding: '.8rem', marginTop: '.7rem' }}>
+          <div className="admin-list-sub">
+            Posizioni al lancio: {daConcludere?.sfidanteNome} #{daConcludere?.posizioneSfidante} · {daConcludere?.sfidatoNome} #{daConcludere?.posizioneSfidato}
+          </div>
+          <div className="admin-list-sub">
+            Stato: {daConcludere?.stato === 'lanciata' ? 'In attesa di risposta'
+              : daConcludere?.stato === 'accettata' ? 'Accettata, in attesa del risultato'
+              : daConcludere?.stato === 'rinviata' ? 'Rimandata' : daConcludere?.stato}
+          </div>
+
+          {daConcludere?.stato === 'lanciata' && (
+            <>
+              {!!daConcludere.scadenzaAccettazione && <CountdownAdmin scadenza={daConcludere.scadenzaAccettazione} />}
+              <div className="admin-list-sub" style={{ fontWeight: 700, marginTop: '.4rem' }}>Orari proposti:</div>
+              {daConcludere.proposte.map((p, idx) => (
+                <div key={idx} className="admin-list-sub">
+                  · {p.dataLabel} · {p.campoNome} · {p.orari[0]} - {p.orari[2]}
+                </div>
+              ))}
+            </>
+          )}
+
+          {daConcludere?.stato === 'accettata' && daConcludere.slotSceltoIndex != null && (
+            <div className="admin-list-sub" style={{ fontWeight: 700 }}>
+              {daConcludere.proposte[daConcludere.slotSceltoIndex]?.dataLabel} · {daConcludere.proposte[daConcludere.slotSceltoIndex]?.campoNome} · {daConcludere.proposte[daConcludere.slotSceltoIndex]?.orari[0]} - {daConcludere.proposte[daConcludere.slotSceltoIndex]?.orari[2]}
+            </div>
+          )}
+
+          {daConcludere?.stato === 'rinviata' && (
+            <div className="admin-list-sub">{daConcludere.motivoRinvio ?? 'Nessuno slot compatibile trovato nei 14 giorni di ricerca.'}</div>
+          )}
         </div>
 
-        <button
-          type="button"
-          onClick={() => setConfermaAnnullaAperta(true)}
-          style={{
-            width: '100%', marginTop: '1rem', background: 'transparent', color: '#B3261E',
-            border: '2px solid #B3261E', borderRadius: 10, padding: '.7rem', fontWeight: 700,
-            fontSize: '.85rem', cursor: 'pointer',
-          }}
-        >
-          Annulla Sfida Corrente
-        </button>
+        {daConcludere?.stato === 'accettata' && (
+          <>
+            <label className="admin-label" style={{ marginTop: '.9rem' }}>Chi ha vinto?</label>
+            <div
+              className="admin-list-row admin-list-row-clickable"
+              onClick={() => setVincitoreScelto(daConcludere?.sfidanteId ?? null)}
+            >
+              <input type="radio" checked={vincitoreScelto === daConcludere?.sfidanteId} onChange={() => {}} style={{ marginRight: '.6rem' }} />
+              <span>{daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} (sfidante)</span>
+            </div>
+            <div
+              className="admin-list-row admin-list-row-clickable"
+              onClick={() => setVincitoreScelto(daConcludere?.sfidatoId ?? null)}
+            >
+              <input type="radio" checked={vincitoreScelto === daConcludere?.sfidatoId} onChange={() => {}} style={{ marginRight: '.6rem' }} />
+              <span>{daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome} (sfidato)</span>
+            </div>
+          </>
+        )}
+
+        {(daConcludere?.stato === 'lanciata' || daConcludere?.stato === 'accettata') && (
+          <button
+            type="button"
+            onClick={() => setConfermaAnnullaAperta(true)}
+            style={{
+              width: '100%', marginTop: '1rem', background: 'transparent', color: '#B3261E',
+              border: '2px solid #B3261E', borderRadius: 10, padding: '.7rem', fontWeight: 700,
+              fontSize: '.85rem', cursor: 'pointer',
+            }}
+          >
+            Annulla Sfida Corrente
+          </button>
+        )}
 
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setDaConcludere(null)}>Annulla</button>
-          <button
-            className="admin-modal-btn-confirm"
-            onClick={confermaConclusione}
-            disabled={!vincitoreScelto || concludendo}
-          >
-            {concludendo ? 'Attendere…' : 'Dichiara Sfida Conclusa'}
+          <button className="admin-modal-btn-cancel" onClick={() => setDaConcludere(null)}>
+            {daConcludere?.stato === 'accettata' ? 'Annulla' : 'Chiudi'}
           </button>
+          {daConcludere?.stato === 'accettata' && (
+            <button
+              className="admin-modal-btn-confirm"
+              onClick={confermaConclusione}
+              disabled={!vincitoreScelto || concludendo}
+            >
+              {concludendo ? 'Attendere…' : 'Dichiara Sfida Conclusa'}
+            </button>
+          )}
         </div>
       </Modal>
 

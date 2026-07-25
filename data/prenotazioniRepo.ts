@@ -6,7 +6,7 @@
 // due, così credito e prenotazioni non si disallineano mai.
 // ============================================================
 
-import { runTransaction, doc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot } from 'firebase/firestore';
+import { runTransaction, doc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { rimuoviDisponibilitaPerSlot } from './disponibilitaLezioni';
 
@@ -80,6 +80,37 @@ export async function prenotaConCredito(params: {
 // che è SEMPRE disponibile e senza limite (da saldare in segreteria).
 // Nessun socio deve mai restare bloccato da un blocco di credito
 // insufficiente in una prenotazione condivisa (con compagno, o Sfida).
+// Conta le prenotazioni campo di UN socio qualsiasi (non necessariamente
+// quello loggato) in una settimana — utenteId O compagnoId, contano
+// entrambi i ruoli. Serve per verificare il limite settimanale anche
+// dell'ALTRA persona coinvolta in una prenotazione condivisa (compagno
+// di gioco, Sfida), che altrimenti nessuno controllerebbe mai.
+export async function contaPrenotazioniSettimana(uid: string, inizio: string, fine: string): Promise<number> {
+  const q1 = query(collection(db, 'prenotazioni'), where('utenteId', '==', uid));
+  const q2 = query(collection(db, 'prenotazioni'), where('compagnoId', '==', uid));
+  const [snap1, snap2] = await Promise.all([getDocs(q1), getDocs(q2)]);
+  const ids = new Set<string>();
+  snap1.forEach((d) => {
+    const data = d.data().data as string;
+    if (data >= inizio && data <= fine) ids.add(d.id);
+  });
+  snap2.forEach((d) => {
+    const data = d.data().data as string;
+    if (data >= inizio && data <= fine) ids.add(d.id);
+  });
+  return ids.size * 0.5;
+}
+
+// Calcola il limite settimanale effettivo di un socio: il suo limite
+// personale (se impostato) sostituisce quello generale del circolo.
+export function limiteEffettivoDi(
+  socio: { limitePrenotazioniPersonale?: number },
+  limiteOreSettimanali: number
+): number {
+  const personale = socio.limitePrenotazioniPersonale ?? 0;
+  return personale > 0 ? personale : limiteOreSettimanali;
+}
+
 function calcolaAddebitoConSOS(creditoAttuale: number, importo: number): { daCredito: number; daSOS: number } {
   const daCredito = Math.min(creditoAttuale, importo);
   const daSOS = Math.round((importo - daCredito) * 100) / 100;

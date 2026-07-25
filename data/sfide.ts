@@ -15,10 +15,10 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Campo, Blocco, ORARI, orarioFineSlot } from './circoli';
-import { PrenotazioneAdmin, prenotaConCompagno } from './prenotazioniRepo';
+import { PrenotazioneAdmin, prenotaConCompagno, contaPrenotazioniSettimana, limiteEffettivoDi } from './prenotazioniRepo';
 import { calcolaPrezzo } from './prezzi';
 import { SocioCircolo } from './users';
-import { formatISO } from './settimana';
+import { formatISO, settimanaDi } from './settimana';
 import { creaNotifica } from './notifiche';
 
 const GIORNI_IT_BREVE = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
@@ -84,6 +84,7 @@ export interface Sfida {
   risultatoSfidato?: { esito: 'vinta' | 'persa'; punteggio: string } | null;
   vincitoreId?: string | null;
   scadenzaAccettazione?: number | null; // timestamp millis: entro quando lo sfidato deve accettare
+  motivoRinvio?: string | null; // spiega perché la sfida è nata "rinviata" (solo per stato==='rinviata')
   creataIl?: any;
 }
 
@@ -224,12 +225,29 @@ export function trovaCandidatiSfida(
   prenotazioni: PrenotazioneAdmin[],
   blocchi: Blocco[],
   preferenzeSfidato: { giorni: number[]; oraInizio: string; oraFine: string } | null | undefined
-): { candidati: ProposteOrario[]; finestraEstesa: boolean } {
+): { candidati: ProposteOrario[]; finestraEstesa: boolean; motivoRinvio?: string } {
   const primaSettimana = trovaCombinazioniInFinestra(campi, prenotazioni, blocchi, preferenzeSfidato, 0, 6);
   if (primaSettimana.length > 0) return { candidati: primaSettimana, finestraEstesa: false };
 
   const secondaSettimana = trovaCombinazioniInFinestra(campi, prenotazioni, blocchi, preferenzeSfidato, 7, 13);
-  return { candidati: secondaSettimana, finestraEstesa: secondaSettimana.length > 0 };
+  if (secondaSettimana.length > 0) return { candidati: secondaSettimana, finestraEstesa: true };
+
+  // Nessuno slot trovato nei 14 giorni: capiamo IL PERCHÉ, rifacendo
+  // la stessa ricerca ma ignorando le preferenze orarie dello sfidato
+  // (se ne aveva impostate). Se così facendo qualcosa salta fuori, il
+  // problema erano le preferenze troppo strette; se non salta fuori
+  // niente nemmeno senza preferenze, il circolo è davvero pieno.
+  let motivoRinvio: string;
+  if (preferenzeSfidato && preferenzeSfidato.giorni.length > 0) {
+    const senzaPreferenze = trovaCombinazioniInFinestra(campi, prenotazioni, blocchi, null, 0, 13);
+    motivoRinvio = senzaPreferenze.length > 0
+      ? 'Le preferenze orarie dello sfidato sono troppo strette: ci sono campi liberi nei 14 giorni, ma fuori dai suoi giorni/orari preferiti.'
+      : 'Nessun campo libero nei 14 giorni, indipendentemente dagli orari — il circolo risulta pieno in questo periodo.';
+  } else {
+    motivoRinvio = 'Nessun campo libero nei 14 giorni — il circolo risulta pieno in questo periodo.';
+  }
+
+  return { candidati: [], finestraEstesa: false, motivoRinvio };
 }
 
 // Sceglie fino a 3 proposte dal pool di candidati, escludendo quelle già
@@ -265,6 +283,7 @@ export async function lanciaSfida(params: {
   sfidanteId: string; sfidanteNome: string; sfidanteCognome: string; posizioneSfidante: number;
   sfidatoId: string; sfidatoNome: string; sfidatoCognome: string; posizioneSfidato: number;
   proposte: ProposteOrario[]; // vuoto = nessuno slot trovato, la sfida nasce già "rinviata"
+  motivoRinvio?: string | null;
 }): Promise<string> {
   const stato: StatoSfida = params.proposte.length === 0 ? 'rinviata' : 'lanciata';
   const ref = await addDoc(collection(db, 'sfide'), {
@@ -280,6 +299,7 @@ export async function lanciaSfida(params: {
     risultatoSfidante: null,
     risultatoSfidato: null,
     vincitoreId: null,
+    motivoRinvio: stato === 'rinviata' ? (params.motivoRinvio ?? null) : null,
     scadenzaAccettazione: stato === 'lanciata' ? Date.now() + DURATA_ACCETTAZIONE_MS : null,
     creataIl: serverTimestamp(),
   });
@@ -317,7 +337,7 @@ export async function risolviSfidaScaduta(
 // scadenza, che agisce solo su sfide ancora "lanciata", non può più
 // intromettersi mentre la prenotazione è a metà.
 export async function accettaSfida(
-  sfida: Sfida, indiceScelto: number
+  sfida: Sfida, indiceScelto: number, soci: SocioCircolo[], limiteOreSettimanali: number
 ): Promise<{ sosUsatoSfidante: boolean; sosUsatoSfidato: boolean }> {
   const slot = sfida.proposte[indiceScelto];
   if (!slot) throw new Error('SLOT_NON_VALIDO');
@@ -327,6 +347,25 @@ export async function accettaSfida(
   // in parte la partita senza che nessuno se ne accorga.
   if (!Array.isArray(slot.orari) || slot.orari.length !== 3 || !Array.isArray(slot.prezzi) || slot.prezzi.length !== 3) {
     throw new Error('PROPOSTA_INCOMPLETA');
+  }
+
+  // Controllo preventivo del limite settimanale di ENTRAMBI: la
+  // partita conta come impegno per sfidante E sfidato, ma finora
+  // nessuno lo verificava — potevano ritrovarsi oltre il proprio
+  // limite senza saperlo. Si controlla la settimana della PARTITA
+  // (non quella odierna), che potrebbe essere diversa.
+  const { inizio, fine } = settimanaDi(new Date(`${slot.data}T00:00:00`));
+  const sfidanteSocio = soci.find((s) => s.uid === sfida.sfidanteId);
+  const sfidatoSocio = soci.find((s) => s.uid === sfida.sfidatoId);
+  const limiteSfidante = sfidanteSocio ? limiteEffettivoDi(sfidanteSocio, limiteOreSettimanali) : limiteOreSettimanali;
+  const limiteSfidato = sfidatoSocio ? limiteEffettivoDi(sfidatoSocio, limiteOreSettimanali) : limiteOreSettimanali;
+  if (limiteSfidante > 0) {
+    const contoSfidante = await contaPrenotazioniSettimana(sfida.sfidanteId, inizio, fine);
+    if (contoSfidante >= limiteSfidante) throw new Error('LIMITE_SFIDANTE_SUPERATO');
+  }
+  if (limiteSfidato > 0) {
+    const contoSfidato = await contaPrenotazioniSettimana(sfida.sfidatoId, inizio, fine);
+    if (contoSfidato >= limiteSfidato) throw new Error('LIMITE_SFIDATO_SUPERATO');
   }
 
   const sfidaRef = doc(db, 'sfide', sfida.id);
