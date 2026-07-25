@@ -442,10 +442,21 @@ export async function concludiSfida(
 export async function annullaSfida(sfida: Sfida): Promise<void> {
   if (sfida.prenotazioneIds && sfida.prenotazioneIds.length > 0) {
     for (const prenId of sfida.prenotazioneIds) {
-      await deleteDoc(doc(db, 'prenotazioni', prenId));
+      try {
+        await deleteDoc(doc(db, 'prenotazioni', prenId));
+      } catch (e) {
+        // Già cancellata in precedenza (es. un doppio tentativo): non
+        // deve bloccare l'annullamento della sfida, che deve comunque
+        // andare a buon fine.
+        console.warn('Prenotazione già assente durante annullamento sfida:', prenId, e);
+      }
     }
   }
-  await updateDoc(doc(db, 'sfide', sfida.id), { stato: 'annullata' });
+  // L'elenco va SVUOTATO, non solo "processato": altrimenti un futuro
+  // Reset globale (o un secondo tentativo di annullamento) ritroverebbe
+  // qui gli stessi ID ormai orfani e proverebbe a cancellarli di nuovo,
+  // trovando un "permesso negato" su un documento che non esiste più.
+  await updateDoc(doc(db, 'sfide', sfida.id), { stato: 'annullata', prenotazioneIds: [] });
   await notificaSfidaConRitentativi(
     sfida.sfidanteId,
     `Il circolo ha annullato la sfida con ${sfida.sfidatoNome} ${sfida.sfidatoCognome}. La classifica non cambia.`
@@ -468,9 +479,20 @@ export async function resettaSfideTest(circoloId: string, sfide: Sfida[]): Promi
   for (const sf of daCancellare) {
     if (sf.prenotazioneIds && sf.prenotazioneIds.length > 0) {
       for (const prenId of sf.prenotazioneIds) {
-        await deleteDoc(doc(db, 'prenotazioni', prenId));
+        try {
+          await deleteDoc(doc(db, 'prenotazioni', prenId));
+        } catch (e) {
+          // Riferimento ormai orfano (già cancellato in precedenza,
+          // es. da un annullamento singolo fatto prima del reset):
+          // non deve interrompere la pulizia delle altre sfide.
+          console.warn('Prenotazione già assente durante il reset:', prenId, e);
+        }
       }
     }
-    await deleteDoc(doc(db, 'sfide', sf.id));
+    try {
+      await deleteDoc(doc(db, 'sfide', sf.id));
+    } catch (e) {
+      console.warn('Sfida già assente durante il reset:', sf.id, e);
+    }
   }
 }

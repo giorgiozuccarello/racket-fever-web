@@ -19,7 +19,7 @@ export interface ProfiloResponsabile {
 }
 
 export async function accediResponsabile(email: string, password: string): Promise<User> {
-  const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+  const cred = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
   return cred.user;
 }
 

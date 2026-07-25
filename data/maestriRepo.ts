@@ -49,7 +49,7 @@ export async function leggiMaestro(uid: string): Promise<ProfiloMaestro | null> 
 }
 
 export async function accediMaestro(email: string, password: string): Promise<User> {
-  const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+  const cred = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
   return cred.user;
 }
 
@@ -72,7 +72,7 @@ export async function creaMaestro(
 
   let uid: string;
   try {
-    const cred = await createUserWithEmailAndPassword(authSecondaria, email.trim(), password);
+    const cred = await createUserWithEmailAndPassword(authSecondaria, email.trim(), password.trim());
     uid = cred.user.uid;
     await signOutSecondaria(authSecondaria);
   } finally {

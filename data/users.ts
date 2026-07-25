@@ -50,7 +50,7 @@ export async function registrati(
   email: string,
   password: string
 ): Promise<void> {
-  const cred = await createUserWithEmailAndPassword(auth, email.trim(), password);
+  const cred = await createUserWithEmailAndPassword(auth, email.trim(), password.trim());
 
   await setDoc(doc(db, 'utenti', cred.user.uid), {
     nome: nome.trim(),
@@ -65,7 +65,7 @@ export async function registrati(
 }
 
 export async function accedi(email: string, password: string): Promise<User> {
-  const cred = await signInWithEmailAndPassword(auth, email.trim(), password);
+  const cred = await signInWithEmailAndPassword(auth, email.trim(), password.trim());
   await reload(cred.user);
 
   if (!cred.user.emailVerified) {
