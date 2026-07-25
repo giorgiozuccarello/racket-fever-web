@@ -354,18 +354,32 @@ export async function accettaSfida(
   // nessuno lo verificava — potevano ritrovarsi oltre il proprio
   // limite senza saperlo. Si controlla la settimana della PARTITA
   // (non quella odierna), che potrebbe essere diversa.
-  const { inizio, fine } = settimanaDi(new Date(`${slot.data}T00:00:00`));
-  const sfidanteSocio = soci.find((s) => s.uid === sfida.sfidanteId);
-  const sfidatoSocio = soci.find((s) => s.uid === sfida.sfidatoId);
-  const limiteSfidante = sfidanteSocio ? limiteEffettivoDi(sfidanteSocio, limiteOreSettimanali) : limiteOreSettimanali;
-  const limiteSfidato = sfidatoSocio ? limiteEffettivoDi(sfidatoSocio, limiteOreSettimanali) : limiteOreSettimanali;
-  if (limiteSfidante > 0) {
-    const contoSfidante = await contaPrenotazioniSettimana(sfida.sfidanteId, inizio, fine);
-    if (contoSfidante >= limiteSfidante) throw new Error('LIMITE_SFIDANTE_SUPERATO');
-  }
-  if (limiteSfidato > 0) {
-    const contoSfidato = await contaPrenotazioniSettimana(sfida.sfidatoId, inizio, fine);
-    if (contoSfidato >= limiteSfidato) throw new Error('LIMITE_SFIDATO_SUPERATO');
+  //
+  // Il controllo stesso è avvolto in un try/catch: se fallisce per un
+  // motivo tecnico (rete, permessi, ecc.) non deve MAI bloccare
+  // un'accettazione altrimenti valida — meglio lasciar passare che
+  // rompere l'intero flusso per un controllo accessorio.
+  try {
+    const { inizio, fine } = settimanaDi(new Date(`${slot.data}T00:00:00`));
+    const sfidanteSocio = soci.find((s) => s.uid === sfida.sfidanteId);
+    const sfidatoSocio = soci.find((s) => s.uid === sfida.sfidatoId);
+    const limiteSfidante = sfidanteSocio ? limiteEffettivoDi(sfidanteSocio, limiteOreSettimanali) : limiteOreSettimanali;
+    const limiteSfidato = sfidatoSocio ? limiteEffettivoDi(sfidatoSocio, limiteOreSettimanali) : limiteOreSettimanali;
+    if (limiteSfidante > 0) {
+      const contoSfidante = await contaPrenotazioniSettimana(sfida.sfidanteId, inizio, fine);
+      if (contoSfidante >= limiteSfidante) throw new Error('LIMITE_SFIDANTE_SUPERATO');
+    }
+    if (limiteSfidato > 0) {
+      const contoSfidato = await contaPrenotazioniSettimana(sfida.sfidatoId, inizio, fine);
+      if (contoSfidato >= limiteSfidato) throw new Error('LIMITE_SFIDATO_SUPERATO');
+    }
+  } catch (e: any) {
+    // Le due eccezioni "volute" (limite davvero superato) vanno
+    // rilanciate così come sono, per bloccare l'accettazione con il
+    // messaggio giusto. Qualunque ALTRO errore (tecnico) viene solo
+    // segnalato in console e IGNORATO, senza bloccare la sfida.
+    if (e?.message === 'LIMITE_SFIDANTE_SUPERATO' || e?.message === 'LIMITE_SFIDATO_SUPERATO') throw e;
+    console.warn('Controllo limite settimanale non riuscito, si procede comunque:', e);
   }
 
   const sfidaRef = doc(db, 'sfide', sfida.id);
