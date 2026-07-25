@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { auth } from '../../../lib/firebase';
@@ -10,6 +10,7 @@ import { ascoltaSociCircolo, SocioCircolo } from '../../../data/users';
 import { Circolo, Campo, Blocco } from '../../../data/circoli';
 import { ascoltaCircolo, ascoltaCampi, ascoltaBlocchi } from '../../../data/circoliRepo';
 import { ascoltaPrenotazioniCircolo, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
+import { Sfida, ascoltaSfideCircolo, risolviSfidaScaduta } from '../../../data/sfide';
 import InstallPrompt from '../InstallPrompt';
 import SezionePassword from './SezionePassword';
 import SezioneCollaboratori from './SezioneCollaboratori';
@@ -23,6 +24,7 @@ import SezioneDebitiSoci from './SezioneDebitiSoci';
 import SchedaSocioModal from './SchedaSocioModal';
 import SezioneMaestri from './SezioneMaestri';
 import SezioneClassificaSociale from './SezioneClassificaSociale';
+import SezioneSfideInCorso from './SezioneSfideInCorso';
 import SezionePrenotazioni from './SezionePrenotazioni';
 import SezioneNotePrenotazioni from './SezioneNotePrenotazioni';
 import SezioneLezioniPrenotate from './SezioneLezioniPrenotate';
@@ -37,6 +39,7 @@ export default function AdminDashboard() {
   const [soci, setSoci] = useState<SocioCircolo[]>([]);
   const [prenotazioni, setPrenotazioni] = useState<PrenotazioneAdmin[]>([]);
   const [maestri, setMaestri] = useState<MaestroConUid[]>([]);
+  const [sfide, setSfide] = useState<Sfida[]>([]);
   const [socioSelUid, setSocioSelUid] = useState<string | null>(null);
   const [caricando, setCaricando] = useState(true);
 
@@ -72,8 +75,24 @@ export default function AdminDashboard() {
     const u4 = ascoltaSociCircolo(responsabile.circoloId, setSoci);
     const u5 = ascoltaPrenotazioniCircolo(responsabile.circoloId, setPrenotazioni);
     const u6 = ascoltaMaestriCircolo(responsabile.circoloId, setMaestri);
-    return () => { u1(); u2(); u3(); u4(); u5(); u6(); };
+    const u7 = ascoltaSfideCircolo(responsabile.circoloId, setSfide);
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); u7(); };
   }, [responsabile]);
+
+  // Stesso controllo passivo del mobile: se l'Admin ha la dashboard
+  // aperta e nota una sfida scaduta senza risposta, la chiude lui —
+  // non c'è un sistema di automazioni lato server per questo.
+  const sfideScaduteTentate = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (soci.length === 0) return;
+    sfide
+      .filter((sf) => sf.stato === 'lanciata' && sf.scadenzaAccettazione && Date.now() >= sf.scadenzaAccettazione)
+      .filter((sf) => !sfideScaduteTentate.current.has(sf.id))
+      .forEach((sf) => {
+        sfideScaduteTentate.current.add(sf.id);
+        risolviSfidaScaduta(sf, soci);
+      });
+  }, [sfide, soci]);
 
   const logout = async () => {
     await signOut(auth);
@@ -120,7 +139,8 @@ export default function AdminDashboard() {
         <SezioneSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
         <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
         <SezioneMaestri circoloId={circolo.id} maestri={maestri} />
-        <SezioneClassificaSociale circolo={circolo} soci={soci} />
+        <SezioneClassificaSociale circolo={circolo} soci={soci} sfide={sfide} />
+        <SezioneSfideInCorso sfide={sfide} soci={soci} />
         <SchedaSocioModal
           circoloId={circolo.id}
           socio={socioSelUid ? soci.find((x) => x.uid === socioSelUid) ?? null : null}
