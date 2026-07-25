@@ -25,6 +25,7 @@ import SchedaSocioModal from './SchedaSocioModal';
 import SezioneMaestri from './SezioneMaestri';
 import SezioneClassificaSociale from './SezioneClassificaSociale';
 import SezioneSfideInCorso from './SezioneSfideInCorso';
+import SezioneCollassabile from './SezioneCollassabile';
 import SezionePrenotazioni from './SezionePrenotazioni';
 import SezioneNotePrenotazioni from './SezioneNotePrenotazioni';
 import SezioneLezioniPrenotate from './SezioneLezioniPrenotate';
@@ -129,27 +130,57 @@ export default function AdminDashboard() {
       </header>
 
       <main className="admin-main">
-        <SezionePersonalizzaApp circolo={circolo} />
-        <SezionePassword circolo={circolo} />
-        <SezioneCollaboratori circoloId={circolo.id} />
-        <SezioneCampi circoloId={circolo.id} campi={campi} />
-        <SezioneLimite circolo={circolo} />
-        <SezionePrezzi circoloId={circolo.id} campi={campi} />
-        <SezioneBlocchi circoloId={circolo.id} campi={campi} blocchi={blocchi} />
-        <SezioneSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
-        <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
-        <SezioneMaestri circoloId={circolo.id} maestri={maestri} />
-        <SezioneClassificaSociale circolo={circolo} soci={soci} sfide={sfide} />
-        <SezioneSfideInCorso sfide={sfide} soci={soci} />
+        <SezioneCollassabile id="personalizza" titolo="Personalizza App" descrizione="Colori e logo dell'app mostrati ai soci">
+          <SezionePersonalizzaApp circolo={circolo} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="password" titolo="Password Circolo" descrizione="Password che i soci usano per accedere">
+          <SezionePassword circolo={circolo} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="collaboratori" titolo="Collaboratori" descrizione="Accesso rapido per lo staff, senza account personale">
+          <SezioneCollaboratori circoloId={circolo.id} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="campi" titolo="Campi" descrizione="Numero, nome e superficie dei campi">
+          <SezioneCampi circoloId={circolo.id} campi={campi} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="limite" titolo="Limite Prenotazioni" descrizione="Limite di prenotazioni settimanali per socio">
+          <SezioneLimite circolo={circolo} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="prezzi" titolo="Prezzi" descrizione="Tariffe orarie e fasce speciali">
+          <SezionePrezzi circoloId={circolo.id} campi={campi} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="blocchi" titolo="Orari Riservati" descrizione="Manutenzione, tornei, corsi — orari non prenotabili">
+          <SezioneBlocchi circoloId={circolo.id} campi={campi} blocchi={blocchi} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="soci" titolo="Soci" descrizione="Anagrafica e credito dei soci">
+          <SezioneSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="debiti" titolo="Debiti dei Soci" descrizione="Soci con credito negativo o S.O.S. da saldare">
+          <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="maestri" titolo="Maestri" descrizione="Account e accesso dei maestri del circolo">
+          <SezioneMaestri circoloId={circolo.id} maestri={maestri} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="classifica" titolo="Classifica Sociale" descrizione="Ranking dei soci e gestione posizioni">
+          <SezioneClassificaSociale circolo={circolo} soci={soci} sfide={sfide} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="sfide" titolo="Sfide in Corso" descrizione="Sfide sociali dal lancio alla conclusione">
+          <SezioneSfideInCorso sfide={sfide} soci={soci} />
+        </SezioneCollassabile>
         <SchedaSocioModal
           circoloId={circolo.id}
           socio={socioSelUid ? soci.find((x) => x.uid === socioSelUid) ?? null : null}
           prenotazioni={prenotazioni}
           onClose={() => setSocioSelUid(null)}
         />
-        <SezionePrenotazioni campi={campi} blocchi={blocchi} prenotazioni={prenotazioni} />
-        <SezioneNotePrenotazioni prenotazioni={prenotazioni} />
-        <SezioneLezioniPrenotate prenotazioni={prenotazioni} />
+        <SezioneCollassabile id="prenotazioni" titolo="Prenotazione Campi" descrizione="Griglia campi — clicca uno slot per i dettagli">
+          <SezionePrenotazioni campi={campi} blocchi={blocchi} prenotazioni={prenotazioni} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="note" titolo="Note alle Prenotazioni" descrizione="Prenotazioni con note lasciate dai soci">
+          <SezioneNotePrenotazioni prenotazioni={prenotazioni} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="lezioni" titolo="Lezioni Prenotate" descrizione="Calendario riepilogativo delle lezioni con i maestri">
+          <SezioneLezioniPrenotate prenotazioni={prenotazioni} />
+        </SezioneCollassabile>
       </main>
     </div>
   );

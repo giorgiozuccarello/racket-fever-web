@@ -31,6 +31,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
   const [selCampoId, setSelCampoId] = useState('');
   const [daAnnullare, setDaAnnullare] = useState<PrenotazioneAdmin | null>(null);
   const [bloccoInfo, setBloccoInfo] = useState<Blocco | null>(null);
+  const [avvisoSfidaBloccata, setAvvisoSfidaBloccata] = useState(false);
   const [elaborando, setElaborando] = useState(false);
 
   useEffect(() => {
@@ -148,12 +149,17 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
           const p = !blocco ? prenotazioneSlot(ora) : undefined;
           const eLezione = p?.tipo === 'lezione';
           let sotto = 'Libero';
-          if (p) sotto = p.utenteCognome ? `${p.utenteNome} ${p.utenteCognome[0]}.` : p.utenteNome;
+          if (p?.sfidaId) sotto = 'Sfida in corso';
+          else if (p) sotto = p.utenteCognome ? `${p.utenteNome} ${p.utenteCognome[0]}.` : p.utenteNome;
           else if (blocco) sotto = 'Riservato';
           return (
             <button
               key={ora}
-              onClick={() => { if (p) setDaAnnullare(p); else if (blocco) setBloccoInfo(blocco); }}
+              onClick={() => {
+                if (p?.sfidaId) setAvvisoSfidaBloccata(true);
+                else if (p) setDaAnnullare(p);
+                else if (blocco) setBloccoInfo(blocco);
+              }}
               className={`pc-slot ${p ? 'occupato' : ''} ${eLezione ? 'lezione' : ''} ${blocco ? 'riservato' : ''}`}
             >
               <div className="pc-slot-ora">{ora}</div>
@@ -171,6 +177,17 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni }: {
         <p style={{ marginTop: '1rem', fontWeight: 700 }}>{bloccoInfo?.etichetta}</p>
         <button className="admin-modal-btn-cancel" onClick={() => setBloccoInfo(null)} style={{ marginTop: '1rem' }}>
           Chiudi
+        </button>
+      </Modal>
+
+      <Modal visible={avvisoSfidaBloccata} onClose={() => setAvvisoSfidaBloccata(false)}>
+        <div className="admin-modal-title">Non puoi annullare questa prenotazione da qui</div>
+        <p className="admin-card-hint" style={{ textAlign: 'center' }}>
+          Fa parte di una Sfida in corso — vai nella sezione &quot;Sfide in Corso&quot; e usa
+          &quot;Annulla Sfida Corrente&quot; per liberare gli orari collegati.
+        </p>
+        <button className="admin-btn-full" style={{ marginTop: '1rem' }} onClick={() => setAvvisoSfidaBloccata(false)}>
+          Ho capito
         </button>
       </Modal>
 
