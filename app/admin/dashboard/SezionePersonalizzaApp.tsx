@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState } from 'react';
-import { Circolo } from '../../../data/circoli';
+import { Circolo, TEMI_SFONDO_APP } from '../../../data/circoli';
 import { aggiornaCircolo } from '../../../data/circoliRepo';
 import { caricaLogoCircolo } from '../../../data/storage';
 
@@ -14,8 +14,69 @@ export default function SezionePersonalizzaApp({ circolo }: { circolo: Circolo }
       <div className="superadmin-subtitolo">Tema App</div>
       <SezioneTema circolo={circolo} />
 
+      <div className="superadmin-subtitolo" style={{ marginTop: '1.4rem' }}>Sfondo App</div>
+      <SezioneSfondoApp circolo={circolo} />
+
       <div className="superadmin-subtitolo" style={{ marginTop: '1.4rem' }}>Logo dell&apos;App</div>
       <SezioneLogoInterna circolo={circolo} />
+    </div>
+  );
+}
+
+function SezioneSfondoApp({ circolo }: { circolo: Circolo }) {
+  const [salvando, setSalvando] = useState(false);
+  const temaAttuale = circolo.sfondoApp ?? 'bianco';
+
+  const scegli = async (chiave: string) => {
+    setSalvando(true);
+    await aggiornaCircolo(circolo.id, { sfondoApp: chiave });
+    setSalvando(false);
+  };
+
+  const chiaviChiare = ['bianco', 'latte', 'avorio'];
+  const chiaviScure = ['nero', 'bluScuro', 'violaScuro'];
+
+  return (
+    <div>
+      <p className="admin-card-hint">
+        Lo sfondo generale dell&apos;app (dietro le card, che restano sempre bianche e leggibili).
+        I temi chiari mantengono i titoli in nero, quelli scuri li mostrano in bianco.
+      </p>
+
+      <label className="admin-label" style={{ marginTop: '.6rem' }}>Temi chiari</label>
+      <div className="tema-grid">
+        {chiaviChiare.map((chiave) => {
+          const t = TEMI_SFONDO_APP[chiave];
+          const selezionato = temaAttuale === chiave;
+          return (
+            <button key={chiave} type="button" className="tema-box" onClick={() => scegli(chiave)}>
+              <span
+                className={`tema-swatch${selezionato ? ' tema-swatch-sel' : ''}`}
+                style={{ background: `linear-gradient(160deg, ${t.da}, ${t.a})`, border: '1.5px solid #C9C2B0' }}
+              />
+              <span className="tema-label">{t.nome}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <label className="admin-label" style={{ marginTop: '.8rem' }}>Temi scuri</label>
+      <div className="tema-grid">
+        {chiaviScure.map((chiave) => {
+          const t = TEMI_SFONDO_APP[chiave];
+          const selezionato = temaAttuale === chiave;
+          return (
+            <button key={chiave} type="button" className="tema-box" onClick={() => scegli(chiave)}>
+              <span
+                className={`tema-swatch${selezionato ? ' tema-swatch-sel' : ''}`}
+                style={{ background: `linear-gradient(160deg, ${t.da}, ${t.a})` }}
+              />
+              <span className="tema-label">{t.nome}</span>
+            </button>
+          );
+        })}
+      </div>
+      {salvando && <p className="admin-card-hint" style={{ marginTop: '.3rem' }}>Salvataggio…</p>}
     </div>
   );
 }

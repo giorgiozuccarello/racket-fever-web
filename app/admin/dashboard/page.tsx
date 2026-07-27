@@ -10,7 +10,7 @@ import { ascoltaSociCircolo, SocioCircolo } from '../../../data/users';
 import { Circolo, Campo, Blocco } from '../../../data/circoli';
 import { ascoltaCircolo, ascoltaCampi, ascoltaBlocchi } from '../../../data/circoliRepo';
 import { ascoltaPrenotazioniCircolo, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
-import { Sfida, ascoltaSfideCircolo, risolviSfidaScaduta } from '../../../data/sfide';
+import { Sfida, ascoltaSfideCircolo, risolviTimerAccordo, risolviTimerPrenotazione } from '../../../data/sfide';
 import InstallPrompt from '../InstallPrompt';
 import SezionePassword from './SezionePassword';
 import SezioneCollaboratori from './SezioneCollaboratori';
@@ -81,17 +81,21 @@ export default function AdminDashboard() {
   }, [responsabile]);
 
   // Stesso controllo passivo del mobile: se l'Admin ha la dashboard
-  // aperta e nota una sfida scaduta senza risposta, la chiude lui —
-  // non c'è un sistema di automazioni lato server per questo.
+  // aperta e nota un timer scaduto (accordo o prenotazione), lo
+  // risolve lui — non c'è un sistema di automazioni lato server.
   const sfideScaduteTentate = useRef<Set<string>>(new Set());
   useEffect(() => {
     if (soci.length === 0) return;
     sfide
-      .filter((sf) => sf.stato === 'lanciata' && sf.scadenzaAccettazione && Date.now() >= sf.scadenzaAccettazione)
+      .filter((sf) =>
+        (sf.fase === 'accordo' && Date.now() >= sf.accordoScadenza) ||
+        (sf.fase === 'prenotazione' && sf.prenotazioneScadenza && Date.now() >= sf.prenotazioneScadenza)
+      )
       .filter((sf) => !sfideScaduteTentate.current.has(sf.id))
       .forEach((sf) => {
         sfideScaduteTentate.current.add(sf.id);
-        risolviSfidaScaduta(sf, soci);
+        if (sf.fase === 'accordo') risolviTimerAccordo(sf, soci);
+        else risolviTimerPrenotazione(sf, soci);
       });
   }, [sfide, soci]);
 
@@ -164,7 +168,7 @@ export default function AdminDashboard() {
           <SezioneClassificaSociale circolo={circolo} soci={soci} sfide={sfide} />
         </SezioneCollassabile>
         <SezioneCollassabile id="sfide" titolo="Sfide in Corso" descrizione="Sfide sociali dal lancio alla conclusione">
-          <SezioneSfideInCorso sfide={sfide} soci={soci} />
+          <SezioneSfideInCorso sfide={sfide} soci={soci} circolo={circolo} />
         </SezioneCollassabile>
         <SchedaSocioModal
           circoloId={circolo.id}

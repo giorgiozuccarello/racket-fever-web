@@ -1,8 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { Circolo } from '../../../data/circoli';
 import { SocioCircolo } from '../../../data/users';
-import { Sfida, concludiSfida, annullaSfida, notificaSfidaConRitentativi } from '../../../data/sfide';
+import {
+  Sfida, concludiSfida, annullaSfida, notificaSfidaConRitentativi,
+  nonPresentatoSfidante, nonPresentatoSfidato, modificaRisultatoUfficiale,
+} from '../../../data/sfide';
+import { aggiornaCircolo } from '../../../data/circoliRepo';
 import Modal from './Modal';
 
 function CountdownAdmin({ scadenza }: { scadenza: number }) {
@@ -21,21 +26,54 @@ function CountdownAdmin({ scadenza }: { scadenza: number }) {
   return <div style={{ color: '#B3261E', fontWeight: 800, fontSize: '.78rem' }}>Scade tra {testo}</div>;
 }
 
-export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; soci: SocioCircolo[] }) {
+const CINQUE_GIORNI_MS = 5 * 24 * 60 * 60 * 1000;
+
+export default function SezioneSfideInCorso({ sfide, soci, circolo }: { sfide: Sfida[]; soci: SocioCircolo[]; circolo: Circolo }) {
   const [daConcludere, setDaConcludere] = useState<Sfida | null>(null);
   const [vincitoreScelto, setVincitoreScelto] = useState<string | null>(null);
+  const [risultatoTesto, setRisultatoTesto] = useState('');
+  const [confermaInvioAperta, setConfermaInvioAperta] = useState(false);
   const [concludendo, setConcludendo] = useState(false);
   const [confermaAnnullaAperta, setConfermaAnnullaAperta] = useState(false);
   const [annullando, setAnnullando] = useState(false);
   const [annullamentoFatto, setAnnullamentoFatto] = useState(false);
+  const [confermaNonPresentatoDi, setConfermaNonPresentatoDi] = useState<'sfidante' | 'sfidato' | null>(null);
+  const [registrandoAssenza, setRegistrandoAssenza] = useState(false);
+  const [salvandoTimer, setSalvandoTimer] = useState(false);
+  const [daModificare, setDaModificare] = useState<Sfida | null>(null);
+  const [testoModifica, setTestoModifica] = useState('');
+  const [salvandoModifica, setSalvandoModifica] = useState(false);
 
   const attive = sfide
-    .filter((sf) => sf.stato === 'lanciata' || sf.stato === 'accettata' || sf.stato === 'rinviata')
+    .filter((sf) => sf.fase === 'accordo' || sf.fase === 'prenotazione' || sf.fase === 'accettata')
     .sort((a, b) => (a.creataIl?.seconds ?? 0) - (b.creataIl?.seconds ?? 0));
 
-  // Ogni riga è cliccabile, qualunque sia lo stato — non solo quelle
-  // accettate: prima le sfide "in attesa" o "rimandate" non aprivano
-  // nulla, ora mostrano sempre le loro informazioni.
+  // Copia "corta" dello storico, solo per Admin: serve a correggere in
+  // fretta un errore di battitura nel risultato appena scritto, finché
+  // il ricordo è ancora fresco — 5 giorni, non 30 come la Bacheca.
+  const storicoRecente = sfide
+    .filter((sf) => (sf.fase === 'conclusa' || sf.fase === 'decaduta') && sf.conclusaIl?.seconds && sf.conclusaIl.seconds * 1000 >= Date.now() - CINQUE_GIORNI_MS)
+    .sort((a, b) => (b.conclusaIl?.seconds ?? 0) - (a.conclusaIl?.seconds ?? 0));
+
+  const apriModifica = (sf: Sfida) => {
+    setDaModificare(sf);
+    setTestoModifica(sf.risultatoUfficiale ?? '');
+  };
+
+  const salvaModifica = async () => {
+    if (!daModificare || !testoModifica.trim()) return;
+    setSalvandoModifica(true);
+    try {
+      await modificaRisultatoUfficiale(daModificare.id, testoModifica);
+      alert('Risultato corretto ✓');
+      setDaModificare(null);
+    } catch {
+      alert('Errore di connessione. Riprova.');
+    } finally {
+      setSalvandoModifica(false);
+    }
+  };
+
   const apriInfo = (sf: Sfida) => {
     setDaConcludere(sf);
     if (sf.risultatoSfidante && sf.risultatoSfidato) {
@@ -49,13 +87,28 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
     } else {
       setVincitoreScelto(null);
     }
+    // Comodità, non un obbligo: se un punteggio dichiarato è già
+    // coerente col vincitore individuato, lo precompilo — Admin resta
+    // comunque libero di cambiarlo prima di inviare.
+    if (sf.risultatoSfidante?.esito === 'vinta' && sf.risultatoSfidato?.esito === 'persa') {
+      setRisultatoTesto(sf.risultatoSfidante.punteggio || '');
+    } else if (sf.risultatoSfidato?.esito === 'vinta' && sf.risultatoSfidante?.esito === 'persa') {
+      setRisultatoTesto(sf.risultatoSfidato.punteggio || '');
+    } else {
+      setRisultatoTesto('');
+    }
   };
 
-  const confermaConclusione = async () => {
-    if (!daConcludere || !vincitoreScelto) return;
+  const apriRevisioneConclusione = () => {
+    if (!vincitoreScelto || !risultatoTesto.trim()) return;
+    setConfermaInvioAperta(true);
+  };
+
+  const eseguiConclusione = async () => {
+    if (!daConcludere || !vincitoreScelto || !risultatoTesto.trim()) return;
     setConcludendo(true);
     try {
-      const applicata = await concludiSfida(daConcludere.id, daConcludere.sfidanteId, daConcludere.sfidatoId, vincitoreScelto, soci, 'accettata');
+      const applicata = await concludiSfida(daConcludere.id, daConcludere.sfidanteId, daConcludere.sfidatoId, vincitoreScelto, soci, 'accettata', risultatoTesto);
       if (applicata) {
         const vinceSfidante = vincitoreScelto === daConcludere.sfidanteId;
         const nomeVincitore = vinceSfidante
@@ -74,10 +127,14 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
             : `Il circolo ha confermato: ${nomeVincitore} ha vinto la sfida. La tua posizione in classifica è stata aggiornata.`
         );
         alert('Sfida conclusa e classifica aggiornata ✓');
+        setConfermaInvioAperta(false);
         setDaConcludere(null);
+        setRisultatoTesto('');
       } else {
         alert('Questa sfida è già stata gestita nel frattempo (da un altro dispositivo, o per scadenza).');
+        setConfermaInvioAperta(false);
         setDaConcludere(null);
+        setRisultatoTesto('');
       }
     } catch {
       alert('Errore di connessione. Riprova.');
@@ -101,6 +158,46 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
     }
   };
 
+  const confermaNonPresentato = async () => {
+    if (!daConcludere || !confermaNonPresentatoDi) return;
+    setRegistrandoAssenza(true);
+    try {
+      if (confermaNonPresentatoDi === 'sfidante') await nonPresentatoSfidante(daConcludere);
+      else await nonPresentatoSfidato(daConcludere, soci);
+      alert('Mancata presentazione registrata ✓');
+      setConfermaNonPresentatoDi(null);
+      setDaConcludere(null);
+    } catch {
+      alert('Errore di connessione. Riprova.');
+    } finally {
+      setRegistrandoAssenza(false);
+    }
+  };
+
+  const impostaTimerVeloce = async (veloce: boolean) => {
+    setSalvandoTimer(true);
+    try {
+      await aggiornaCircolo(circolo.id, { timerSfideVeloce: veloce });
+    } finally {
+      setSalvandoTimer(false);
+    }
+  };
+
+  const testoStato = (sf: Sfida): string => {
+    if (sf.fase === 'accordo') {
+      if (sf.accordoSfidante && sf.accordoSfidato) return 'Accordo trovato, in attesa di proposta formale';
+      if (sf.accordoSfidante) return 'Sfidante ha detto "Trovato" — in attesa dello Sfidato';
+      if (sf.accordoSfidato) return 'Sfidato ha detto "Trovato" — in attesa dello Sfidante';
+      return 'Trattativa in chat, nessuno ha ancora risposto';
+    }
+    if (sf.fase === 'prenotazione') {
+      if (sf.propostaAccettata) return 'Proposta accettata — in attesa della conferma finale';
+      if (sf.proposta) return 'Proposta formale inviata, in attesa di risposta';
+      return 'Accordo trovato, in attesa di una proposta formale';
+    }
+    return '';
+  };
+
   return (
     <div className="admin-card">
       <div className="admin-card-title">Sfide in Corso</div>
@@ -108,10 +205,28 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
         Dal lancio alla conclusione — qui trovi anche le eventuali discrepanze tra i due risultati dichiarati.
       </p>
 
+      <div className="admin-chip-row">
+        <button
+          type="button"
+          className={`admin-chip${!circolo.timerSfideVeloce ? ' selected' : ''}`}
+          onClick={() => impostaTimerVeloce(false)}
+          disabled={salvandoTimer}
+        >
+          24 ore (reale)
+        </button>
+        <button
+          type="button"
+          className={`admin-chip${circolo.timerSfideVeloce ? ' selected' : ''}`}
+          onClick={() => impostaTimerVeloce(true)}
+          disabled={salvandoTimer}
+        >
+          5 minuti (test)
+        </button>
+      </div>
+
       {attive.length === 0 && <p className="admin-empty-text">Nessuna sfida in corso al momento.</p>}
 
       {attive.map((sf) => {
-        const slotScelto = sf.slotSceltoIndex != null ? sf.proposte[sf.slotSceltoIndex] : null;
         const discrepanza = !!sf.risultatoSfidante && !!sf.risultatoSfidato
           && sf.risultatoSfidante.esito === sf.risultatoSfidato.esito;
         return (
@@ -124,19 +239,17 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
               <div className="admin-list-main">
                 {sf.sfidanteNome} {sf.sfidanteCognome} vs {sf.sfidatoNome} {sf.sfidatoCognome}
               </div>
-              {sf.stato === 'rinviata' && (
-                <div className="admin-list-sub">Rimandata — nessuno slot compatibile trovato</div>
-              )}
-              {sf.stato === 'lanciata' && (
+              {(sf.fase === 'accordo' || sf.fase === 'prenotazione') && (
                 <>
-                  <div className="admin-list-sub">In attesa che lo sfidato scelga un orario</div>
-                  {!!sf.scadenzaAccettazione && <CountdownAdmin scadenza={sf.scadenzaAccettazione} />}
+                  <div className="admin-list-sub">{testoStato(sf)}</div>
+                  <CountdownAdmin scadenza={sf.fase === 'accordo' ? sf.accordoScadenza : (sf.prenotazioneScadenza ?? 0)} />
                 </>
               )}
-              {sf.stato === 'accettata' && slotScelto && (
+              {sf.fase === 'accettata' && sf.matchData && (
                 <>
                   <div className="admin-list-sub">
-                    {slotScelto.dataLabel} · {slotScelto.campoNome} · {slotScelto.orari[0]} - {slotScelto.orari[2]}
+                    {sf.matchDataLabel} · {sf.matchCampoNome} · {sf.matchOrari?.[0]}
+                    {sf.matchViaRegolaCircolo ? ' (fissata d\'ufficio)' : ''}
                   </div>
                   {sf.risultatoSfidante && (
                     <div className="admin-list-sub">
@@ -161,9 +274,33 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
         );
       })}
 
+      <div style={{ marginTop: '1.2rem', paddingTop: '.9rem', borderTop: '1.5px solid #EFEBE0' }}>
+        <div className="admin-card-title" style={{ fontSize: '.95rem' }}>Storico Sfide (ultimi 5 giorni)</div>
+        <p className="admin-card-hint">Solo per correggere in fretta un errore appena scritto.</p>
+        {storicoRecente.length === 0 && <p className="admin-empty-text">Nessuna sfida conclusa negli ultimi 5 giorni.</p>}
+        {storicoRecente.map((sf) => (
+          <div key={sf.id} className="admin-list-row" style={{ alignItems: 'center' }}>
+            <div style={{ flex: 1 }}>
+              <div className="admin-list-main">
+                {sf.sfidanteNome} {sf.sfidanteCognome} vs {sf.sfidatoNome} {sf.sfidatoCognome}
+              </div>
+              <div className="admin-list-sub">{sf.risultatoUfficiale || '—'}</div>
+            </div>
+            <button
+              type="button"
+              onClick={() => apriModifica(sf)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '.4rem', fontSize: '1rem' }}
+              title="Correggi il risultato"
+            >
+              ✏️
+            </button>
+          </div>
+        ))}
+      </div>
+
       <Modal visible={!!daConcludere} onClose={() => setDaConcludere(null)}>
         <div className="admin-modal-title">
-          {daConcludere?.stato === 'accettata' ? 'Concludi la sfida' : 'Info Sfida'}
+          {daConcludere?.fase === 'accettata' ? 'Concludi la sfida' : 'Info Sfida'}
         </div>
         <p className="admin-card-hint" style={{ textAlign: 'center' }}>
           {daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} vs {daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome}
@@ -173,56 +310,61 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
           <div className="admin-list-sub">
             Posizioni al lancio: {daConcludere?.sfidanteNome} #{daConcludere?.posizioneSfidante} · {daConcludere?.sfidatoNome} #{daConcludere?.posizioneSfidato}
           </div>
-          <div className="admin-list-sub">
-            Stato: {daConcludere?.stato === 'lanciata' ? 'In attesa di risposta'
-              : daConcludere?.stato === 'accettata' ? 'Accettata, in attesa del risultato'
-              : daConcludere?.stato === 'rinviata' ? 'Rimandata' : daConcludere?.stato}
-          </div>
-
-          {daConcludere?.stato === 'lanciata' && (
-            <>
-              {!!daConcludere.scadenzaAccettazione && <CountdownAdmin scadenza={daConcludere.scadenzaAccettazione} />}
-              <div className="admin-list-sub" style={{ fontWeight: 700, marginTop: '.4rem' }}>Orari proposti:</div>
-              {daConcludere.proposte.map((p, idx) => (
-                <div key={idx} className="admin-list-sub">
-                  · {p.dataLabel} · {p.campoNome} · {p.orari[0]} - {p.orari[2]}
-                </div>
-              ))}
-            </>
+          {daConcludere && (daConcludere.fase === 'accordo' || daConcludere.fase === 'prenotazione') && (
+            <div className="admin-list-sub" style={{ marginTop: '.3rem' }}>{testoStato(daConcludere)}</div>
           )}
-
-          {daConcludere?.stato === 'accettata' && daConcludere.slotSceltoIndex != null && (
+          {daConcludere?.fase === 'accettata' && daConcludere.matchData && (
             <div className="admin-list-sub" style={{ fontWeight: 700 }}>
-              {daConcludere.proposte[daConcludere.slotSceltoIndex]?.dataLabel} · {daConcludere.proposte[daConcludere.slotSceltoIndex]?.campoNome} · {daConcludere.proposte[daConcludere.slotSceltoIndex]?.orari[0]} - {daConcludere.proposte[daConcludere.slotSceltoIndex]?.orari[2]}
+              {daConcludere.matchDataLabel} · {daConcludere.matchCampoNome} · {daConcludere.matchOrari?.[0]}
+              {daConcludere.matchViaRegolaCircolo ? ' — fissata d\'ufficio dal circolo' : ''}
             </div>
-          )}
-
-          {daConcludere?.stato === 'rinviata' && (
-            <div className="admin-list-sub">{daConcludere.motivoRinvio ?? 'Nessuno slot compatibile trovato nei 14 giorni di ricerca.'}</div>
           )}
         </div>
 
-        {daConcludere?.stato === 'accettata' && (
+        {daConcludere?.fase === 'accettata' && (
           <>
             <label className="admin-label" style={{ marginTop: '.9rem' }}>Chi ha vinto?</label>
-            <div
-              className="admin-list-row admin-list-row-clickable"
-              onClick={() => setVincitoreScelto(daConcludere?.sfidanteId ?? null)}
-            >
-              <input type="radio" checked={vincitoreScelto === daConcludere?.sfidanteId} onChange={() => {}} style={{ marginRight: '.6rem' }} />
+            <div className="admin-checkbox-row" onClick={() => setVincitoreScelto(daConcludere?.sfidanteId ?? null)}>
+              <input type="checkbox" checked={vincitoreScelto === daConcludere?.sfidanteId} onChange={() => {}} />
               <span>{daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} (sfidante)</span>
             </div>
-            <div
-              className="admin-list-row admin-list-row-clickable"
-              onClick={() => setVincitoreScelto(daConcludere?.sfidatoId ?? null)}
-            >
-              <input type="radio" checked={vincitoreScelto === daConcludere?.sfidatoId} onChange={() => {}} style={{ marginRight: '.6rem' }} />
+            <div className="admin-checkbox-row" onClick={() => setVincitoreScelto(daConcludere?.sfidatoId ?? null)}>
+              <input type="checkbox" checked={vincitoreScelto === daConcludere?.sfidatoId} onChange={() => {}} />
               <span>{daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome} (sfidato)</span>
+            </div>
+
+            <label className="admin-label" style={{ marginTop: '.9rem' }}>Risultato ufficiale</label>
+            <p className="admin-card-hint" style={{ marginBottom: '.4rem' }}>
+              Scrivi tu il punteggio definitivo — è questo, non le dichiarazioni dei giocatori, a comparire nello storico pubblico.
+            </p>
+            <input
+              className="admin-input"
+              value={risultatoTesto}
+              onChange={(e) => setRisultatoTesto(e.target.value)}
+              placeholder="Es. 6-3 6-4"
+            />
+
+            <label className="admin-label" style={{ marginTop: '.9rem' }}>Oppure, mancata presentazione</label>
+            <div style={{ display: 'flex', gap: '.5rem' }}>
+              <button
+                type="button"
+                onClick={() => setConfermaNonPresentatoDi('sfidante')}
+                style={{ flex: 1, border: '1.5px solid #B3261E', borderRadius: 8, padding: '.5rem', color: '#B3261E', fontSize: '.78rem', fontWeight: 700, background: 'none', cursor: 'pointer' }}
+              >
+                Sfidante assente
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfermaNonPresentatoDi('sfidato')}
+                style={{ flex: 1, border: '1.5px solid #B3261E', borderRadius: 8, padding: '.5rem', color: '#B3261E', fontSize: '.78rem', fontWeight: 700, background: 'none', cursor: 'pointer' }}
+              >
+                Sfidato assente
+              </button>
             </div>
           </>
         )}
 
-        {(daConcludere?.stato === 'lanciata' || daConcludere?.stato === 'accettata') && (
+        {(daConcludere?.fase === 'accordo' || daConcludere?.fase === 'prenotazione' || daConcludere?.fase === 'accettata') && (
           <button
             type="button"
             onClick={() => setConfermaAnnullaAperta(true)}
@@ -238,17 +380,54 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
 
         <div className="admin-modal-btn-row">
           <button className="admin-modal-btn-cancel" onClick={() => setDaConcludere(null)}>
-            {daConcludere?.stato === 'accettata' ? 'Annulla' : 'Chiudi'}
+            {daConcludere?.fase === 'accettata' ? 'Annulla' : 'Chiudi'}
           </button>
-          {daConcludere?.stato === 'accettata' && (
+          {daConcludere?.fase === 'accettata' && (
             <button
               className="admin-modal-btn-confirm"
-              onClick={confermaConclusione}
-              disabled={!vincitoreScelto || concludendo}
+              onClick={apriRevisioneConclusione}
+              disabled={!vincitoreScelto || !risultatoTesto.trim() || concludendo}
             >
-              {concludendo ? 'Attendere…' : 'Dichiara Sfida Conclusa'}
+              Dichiara Sfida Conclusa
             </button>
           )}
+        </div>
+      </Modal>
+
+      <Modal visible={confermaInvioAperta} onClose={() => setConfermaInvioAperta(false)}>
+        <div className="admin-modal-title">Confermi l&apos;invio?</div>
+        <div style={{ background: '#F7F4EA', borderRadius: 10, padding: '.8rem', marginTop: '.6rem' }}>
+          <div className="admin-list-sub">
+            {daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} vs {daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome}
+          </div>
+          <div className="admin-list-sub" style={{ fontWeight: 700, marginTop: '.3rem' }}>
+            Vince: {vincitoreScelto === daConcludere?.sfidanteId ? daConcludere?.sfidanteNome : daConcludere?.sfidatoNome} {vincitoreScelto === daConcludere?.sfidanteId ? daConcludere?.sfidanteCognome : daConcludere?.sfidatoCognome}
+          </div>
+          <div className="admin-list-sub" style={{ marginTop: '.3rem' }}>Risultato: {risultatoTesto}</div>
+        </div>
+        <p className="admin-card-hint" style={{ marginTop: '.6rem' }}>
+          Questo testo comparirà nello storico pubblico e aggiornerà la classifica — controllalo bene prima di confermare.
+        </p>
+        <div className="admin-modal-btn-row">
+          <button className="admin-modal-btn-cancel" onClick={() => setConfermaInvioAperta(false)}>Indietro</button>
+          <button className="admin-modal-btn-confirm" onClick={eseguiConclusione} disabled={concludendo}>
+            {concludendo ? 'Attendere…' : 'Conferma e Invia'}
+          </button>
+        </div>
+      </Modal>
+
+      <Modal visible={!!confermaNonPresentatoDi} onClose={() => setConfermaNonPresentatoDi(null)}>
+        <div className="admin-modal-title">Confermi la mancata presentazione?</div>
+        <p className="admin-card-hint" style={{ textAlign: 'center' }}>
+          {confermaNonPresentatoDi === 'sfidante'
+            ? `${daConcludere?.sfidanteNome} ${daConcludere?.sfidanteCognome} non si è presentato: verrà congelato dalle sfide per 7 giorni.`
+            : `${daConcludere?.sfidatoNome} ${daConcludere?.sfidatoCognome} non si è presentato: perderà la sua posizione in classifica.`}
+        </p>
+        <div className="admin-modal-btn-row">
+          <button className="admin-modal-btn-cancel" onClick={() => setConfermaNonPresentatoDi(null)}>Indietro</button>
+          <button className="admin-modal-btn-confirm danger" onClick={confermaNonPresentato} disabled={registrandoAssenza}>
+            {registrandoAssenza ? 'Attendere…' : 'Conferma'}
+          </button>
         </div>
       </Modal>
 
@@ -257,7 +436,7 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
         <p className="admin-card-hint" style={{ textAlign: 'center' }}>
           {daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} vs {daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome}
           <br /><br />
-          Le eventuali tre mezz&apos;ore prenotate verranno liberate, entrambi i soci saranno avvisati.
+          Le eventuali mezz&apos;ore prenotate/sospese verranno liberate, entrambi i soci saranno avvisati.
           La classifica NON viene toccata: nessuno vince né perde posizioni.
         </p>
         <div className="admin-modal-btn-row">
@@ -271,12 +450,32 @@ export default function SezioneSfideInCorso({ sfide, soci }: { sfide: Sfida[]; s
       <Modal visible={annullamentoFatto} onClose={() => setAnnullamentoFatto(false)}>
         <div className="admin-modal-title">Sfida annullata ✓</div>
         <p className="admin-card-hint" style={{ textAlign: 'center' }}>
-          Gli slot prenotati sono stati liberati, entrambi i soci sono stati avvisati.
+          Gli slot prenotati/sospesi sono stati liberati, entrambi i soci sono stati avvisati.
           La classifica non è stata toccata.
         </p>
         <button className="admin-btn-full" style={{ marginTop: '1rem' }} onClick={() => setAnnullamentoFatto(false)}>
           Chiudi
         </button>
+      </Modal>
+
+      <Modal visible={!!daModificare} onClose={() => setDaModificare(null)}>
+        <div className="admin-modal-title">Correggi il risultato</div>
+        <p className="admin-card-hint" style={{ textAlign: 'center' }}>
+          {daModificare?.sfidanteNome} {daModificare?.sfidanteCognome} vs {daModificare?.sfidatoNome} {daModificare?.sfidatoCognome}
+        </p>
+        <label className="admin-label" style={{ marginTop: '.7rem' }}>Risultato ufficiale</label>
+        <input
+          className="admin-input"
+          value={testoModifica}
+          onChange={(e) => setTestoModifica(e.target.value)}
+          placeholder="Es. 6-3 6-4"
+        />
+        <div className="admin-modal-btn-row">
+          <button className="admin-modal-btn-cancel" onClick={() => setDaModificare(null)}>Annulla</button>
+          <button className="admin-modal-btn-confirm" onClick={salvaModifica} disabled={!testoModifica.trim() || salvandoModifica}>
+            {salvandoModifica ? 'Attendere…' : 'Salva'}
+          </button>
+        </div>
       </Modal>
     </div>
   );

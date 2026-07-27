@@ -191,9 +191,9 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           <div className="admin-list-sub">
             Posizioni al lancio: {sfidaInfo?.sfidanteNome} #{sfidaInfo?.posizioneSfidante} · {sfidaInfo?.sfidatoNome} #{sfidaInfo?.posizioneSfidato}
           </div>
-          {sfidaInfo?.stato === 'accettata' && sfidaInfo?.slotSceltoIndex != null && (
+          {sfidaInfo?.fase === 'accettata' && sfidaInfo?.matchData && (
             <div className="admin-list-sub" style={{ fontWeight: 700, marginTop: '.3rem' }}>
-              {sfidaInfo.proposte[sfidaInfo.slotSceltoIndex]?.dataLabel} · {sfidaInfo.proposte[sfidaInfo.slotSceltoIndex]?.campoNome} · {sfidaInfo.proposte[sfidaInfo.slotSceltoIndex]?.orari[0]} - {sfidaInfo.proposte[sfidaInfo.slotSceltoIndex]?.orari[2]}
+              {sfidaInfo.matchDataLabel} · {sfidaInfo.matchCampoNome} · {sfidaInfo.matchOrari?.[0]}
             </div>
           )}
           {sfidaInfo?.risultatoSfidante && (

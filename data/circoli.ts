@@ -15,7 +15,25 @@ export interface Circolo {
   logoUrl?: string | null; // se assente, si mostra la sigla nel cerchio
   gradienteClassifica?: { da: string; a: string } | null; // sfondo della schermata Classifica Sociale
   limiteSfidaPosizioni?: number; // 0/assente = usa il default (5): quante posizioni sopra si può sfidare
+  timerSfideVeloce?: boolean; // true = i 2 timer delle Sfide durano 5 minuti invece di 24 ore (solo per i test)
+  sfondoApp?: string; // chiave di uno dei temi in TEMI_SFONDO_APP — assente = tema di default (Bianco)
 }
+
+// 6 temi per lo sfondo generale dell'app (Strada A: solo lo sfondo
+// "dietro" le card cambia — le card restano bianche con testo nero,
+// sempre leggibili qualunque tema sia attivo). I primi 3 sono chiari
+// (i titoli fuori dalle card restano neri), gli ultimi 3 sono scuri
+// (i titoli fuori dalle card diventano bianchi).
+export interface TemaSfondoApp { nome: string; da: string; a: string; scuro: boolean }
+
+export const TEMI_SFONDO_APP: Record<string, TemaSfondoApp> = {
+  bianco: { nome: 'Bianco', da: '#FFFFFF', a: '#F5F4F2', scuro: false },
+  latte: { nome: 'Latte', da: '#FFF9F0', a: '#F2E8D8', scuro: false },
+  avorio: { nome: 'Avorio', da: '#FFFFF2', a: '#F3EFD9', scuro: false },
+  nero: { nome: 'Nero', da: '#2A2A2A', a: '#0D0D0D', scuro: true },
+  bluScuro: { nome: 'Blu scuro', da: '#1B2A47', a: '#0B1424', scuro: true },
+  violaScuro: { nome: 'Viola scuro', da: '#33203F', a: '#160D1C', scuro: true },
+};
 
 // 5 gradienti scuri predefiniti per lo sfondo della Classifica Sociale —
 // stessa filosofia dei Temi colori: nessun colore libero, solo scelte
