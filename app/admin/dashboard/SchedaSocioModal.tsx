@@ -58,7 +58,7 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
     await azzeraCredito(socio.uid);
     await creaNotifica(
       socio.uid,
-      `Il circolo ha azzerato il tuo credito wallet (era €${(socio.credito ?? 0).toFixed(2)}). Se non ti torna, rivolgiti alla segreteria.`
+      `Il circolo ha azzerato il tuo credito wallet (era € ${(socio.credito ?? 0).toFixed(2)}). Se non ti torna, rivolgiti alla segreteria.`
     );
     setAzzerando(false);
     setConfermaAzzeraAperta(false);
@@ -96,7 +96,7 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
             <div className="socio-credito-row">
               <div>
                 <div className="socio-credito-label">Credito</div>
-                <div className="socio-credito-valore">€{(socio.credito ?? 0).toFixed(2)}</div>
+                <div className="socio-credito-valore">€ {(socio.credito ?? 0).toFixed(2)}</div>
               </div>
               <div className="socio-credito-btns">
                 <button className="admin-btn-small" onClick={() => { setImporto(''); setRicaricaAperta(true); }}>
@@ -113,11 +113,11 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
                 <div className="socio-credito-label">Credito S.O.S.</div>
                 <div className="socio-credito-valore">
                   <span style={{ color: (socio.sosUtilizzato ?? 0) > 0 ? '#B3261E' : 'var(--inchiostro)' }}>
-                    €{socio.sosUtilizzato ?? 0}
+                    € {socio.sosUtilizzato ?? 0}
                   </span>
                   <span>/{socio.limiteRicaricaSOS ?? 0}</span>
                 </div>
-                <div className="socio-debito-hint">Debito verso Circolo: €{socio.sosUtilizzato ?? 0}</div>
+                <div className="socio-debito-hint">Debito verso Circolo: € {socio.sosUtilizzato ?? 0}</div>
               </div>
               <button
                 className="admin-btn-small"
@@ -138,7 +138,7 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
                 il socio paga.
               </p>
               <div className="socio-sos-valore">
-                Usato finora: €{(socio.sosUtilizzato ?? 0).toFixed(2)}
+                Usato finora: € {(socio.sosUtilizzato ?? 0).toFixed(2)}
               </div>
             </div>
             <p className="socio-sos-reset-hint">
@@ -186,7 +186,7 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
       <Modal visible={confermaAzzeraAperta} onClose={() => setConfermaAzzeraAperta(false)}>
         <div className="admin-modal-title">Azzera Credito di {socio?.nome} {socio?.cognome}</div>
         <div className="admin-modal-sub">
-          Il credito attuale (€{(socio?.credito ?? 0).toFixed(2)}) verrà portato a zero. Usalo solo se la
+          Il credito attuale (€ {(socio?.credito ?? 0).toFixed(2)}) verrà portato a zero. Usalo solo se la
           segreteria ha già restituito i soldi reali fuori dall&apos;app.
         </div>
         <div className="admin-modal-btn-row">

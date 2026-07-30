@@ -34,7 +34,7 @@ export default function SezioneDebitiSoci({ soci, onSelezionaSocio }: {
             <div className="admin-list-main">{soc.nome} {soc.cognome}</div>
             <div className="admin-list-sub">{soc.email}</div>
           </div>
-          <div className="admin-list-credito" style={{ color: '#B3261E' }}>€{soc.sosUtilizzato}</div>
+          <div className="admin-list-credito" style={{ color: '#B3261E' }}>€ {soc.sosUtilizzato}</div>
         </div>
       ))}
     </div>

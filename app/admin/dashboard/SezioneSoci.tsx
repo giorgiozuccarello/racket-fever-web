@@ -42,7 +42,7 @@ export default function SezioneSoci({ soci, onSelezionaSocio }: {
             <div className="admin-list-main">{soc.nome} {soc.cognome}</div>
             <div className="admin-list-sub">{soc.email}</div>
           </div>
-          <div className="admin-list-credito">€{(soc.credito ?? 0).toFixed(2)}</div>
+          <div className="admin-list-credito">€ {(soc.credito ?? 0).toFixed(2)}</div>
         </div>
       ))}
       {filtro.trim().length > 0 && risultati.length === 0 && (

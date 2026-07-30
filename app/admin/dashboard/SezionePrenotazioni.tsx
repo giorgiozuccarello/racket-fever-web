@@ -78,11 +78,11 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         });
         await creaNotifica(
           daAnnullare.utenteId,
-          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua metà: €${meta}.`
+          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua metà: € ${meta}.`
         );
         await creaNotifica(
           daAnnullare.compagnoId,
-          `Il circolo ha annullato la prenotazione con ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua metà: €${meta}.`
+          `Il circolo ha annullato la prenotazione con ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua metà: € ${meta}.`
         );
       } else {
         await cancellaConRimborso({
@@ -92,7 +92,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         });
         await creaNotifica(
           daAnnullare.utenteId,
-          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Credito rimborsato: €${daAnnullare.prezzo.toFixed(2)}.`
+          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Credito rimborsato: € ${daAnnullare.prezzo.toFixed(2)}.`
         );
       }
       if (daAnnullare.tipo === 'lezione' && daAnnullare.maestroId) {
@@ -229,8 +229,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           {!daAnnullare?.utenteId
             ? 'Nessun rimborso (allievo non socio)'
             : daAnnullare?.costoDiviso
-              ? `Saranno rimborsati entrambi: ${daAnnullare.utenteNome} e ${daAnnullare.compagnoNome} · €${(daAnnullare.prezzo / 2).toFixed(2)} a testa`
-              : `Rimborso: €${daAnnullare?.prezzo.toFixed(2)}`}
+              ? `Saranno rimborsati entrambi: ${daAnnullare.utenteNome} e ${daAnnullare.compagnoNome} · € ${(daAnnullare.prezzo / 2).toFixed(2)} a testa`
+              : `Rimborso: € ${daAnnullare?.prezzo.toFixed(2)}`}
         </div>
         <div className="admin-modal-btn-row">
           <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Indietro</button>

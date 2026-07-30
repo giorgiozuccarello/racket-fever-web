@@ -118,7 +118,7 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
           {esistente ? (
             <div className="admin-list-row">
               <div style={{ flex: 1 }}>
-                <div className="admin-list-main">{esistente.etichetta} · €{esistente.prezzo.toFixed(2)}</div>
+                <div className="admin-list-main">{esistente.etichetta} · € {esistente.prezzo.toFixed(2)}</div>
                 <div className="admin-list-sub">
                   {esistente.orarioInizio}–{esistente.orarioFine}
                   {esistente.giorni && esistente.giorni.length > 0
