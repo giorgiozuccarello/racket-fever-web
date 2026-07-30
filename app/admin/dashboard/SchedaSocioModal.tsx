@@ -157,12 +157,21 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
                   : `${socio.limitePrenotazioniPersonale} ${socio.limitePrenotazioniPersonale === 1 ? 'ora' : 'ore'} / settimana`}
               </div>
               <input
-                type="range" min={0} max={10} step={1}
+                type="range" min={0} max={48} step={2}
                 value={socio.limitePrenotazioniPersonale ?? 0}
                 onChange={(e) => salvaLimitePersonale(Number(e.target.value))}
                 style={{ width: '100%' }}
               />
               {salvandoLimite && <div className="admin-saving">Salvataggio…</div>}
+              <button
+                type="button"
+                className="admin-btn-small"
+                style={{ marginTop: '.6rem', background: '#fff', color: 'var(--grigio)', border: '2px solid var(--riga)' }}
+                onClick={() => salvaLimitePersonale(0)}
+                disabled={salvandoLimite || (socio.limitePrenotazioniPersonale ?? 0) === 0}
+              >
+                Azzera limite personale
+              </button>
             </div>
           </>
         )}
