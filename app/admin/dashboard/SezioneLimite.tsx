@@ -24,7 +24,7 @@ export default function SezioneLimite({ circolo }: { circolo: Circolo }) {
         {valore === 0 ? 'Nessun limite' : `${valore} ${valore === 1 ? 'ora' : 'ore'} / settimana`}
       </div>
       <input
-        className="admin-slider" type="range" min={0} max={10} step={1}
+        className="admin-slider" type="range" min={0} max={48} step={2}
         value={valore}
         onChange={(e) => setValore(Number(e.target.value))}
         onMouseUp={() => salva(valore)}
