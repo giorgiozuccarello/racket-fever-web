@@ -22,7 +22,10 @@ export default function SezioneCircoli() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={c.logoUrl} alt="" className="admin-list-avatar" />
           ) : (
-            <div className="superadmin-swatch" style={{ background: c.tema.primario }} />
+            // Segnaposto per il circolo senza logo: il vecchio campo
+            // "tema" non esiste piu' (sostituito dagli 8 TEMI_APP), si
+            // usa il colore istituzionale.
+            <div className="superadmin-swatch" style={{ background: '#0E3B2E' }} />
           )}
           <div style={{ flex: 1 }}>
             <div className="admin-list-main">{c.nome}</div>
