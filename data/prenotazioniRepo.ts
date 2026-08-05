@@ -9,10 +9,21 @@
 import { runTransaction, doc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { rimuoviDisponibilitaPerSlot } from './disponibilitaLezioni';
+import { registraMovimentoInTransazione } from './movimenti';
+import { idTessera } from './tessere';
+
+// Il portafoglio NON vive più sul profilo utente ma sulla TESSERA
+// (una per ogni coppia utente-circolo): il credito versato in
+// segreteria al circolo A resta al circolo A e non viene mai
+// trasportato o sommato a quello di un altro circolo.
 
 export async function prenotaConCredito(params: {
   uid: string;
   circoloId: string;
+  // Chi prenota puo' essere socio tesserato QUI oppure Ospite
+  // (tesserato altrove): lo si registra sulla prenotazione, cosi'
+  // la griglia e gli elenchi lo mostrano senza doverlo ricavare.
+  tipoUtente?: 'socio' | 'ospite';
   campoId: string;
   campoNome: string;
   data: string;
@@ -28,7 +39,7 @@ export async function prenotaConCredito(params: {
   compagnoNome?: string | null;
   compagnoCognome?: string | null;
 }): Promise<{ sosUsato: boolean }> {
-  const utenteRef = doc(db, 'utenti', params.uid);
+  const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
   const prenotazioneRef = doc(collection(db, 'prenotazioni'));
   let sosUsato = false;
 
@@ -45,6 +56,23 @@ export async function prenotaConCredito(params: {
       credito: creditoAttuale - daCredito,
       ...(sosUsato ? { sosUtilizzato: sosAttuale + daSOS } : {}),
     });
+
+    registraMovimentoInTransazione(tx, {
+      circoloId: params.circoloId,
+      uid: params.uid,
+      tipo: 'addebito',
+      importo: -params.prezzo,
+      saldoPrima: creditoAttuale,
+      saldoDopo: creditoAttuale - daCredito,
+      debitoPrima: sosAttuale,
+      debitoDopo: sosUsato ? sosAttuale + daSOS : sosAttuale,
+      eseguitoDaUid: params.uid,
+      eseguitoDaNome: `${params.utenteNome} ${params.utenteCognome}`,
+      eseguitoDaRuolo: 'socio',
+      prenotazioneId: prenotazioneRef.id,
+      descrizione: `Prenotazione ${params.campoNome} · ${params.dataLabel} ${params.orario}`,
+    });
+
     tx.set(prenotazioneRef, {
       utenteId: params.uid,
       circoloId: params.circoloId,
@@ -63,10 +91,143 @@ export async function prenotaConCredito(params: {
       compagnoNome: params.compagnoNome ?? null,
       compagnoCognome: params.compagnoCognome ?? null,
       costoDiviso: false,
+      tipoUtente: params.tipoUtente ?? 'socio',
       creataIl: serverTimestamp(),
     });
   });
   return { sosUsato };
+}
+
+// ============================================================
+// PRENOTAZIONI CREATE DALL'ADMIN
+// Marcate con prenotataDa:'admin' — è questo campo che permette a
+// griglia, pop-up e sezione dedicata di distinguerle da quelle
+// create dal socio stesso.
+// ============================================================
+
+// Admin prenota PER UN SOCIO: il costo viene scalato dal portafoglio
+// del socio con lo stesso identico meccanismo di una prenotazione
+// normale (credito + copertura S.O.S., tutto in una transazione).
+export async function prenotaPerSocioDaAdmin(params: {
+  uid: string;
+  circoloId: string;
+  tipoUtente?: 'socio' | 'ospite';
+  // Chi ha materialmente eseguito: finisce nel registro movimenti,
+  // dove serve in caso di contestazione.
+  eseguitoDaUid?: string | null;
+  eseguitoDaNome?: string | null;
+  campoId: string;
+  campoNome: string;
+  data: string;
+  dataLabel: string;
+  orario: string;
+  prezzo: number;
+  etichetta?: string | null;
+  utenteNome: string;
+  utenteCognome: string;
+  note?: string;
+}): Promise<{ sosUsato: boolean }> {
+  const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
+  const prenotazioneRef = doc(collection(db, 'prenotazioni'));
+  let sosUsato = false;
+
+  await runTransaction(db, async (tx) => {
+    const utenteSnap = await tx.get(utenteRef);
+    if (!utenteSnap.exists()) throw new Error('UTENTE_NON_TROVATO');
+
+    const creditoAttuale = (utenteSnap.data().credito as number) ?? 0;
+    const sosAttuale = (utenteSnap.data().sosUtilizzato as number) ?? 0;
+    const { daCredito, daSOS } = calcolaAddebitoConSOS(creditoAttuale, params.prezzo);
+    sosUsato = daSOS > 0;
+
+    tx.update(utenteRef, {
+      credito: creditoAttuale - daCredito,
+      ...(sosUsato ? { sosUtilizzato: sosAttuale + daSOS } : {}),
+    });
+
+    registraMovimentoInTransazione(tx, {
+      circoloId: params.circoloId,
+      uid: params.uid,
+      tipo: 'addebito',
+      importo: -params.prezzo,
+      saldoPrima: creditoAttuale,
+      saldoDopo: creditoAttuale - daCredito,
+      debitoPrima: sosAttuale,
+      debitoDopo: sosUsato ? sosAttuale + daSOS : sosAttuale,
+      eseguitoDaUid: params.eseguitoDaUid ?? null,
+      eseguitoDaNome: params.eseguitoDaNome ?? null,
+      eseguitoDaRuolo: 'admin',
+      prenotazioneId: prenotazioneRef.id,
+      descrizione: params.prezzo === 0
+        ? `Prenotazione del circolo (senza addebito) · ${params.campoNome} ${params.dataLabel} ${params.orario}`
+        : `Prenotazione del circolo · ${params.campoNome} ${params.dataLabel} ${params.orario}`,
+    });
+
+    tx.set(prenotazioneRef, {
+      utenteId: params.uid,
+      circoloId: params.circoloId,
+      campoId: params.campoId,
+      campoNome: params.campoNome,
+      data: params.data,
+      dataLabel: params.dataLabel,
+      orario: params.orario,
+      prezzo: params.prezzo,
+      etichetta: params.etichetta ?? null,
+      utenteNome: params.utenteNome,
+      utenteCognome: params.utenteCognome,
+      note: params.note?.trim() || null,
+      nascondiInfo: false,
+      compagnoId: null,
+      compagnoNome: null,
+      compagnoCognome: null,
+      costoDiviso: false,
+      tipo: 'campo',
+      tipoUtente: params.tipoUtente ?? 'socio',
+      prenotataDa: 'admin',
+      creataIl: serverTimestamp(),
+    });
+  });
+  return { sosUsato };
+}
+
+// Admin prenota PER UN ESTERNO (nessun account): niente portafoglio da
+// addebitare, quindi nessuna transazione sui crediti. Il nome arriva
+// dal campo di testo compilato dall'admin.
+export async function prenotaEsternoDaAdmin(params: {
+  circoloId: string;
+  campoId: string;
+  campoNome: string;
+  data: string;
+  dataLabel: string;
+  orario: string;
+  prezzo: number;
+  etichetta?: string | null;
+  nomeEsterno: string;
+  note?: string;
+}): Promise<void> {
+  await addDoc(collection(db, 'prenotazioni'), {
+    utenteId: '',
+    utenteNome: params.nomeEsterno,
+    utenteCognome: '',
+    circoloId: params.circoloId,
+    campoId: params.campoId,
+    campoNome: params.campoNome,
+    data: params.data,
+    dataLabel: params.dataLabel,
+    orario: params.orario,
+    prezzo: params.prezzo,
+    etichetta: params.etichetta ?? null,
+    note: params.note?.trim() || null,
+    nascondiInfo: false,
+    compagnoId: null,
+    compagnoNome: null,
+    compagnoCognome: null,
+    costoDiviso: false,
+    tipo: 'campo',
+    tipoUtente: 'esterno',
+    prenotataDa: 'admin',
+    creataIl: serverTimestamp(),
+  });
 }
 
 // Prenota un campo con un COMPAGNO che paga metà del costo: transazione
@@ -111,6 +272,29 @@ export function limiteEffettivoDi(
   return personale > 0 ? personale : limiteOreSettimanali;
 }
 
+// Un rimborso ESTINGUE PRIMA IL DEBITO, e solo l'eccedenza torna sul
+// credito. Senza questa regola un socio che aveva pagato col credito
+// S.O.S. si ritrovava, dopo la cancellazione, con credito e debito
+// accesi per lo stesso importo: matematicamente pari, ma illeggibile
+// per chi guarda il proprio portafoglio e vede due numeri rossi e
+// verdi invece di zero.
+//
+// Esempio: debito 8, rimborso 8  →  debito 0, credito 0
+//          debito 8, rimborso 5  →  debito 3, credito 0
+//          debito 3, rimborso 8  →  debito 0, credito 5
+export function applicaRimborso(
+  creditoAttuale: number,
+  debitoAttuale: number,
+  importo: number
+): { credito: number; sosUtilizzato: number } {
+  const versoDebito = Math.min(debitoAttuale, importo);
+  const versoCredito = importo - versoDebito;
+  return {
+    credito: Math.round((creditoAttuale + versoCredito) * 100) / 100,
+    sosUtilizzato: Math.round((debitoAttuale - versoDebito) * 100) / 100,
+  };
+}
+
 function calcolaAddebitoConSOS(creditoAttuale: number, importo: number): { daCredito: number; daSOS: number } {
   const daCredito = Math.min(creditoAttuale, importo);
   const daSOS = Math.round((importo - daCredito) * 100) / 100;
@@ -136,8 +320,8 @@ export async function prenotaConCompagno(params: {
   nascondiInfo?: boolean;
   sfidaId?: string | null;
 }): Promise<{ id: string; sosUsatoUtente: boolean; sosUsatoCompagno: boolean }> {
-  const utenteRef = doc(db, 'utenti', params.uid);
-  const compagnoRef = doc(db, 'utenti', params.compagnoId);
+  const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
+  const compagnoRef = doc(db, 'tessere', idTessera(params.compagnoId, params.circoloId));
   const prenotazioneRef = doc(collection(db, 'prenotazioni'));
   const meta = Math.round((params.prezzo / 2) * 100) / 100;
 
@@ -217,7 +401,7 @@ export async function prenotaLezione(params: {
   nascondiInfo?: boolean;
   prenotataDa: 'socio' | 'maestro';
 }): Promise<void> {
-  const utenteRef = doc(db, 'utenti', params.uid);
+  const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
   const prenotazioneRef = doc(collection(db, 'prenotazioni'));
 
   await runTransaction(db, async (tx) => {
@@ -267,7 +451,7 @@ export async function prenotaLezione(params: {
 // scalarlo. "prezzo" resta comunque calcolato e mostrato (a chi
 // gestisce il circolo/il maestro) come riferimento di quanto va
 // raccolto in contanti, ma non genera alcun addebito automatico.
-export async function prenotaLezioneOspite(params: {
+export async function prenotaLezioneEsterno(params: {
   circoloId: string;
   campoId: string;
   campoNome: string;
@@ -275,7 +459,7 @@ export async function prenotaLezioneOspite(params: {
   dataLabel: string;
   orario: string;
   prezzo: number;
-  nomeOspite: string;
+  nomeEsterno: string;
   maestroId: string;
   maestroNome: string;
   maestroCognome: string;
@@ -283,7 +467,7 @@ export async function prenotaLezioneOspite(params: {
 }): Promise<void> {
   await addDoc(collection(db, 'prenotazioni'), {
     utenteId: '',
-    utenteNome: params.nomeOspite,
+    utenteNome: params.nomeEsterno,
     utenteCognome: '',
     circoloId: params.circoloId,
     campoId: params.campoId,
@@ -294,7 +478,7 @@ export async function prenotaLezioneOspite(params: {
     prezzo: params.prezzo,
     etichetta: null,
     tipo: 'lezione',
-    ospite: true,
+    tipoUtente: 'esterno',
     maestroId: params.maestroId,
     maestroNome: params.maestroNome,
     maestroCognome: params.maestroCognome,
@@ -313,17 +497,42 @@ export async function prenotaLezioneOspite(params: {
 // tariffa, che potrebbe essere cambiato).
 export async function cancellaConRimborso(params: {
   uid: string;
+  circoloId: string;
   prenotazioneId: string;
   prezzo: number;
+  // Chi ha cancellato: puo' essere il socio stesso, il COMPAGNO di
+  // gioco, l'admin o il maestro. Nel registro la differenza conta.
+  eseguitoDaUid?: string | null;
+  eseguitoDaNome?: string | null;
+  eseguitoDaRuolo?: 'socio' | 'compagno' | 'admin' | 'maestro';
+  descrizione?: string;
 }): Promise<void> {
-  const utenteRef = doc(db, 'utenti', params.uid);
+  const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
   const prenotazioneRef = doc(db, 'prenotazioni', params.prenotazioneId);
 
   await runTransaction(db, async (tx) => {
     const utenteSnap = await tx.get(utenteRef);
     const creditoAttuale = utenteSnap.exists() ? ((utenteSnap.data().credito as number) ?? 0) : 0;
+    const debitoAttuale = utenteSnap.exists() ? ((utenteSnap.data().sosUtilizzato as number) ?? 0) : 0;
 
-    tx.update(utenteRef, { credito: creditoAttuale + params.prezzo });
+    const dopo = applicaRimborso(creditoAttuale, debitoAttuale, params.prezzo);
+    tx.update(utenteRef, dopo);
+
+    registraMovimentoInTransazione(tx, {
+      circoloId: params.circoloId,
+      uid: params.uid,
+      tipo: 'rimborso',
+      importo: params.prezzo,
+      saldoPrima: creditoAttuale,
+      saldoDopo: dopo.credito,
+      debitoPrima: debitoAttuale,
+      debitoDopo: dopo.sosUtilizzato,
+      eseguitoDaUid: params.eseguitoDaUid ?? null,
+      eseguitoDaNome: params.eseguitoDaNome ?? null,
+      eseguitoDaRuolo: params.eseguitoDaRuolo ?? 'socio',
+      prenotazioneId: params.prenotazioneId,
+      descrizione: params.descrizione ?? 'Rimborso per cancellazione prenotazione',
+    });
     tx.delete(prenotazioneRef);
   });
 }
@@ -337,11 +546,16 @@ export async function cancellaConRimborso(params: {
 export async function cancellaConRimborsoDiviso(params: {
   utenteId: string;
   compagnoId: string;
+  circoloId: string;
   prenotazioneId: string;
   prezzoTotale: number;
+  eseguitoDaUid?: string | null;
+  eseguitoDaNome?: string | null;
+  eseguitoDaRuolo?: 'socio' | 'compagno' | 'admin' | 'maestro';
+  descrizione?: string;
 }): Promise<void> {
-  const utenteRef = doc(db, 'utenti', params.utenteId);
-  const compagnoRef = doc(db, 'utenti', params.compagnoId);
+  const utenteRef = doc(db, 'tessere', idTessera(params.utenteId, params.circoloId));
+  const compagnoRef = doc(db, 'tessere', idTessera(params.compagnoId, params.circoloId));
   const prenotazioneRef = doc(db, 'prenotazioni', params.prenotazioneId);
   const meta = Math.round((params.prezzoTotale / 2) * 100) / 100;
 
@@ -349,43 +563,123 @@ export async function cancellaConRimborsoDiviso(params: {
     const utenteSnap = await tx.get(utenteRef);
     const compagnoSnap = await tx.get(compagnoRef);
     const creditoUtente = utenteSnap.exists() ? ((utenteSnap.data().credito as number) ?? 0) : 0;
+    const debitoUtente = utenteSnap.exists() ? ((utenteSnap.data().sosUtilizzato as number) ?? 0) : 0;
     const creditoCompagno = compagnoSnap.exists() ? ((compagnoSnap.data().credito as number) ?? 0) : 0;
+    const debitoCompagno = compagnoSnap.exists() ? ((compagnoSnap.data().sosUtilizzato as number) ?? 0) : 0;
 
-    tx.update(utenteRef, { credito: creditoUtente + meta });
-    tx.update(compagnoRef, { credito: creditoCompagno + meta });
+    const dopoUtente = applicaRimborso(creditoUtente, debitoUtente, meta);
+    const dopoCompagno = applicaRimborso(creditoCompagno, debitoCompagno, meta);
+    tx.update(utenteRef, dopoUtente);
+    tx.update(compagnoRef, dopoCompagno);
+
+    // Due movimenti distinti, uno per portafoglio: ciascuno deve
+    // poter leggere il proprio registro e ritrovarci la propria meta'.
+    const chiHaCancellato = params.eseguitoDaRuolo ?? 'socio';
+    const descr = params.descrizione ?? 'Rimborso metà quota per cancellazione prenotazione condivisa';
+    registraMovimentoInTransazione(tx, {
+      circoloId: params.circoloId,
+      uid: params.utenteId,
+      tipo: 'rimborso',
+      importo: meta,
+      saldoPrima: creditoUtente,
+      saldoDopo: dopoUtente.credito,
+      debitoPrima: debitoUtente,
+      debitoDopo: dopoUtente.sosUtilizzato,
+      eseguitoDaUid: params.eseguitoDaUid ?? null,
+      eseguitoDaNome: params.eseguitoDaNome ?? null,
+      eseguitoDaRuolo: chiHaCancellato,
+      prenotazioneId: params.prenotazioneId,
+      descrizione: descr,
+    });
+    registraMovimentoInTransazione(tx, {
+      circoloId: params.circoloId,
+      uid: params.compagnoId,
+      tipo: 'rimborso',
+      importo: meta,
+      saldoPrima: creditoCompagno,
+      saldoDopo: dopoCompagno.credito,
+      debitoPrima: debitoCompagno,
+      debitoDopo: dopoCompagno.sosUtilizzato,
+      eseguitoDaUid: params.eseguitoDaUid ?? null,
+      eseguitoDaNome: params.eseguitoDaNome ?? null,
+      eseguitoDaRuolo: chiHaCancellato,
+      prenotazioneId: params.prenotazioneId,
+      descrizione: descr,
+    });
+
     tx.delete(prenotazioneRef);
   });
 }
 
 // Cancella una lezione con un allievo NON socio: nessun wallet da cui
-// era stato scalato nulla in origine (vedi prenotaLezioneOspite), quindi
+// era stato scalato nulla in origine (vedi prenotaLezioneEsterno), quindi
 // qui non c'è alcun rimborso da fare — solo la rimozione dello slot.
 export async function cancellaSenzaRimborso(prenotazioneId: string): Promise<void> {
   await deleteDoc(doc(db, 'prenotazioni', prenotazioneId));
 }
 
 // Ricarica del wallet da parte della segreteria/Admin Circolo.
-export async function ricaricaCredito(uid: string, importo: number): Promise<void> {
-  const utenteRef = doc(db, 'utenti', uid);
+// Anche qui vale la regola generale: se il socio ha un debito aperto,
+// la somma versata lo estingue prima di finire sul credito. Altrimenti
+// avrebbe credito e debito accesi insieme dopo aver appena pagato.
+export async function ricaricaCredito(
+  uid: string, circoloId: string, importo: number,
+  eseguitoDa?: { uid: string; nome: string }
+): Promise<void> {
+  const utenteRef = doc(db, 'tessere', idTessera(uid, circoloId));
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(utenteRef);
     const attuale = snap.exists() ? ((snap.data().credito as number) ?? 0) : 0;
-    tx.update(utenteRef, { credito: attuale + importo });
+    const debito = snap.exists() ? ((snap.data().sosUtilizzato as number) ?? 0) : 0;
+    const dopo = applicaRimborso(attuale, debito, importo);
+    tx.update(utenteRef, dopo);
+    registraMovimentoInTransazione(tx, {
+      circoloId, uid,
+      tipo: 'ricarica',
+      importo,
+      saldoPrima: attuale, saldoDopo: dopo.credito,
+      debitoPrima: debito, debitoDopo: dopo.sosUtilizzato,
+      eseguitoDaUid: eseguitoDa?.uid ?? null,
+      eseguitoDaNome: eseguitoDa?.nome ?? null,
+      eseguitoDaRuolo: 'admin',
+      descrizione: debito > 0
+        ? `Ricarica in segreteria — parte usata per estinguere il debito`
+        : `Ricarica in segreteria`,
+    });
   });
 }
 
 // Azzera del tutto il credito di un socio — per i casi in cui smette
 // di usare il wallet e la segreteria lo rimborsa in contanti/altro
 // canale reale, fuori dall'app.
-export async function azzeraCredito(uid: string): Promise<void> {
-  await updateDoc(doc(db, 'utenti', uid), { credito: 0 });
+export async function azzeraCredito(
+  uid: string, circoloId: string, eseguitoDa?: { uid: string; nome: string }
+): Promise<void> {
+  const rif = doc(db, 'tessere', idTessera(uid, circoloId));
+  await runTransaction(db, async (tx) => {
+    const snap = await tx.get(rif);
+    const attuale = snap.exists() ? ((snap.data().credito as number) ?? 0) : 0;
+    const debito = snap.exists() ? ((snap.data().sosUtilizzato as number) ?? 0) : 0;
+    tx.update(rif, { credito: 0 });
+    registraMovimentoInTransazione(tx, {
+      circoloId, uid,
+      tipo: 'azzeramento',
+      importo: -attuale,
+      saldoPrima: attuale, saldoDopo: 0,
+      debitoPrima: debito, debitoDopo: debito,
+      eseguitoDaUid: eseguitoDa?.uid ?? null,
+      eseguitoDaNome: eseguitoDa?.nome ?? null,
+      eseguitoDaRuolo: 'admin',
+      descrizione: 'Azzeramento credito da parte del circolo',
+    });
+  });
 }
 
 // Ricarica S.O.S. self-service del socio: aggiorna credito E il
 // contatore di quanto plafond S.O.S. è stato consumato, in un'unica
 // transazione atomica (le due cose devono sempre restare coerenti).
-export async function ricaricaSOS(uid: string, importo: number): Promise<void> {
-  const utenteRef = doc(db, 'utenti', uid);
+export async function ricaricaSOS(uid: string, circoloId: string, importo: number): Promise<void> {
+  const utenteRef = doc(db, 'tessere', idTessera(uid, circoloId));
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(utenteRef);
     const creditoAttuale = snap.exists() ? ((snap.data().credito as number) ?? 0) : 0;
@@ -393,6 +687,17 @@ export async function ricaricaSOS(uid: string, importo: number): Promise<void> {
     tx.update(utenteRef, {
       credito: creditoAttuale + importo,
       sosUtilizzato: sosAttuale + importo,
+    });
+    registraMovimentoInTransazione(tx, {
+      circoloId, uid,
+      tipo: 'sos',
+      importo,
+      saldoPrima: creditoAttuale, saldoDopo: creditoAttuale + importo,
+      debitoPrima: sosAttuale, debitoDopo: sosAttuale + importo,
+      eseguitoDaUid: uid,
+      eseguitoDaNome: null,
+      eseguitoDaRuolo: 'socio',
+      descrizione: 'Ricarica S.O.S. — da saldare in segreteria',
     });
   });
 }
@@ -412,9 +717,17 @@ export interface PrenotazioneAdmin {
   prezzo: number;
   etichetta?: string | null;
   tipo?: 'campo' | 'lezione';
-  prenotataDa?: 'socio' | 'maestro'; // solo per tipo==='lezione': chi ha avviato la prenotazione
+  prenotataDa?: 'socio' | 'maestro' | 'admin'; // chi ha avviato la prenotazione ('admin' anche per tipo==='campo')
   sfidaId?: string | null; // presente se questa prenotazione nasce da una Sfida Sociale accettata
-  ospite?: boolean;
+  // Chi gioca in questo slot, in modo NON ambiguo:
+  //  - 'socio'   → socio tesserato del circolo
+  //  - 'ospite'  → socio tesserato ALTROVE, approvato qui come Ospite
+  //  - 'esterno' → nessun account: nome scritto a mano da Admin o
+  //                Maestro (una prova, un accompagnatore, un allievo
+  //                occasionale)
+  // Prima esisteva un solo booleano "ospite" che copriva gli ultimi
+  // due casi insieme, rendendoli indistinguibili.
+  tipoUtente?: 'socio' | 'ospite' | 'esterno';
   maestroId?: string;
   maestroNome?: string;
   maestroCognome?: string;
@@ -451,7 +764,7 @@ export function ascoltaPrenotazioniCircolo(
           tipo: v.tipo ?? 'campo',
           prenotataDa: v.prenotataDa,
           sfidaId: v.sfidaId ?? null,
-          ospite: v.ospite ?? false,
+          tipoUtente: v.tipoUtente ?? 'socio',
           maestroId: v.maestroId,
           maestroNome: v.maestroNome,
           maestroCognome: v.maestroCognome,

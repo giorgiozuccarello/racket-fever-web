@@ -232,7 +232,11 @@ async function messaggioSistema(sfidaId: string, testo: string): Promise<void> {
 // stessa identica logica di una vittoria normale (concludiSfida),
 // riusata qui per ogni caso di penalità automatica per mancata
 // risposta o mancata presentazione.
-async function applicaPerditaPosizione(perdenteId: string, vincitoreId: string, soci: SocioCircolo[]): Promise<void> {
+// Le posizioni in classifica vivono sulla TESSERA (una per circolo),
+// non piu' sul profilo utente: un socio puo' essere 3o in un circolo
+// e 12o in un altro. Scrivere su /utenti non aggiornava nulla — la
+// classifica restava ferma senza segnalare alcun errore.
+async function applicaPerditaPosizione(perdenteId: string, vincitoreId: string, soci: SocioCircolo[], circoloId: string): Promise<void> {
   const perdente = soci.find((s) => s.uid === perdenteId);
   const vincitore = soci.find((s) => s.uid === vincitoreId);
   if (!perdente || !vincitore || perdente.posizioneClassificaSociale == null || vincitore.posizioneClassificaSociale == null) return;
@@ -245,10 +249,10 @@ async function applicaPerditaPosizione(perdenteId: string, vincitoreId: string, 
       const pos = s.posizioneClassificaSociale;
       if (pos == null || s.uid === vincitoreId) return;
       if (pos >= posPerdente && pos < posVincitore) {
-        tx.update(doc(db, 'utenti', s.uid), { posizioneClassificaSociale: pos + 1 });
+        tx.update(doc(db, 'tessere', `${s.uid}_${circoloId}`), { posizioneClassificaSociale: pos + 1 });
       }
     });
-    tx.update(doc(db, 'utenti', vincitoreId), { posizioneClassificaSociale: posPerdente });
+    tx.update(doc(db, 'tessere', `${vincitoreId}_${circoloId}`), { posizioneClassificaSociale: posPerdente });
   });
 }
 
@@ -423,7 +427,7 @@ export async function risolviTimerAccordo(sfida: Sfida, soci: SocioCircolo[]): P
   if (!daApplicare) return;
 
   if (daApplicare === 'silenzio' || daApplicare === 'sfidato_muto') {
-    await applicaPerditaPosizione(sfida.sfidatoId, sfida.sfidanteId, soci);
+    await applicaPerditaPosizione(sfida.sfidatoId, sfida.sfidanteId, soci, sfida.circoloId);
     await messaggioSistema(sfida.id, 'Le 24 ore sono scadute senza risposta dallo sfidato: perde la posizione in classifica.');
     await notificaSfidaConRitentativi(sfida.sfidatoId, 'Non hai risposto in tempo alla sfida: hai perso la tua posizione in classifica.');
     await notificaSfidaConRitentativi(sfida.sfidanteId, `${sfida.sfidatoNome} non ha risposto in tempo: hai preso la sua posizione in classifica.`);
@@ -548,7 +552,7 @@ export async function risolviTimerPrenotazione(sfida: Sfida, soci: SocioCircolo[
     await notificaSfidaConRitentativi(sfida.sfidanteId, 'Non hai risposto in tempo: sei congelato dal lanciare sfide per 7 giorni.');
     await notificaSfidaConRitentativi(sfida.sfidatoId, 'Lo sfidante non ha risposto in tempo: la sfida decade, nessuna penalità per te.');
   } else {
-    await applicaPerditaPosizione(sfida.sfidatoId, sfida.sfidanteId, soci);
+    await applicaPerditaPosizione(sfida.sfidatoId, sfida.sfidanteId, soci, sfida.circoloId);
     await messaggioSistema(sfida.id, 'Tempo scaduto senza prenotazione: colpa dello sfidato, perde la posizione in classifica.');
     await notificaSfidaConRitentativi(sfida.sfidatoId, 'Non hai risposto in tempo: hai perso la tua posizione in classifica.');
     await notificaSfidaConRitentativi(sfida.sfidanteId, `${sfida.sfidatoNome} non ha risposto in tempo: hai preso la sua posizione in classifica.`);
@@ -564,9 +568,14 @@ export async function dichiaraRisultato(
   await updateDoc(doc(db, 'sfide', sfidaId), { [campo]: { esito, punteggio: punteggio.trim() } });
 }
 
+// circoloId e' indispensabile: le posizioni in classifica vivono
+// sulla TESSERA (`uid_circoloId`), non piu' sul profilo. Senza,
+// l'aggiornamento veniva scritto su un documento inesistente e la
+// classifica restava ferma — senza alcun errore visibile, perche'
+// tutto il resto (avvisi, chiusura sfida) andava a buon fine.
 export async function concludiSfida(
   sfidaId: string, sfidanteId: string, sfidatoId: string, vincitoreId: string, soci: SocioCircolo[],
-  faseAttesa: FaseSfida, risultatoUfficiale: string
+  faseAttesa: FaseSfida, risultatoUfficiale: string, circoloId: string
 ): Promise<boolean> {
   const sfidaRef = doc(db, 'sfide', sfidaId);
   let applicata = false;
@@ -591,10 +600,10 @@ export async function concludiSfida(
         const pos = s.posizioneClassificaSociale;
         if (pos == null || s.uid === sfidanteId) return;
         if (pos >= posSfidato && pos < posSfidante) {
-          tx.update(doc(db, 'utenti', s.uid), { posizioneClassificaSociale: pos + 1 });
+          tx.update(doc(db, 'tessere', `${s.uid}_${circoloId}`), { posizioneClassificaSociale: pos + 1 });
         }
       });
-      tx.update(doc(db, 'utenti', sfidanteId), { posizioneClassificaSociale: posSfidato });
+      tx.update(doc(db, 'tessere', `${sfidanteId}_${circoloId}`), { posizioneClassificaSociale: posSfidato });
     }
 
     tx.update(sfidaRef, { fase: 'conclusa', vincitoreId, risultatoUfficiale: risultatoUfficiale.trim(), conclusaIl: serverTimestamp() });
@@ -617,7 +626,7 @@ export async function nonPresentatoSfidante(sfida: Sfida): Promise<void> {
 }
 
 export async function nonPresentatoSfidato(sfida: Sfida, soci: SocioCircolo[]): Promise<void> {
-  await applicaPerditaPosizione(sfida.sfidatoId, sfida.sfidanteId, soci);
+  await applicaPerditaPosizione(sfida.sfidatoId, sfida.sfidanteId, soci, sfida.circoloId);
   await updateDoc(doc(db, 'sfide', sfida.id), { fase: 'conclusa', nonPresentatoId: sfida.sfidatoId, vincitoreId: sfida.sfidanteId, risultatoUfficiale: 'Vinta a Tavolino', conclusaIl: serverTimestamp() });
   await notificaSfidaConRitentativi(sfida.sfidatoId, 'Il circolo ha registrato la tua mancata presentazione: hai perso la tua posizione in classifica.');
   await notificaSfidaConRitentativi(sfida.sfidanteId, 'Il circolo ha confermato: il tuo avversario non si è presentato, hai preso la sua posizione.');

@@ -9,9 +9,9 @@ export default function SezioneDebitiSoci({ soci, onSelezionaSocio }: {
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Debiti dei Soci</div>
+      <div className="admin-card-title">Debiti dei Soci/Tesserati e Ospiti</div>
       <p className="admin-card-hint">
-        Soci con un credito S.O.S. ancora da saldare in segreteria. Escono da
+        Soci/Tesserati e Ospiti con un credito S.O.S. ancora da saldare in segreteria. Escono da
         qui automaticamente non appena ripristini il loro credito.
       </p>
 
@@ -31,7 +31,12 @@ export default function SezioneDebitiSoci({ soci, onSelezionaSocio }: {
             </div>
           )}
           <div style={{ flex: 1 }}>
-            <div className="admin-list-main">{soc.nome} {soc.cognome}</div>
+            <div className="admin-list-main">
+              {soc.nome} {soc.cognome}
+              {soc.ruoloTessera === 'ospite' && (
+                <span className="admin-etichetta-ospite"> (ospite)</span>
+              )}
+            </div>
             <div className="admin-list-sub">{soc.email}</div>
           </div>
           <div className="admin-list-credito" style={{ color: '#B3261E' }}>€ {soc.sosUtilizzato}</div>

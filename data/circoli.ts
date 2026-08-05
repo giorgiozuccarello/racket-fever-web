@@ -10,41 +10,74 @@ export interface Circolo {
   citta: string;
   sigla: string;
   password: string;
-  tema: { primario: string; accento: string };
+  temaApp: string; // chiave di uno degli 8 TEMI_APP — scelto dall'Admin, vale anche per i Maestri
   limiteOreSettimanali: number; // 0 = nessun limite
   logoUrl?: string | null; // se assente, si mostra la sigla nel cerchio
-  gradienteClassifica?: { da: string; a: string } | null; // sfondo della schermata Classifica Sociale
   limiteSfidaPosizioni?: number; // 0/assente = usa il default (5): quante posizioni sopra si può sfidare
+  // Solo web: sfumatura scelta dall'admin per la classifica sociale.
+  // Non esiste nel mobile, va conservata quando si allineano i file.
+  gradienteClassifica?: { da: string; a: string };
   timerSfideVeloce?: boolean; // true = i 2 timer delle Sfide durano 5 minuti invece di 24 ore (solo per i test)
-  sfondoApp?: string; // chiave di uno dei temi in TEMI_SFONDO_APP — assente = tema di default (Bianco)
 }
 
-// 6 temi per lo sfondo generale dell'app (Strada A: solo lo sfondo
-// "dietro" le card cambia — le card restano bianche con testo nero,
-// sempre leggibili qualunque tema sia attivo). I primi 3 sono chiari
-// (i titoli fuori dalle card restano neri), gli ultimi 3 sono scuri
-// (i titoli fuori dalle card diventano bianchi).
-export interface TemaSfondoApp { nome: string; da: string; a: string; scuro: boolean }
+// Gli 8 Temi App — sostituiscono del tutto il vecchio sistema
+// (colore primario/accento personalizzabile liberamente + sfondo
+// scelto a parte). Ogni Tema è un pacchetto chiuso e già coordinato:
+// sfondo, colore pieno per blocchi/testi in risalto, e un accento
+// secondario per bottoni/CTA — pensati apposta in coppia, mai
+// componibili a piacere. Le card "vetro" (vedi theme/VetroCard.tsx)
+// usano una meccanica unica per tutti e 8: cambia solo se la
+// variante chiara o scura del vetro è attiva, non il tema in sé.
+export interface TemaApp {
+  nome: string;
+  scuro: boolean;
+  sfondoDa: string;
+  sfondoA: string;
+  primario: string; // blocchi pieni (es. testata Profilo) e testi/numeri in risalto
+  accento: string;  // bottoni, CTA, evidenze secondarie
+}
 
-export const TEMI_SFONDO_APP: Record<string, TemaSfondoApp> = {
-  bianco: { nome: 'Bianco', da: '#FFFFFF', a: '#F5F4F2', scuro: false },
-  latte: { nome: 'Latte', da: '#FFF9F0', a: '#F2E8D8', scuro: false },
-  avorio: { nome: 'Avorio', da: '#FFFFF2', a: '#F3EFD9', scuro: false },
-  nero: { nome: 'Nero', da: '#2A2A2A', a: '#0D0D0D', scuro: true },
-  bluScuro: { nome: 'Blu scuro', da: '#1B2A47', a: '#0B1424', scuro: true },
-  violaScuro: { nome: 'Viola scuro', da: '#33203F', a: '#160D1C', scuro: true },
+// Arancione comune: accento dei quattro temi scuri e, in tutti i temi
+// chiari, colore dell'icona selezionata nella barra di navigazione.
+export const ARANCIONE_SELEZIONE = '#D98A2B';
+
+// Solo web: sfumature selezionabili dall'admin per la classifica
+// sociale mostrata sul sito. Non esistono nell'app mobile.
+export const GRADIENTI_CLASSIFICA = [
+  { nome: 'Verde Pino', da: '#0E3B2E', a: '#1F7A45' },
+  { nome: 'Terra Rossa', da: '#8A4420', a: '#C9702E' },
+  { nome: 'Blu Notte', da: '#0B2C4D', a: '#1B5FA6' },
+  { nome: 'Oro', da: '#8A6200', a: '#D4A017' },
+  { nome: 'Grafite', da: '#1A1A1A', a: '#4A4A4A' },
+];
+
+// Fondo del box socio nei TEMI CHIARI: la testata li' e' color
+// accento, e queste sono versioni molto scurite di quello stesso
+// colore — scelte a mano, una per tema, cosi' restano nella stessa
+// famiglia cromatica e reggono il testo bianco.
+// I temi scuri non compaiono qui: usano sfondoA, il colore piu' scuro
+// della loro sfumatura di sfondo.
+export const FONDO_BOX_SOCIO_CHIARI: Record<string, string> = {
+  bianco: '#1A1A1A',        // testata bianca: qui serve un nero neutro
+  grigio: '#0B1C2E',        // da accento #14304D — blu notte
+  violaChiaro: '#4A1339',   // da accento #8A2670 — viola scuro
+  azzurroChiaro: '#063A5C', // da accento #0D6EAB — blu profondo
 };
 
-// 5 gradienti scuri predefiniti per lo sfondo della Classifica Sociale —
-// stessa filosofia dei Temi colori: nessun colore libero, solo scelte
-// pensate in anticipo per restare leggibili.
-export const GRADIENTI_CLASSIFICA: { nome: string; da: string; a: string }[] = [
-  { nome: 'Notte', da: '#0B1F3A', a: '#1E5C8A' },
-  { nome: 'Abisso', da: '#0A0E27', a: '#2C3E66' },
-  { nome: 'Oceano', da: '#0C2340', a: '#155263' },
-  { nome: 'Indaco', da: '#1A1B4B', a: '#4A5FA5' },
-  { nome: 'Ardesia', da: '#101822', a: '#2E4057' },
-];
+
+
+export const TEMI_APP: Record<string, TemaApp> = {
+  nero: { nome: 'Full Black', scuro: true, sfondoDa: '#1A1A1A', sfondoA: '#000000', primario: '#1A1A1A', accento: '#D98A2B' },
+  verdeScuro: { nome: 'Green', scuro: true, sfondoDa: '#1B4A35', sfondoA: '#0A1F16', primario: '#123324', accento: '#D98A2B' },
+  terraBattuta: { nome: 'Clay', scuro: true, sfondoDa: '#8A4420', sfondoA: '#3D1D0D', primario: '#5C2C13', accento: '#D98A2B' },
+  campoSintetico: { nome: 'Solid Blue', scuro: true, sfondoDa: '#1B5FA6', sfondoA: '#0B2C4D', primario: '#0B2C4D', accento: '#D98A2B' },
+  bianco: { nome: 'White', scuro: false, sfondoDa: '#FFFFFF', sfondoA: '#FAFAF8', primario: '#000000', accento: '#000000' },
+  grigio: { nome: 'Pearl Gray', scuro: false, sfondoDa: '#ECECEA', sfondoA: '#DBDBD8', primario: '#0E3B2E', accento: '#14304D' },
+  violaChiaro: { nome: 'Pinky', scuro: false, sfondoDa: '#ECECEA', sfondoA: '#DBDBD8', primario: '#8A2670', accento: '#8A2670' },
+  azzurroChiaro: { nome: 'Pure Cyan', scuro: false, sfondoDa: '#ECECEA', sfondoA: '#DBDBD8', primario: '#0D6EAB', accento: '#0D6EAB' },
+};
+
+export const TEMA_APP_DEFAULT = 'bianco';
 
 // Al massimo UNA tariffa speciale per campo: una fascia oraria con
 // un prezzo diverso dal prezzo base (es. "Con illuminazione").
@@ -73,7 +106,8 @@ export interface Blocco {
   data?: string;              // 'YYYY-MM-DD', solo se tipo==='data'
   orarioInizio: string;
   orarioFine: string;
-  etichetta: string;
+  etichetta: string;      // max 14 caratteri: compare sotto "Riservato" nello slot
+  descrizione?: string;   // testo esteso, mostrato nel pop-up quando si tocca lo slot
   nascondiInfo?: boolean; // se true, i soci vedono solo "Riservato", non il motivo
 }
 

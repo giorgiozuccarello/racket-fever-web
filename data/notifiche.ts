@@ -15,15 +15,33 @@ export interface Notifica {
   testo: string;
   letta: boolean;
   tipo?: 'lezione' | null; // presente = stile visivo distinto (avviso di lezione)
+  circoloId?: string;      // circolo di provenienza: l'avviso si vede solo lì
+  globale?: boolean;       // vero = si vede in qualsiasi circolo
   creataIl?: { seconds: number };
 }
 
-export async function creaNotifica(utenteId: string, testo: string, tipo?: 'lezione'): Promise<void> {
+// circoloId: da quale circolo parte l'avviso. Va indicato quando chi
+// scrive NON e' del circolo d'origine del destinatario — ad esempio
+// l'admin che approva un Ospite tesserato altrove. Senza, le regole
+// non avrebbero modo di autorizzare la scrittura.
+// globale: avviso che deve raggiungere l'utente in QUALSIASI circolo
+// stia guardando. Serve per l'approvazione come Ospite: l'utente non
+// e' ancora nel circolo che lo ha approvato, quindi un avviso legato
+// a quel circolo non lo vedrebbe mai.
+export async function creaNotifica(
+  utenteId: string,
+  testo: string,
+  tipo?: 'lezione',
+  circoloId?: string,
+  globale?: boolean
+): Promise<void> {
   await addDoc(collection(db, 'notifiche'), {
     utenteId,
     testo,
     letta: false,
     tipo: tipo ?? null,
+    ...(circoloId ? { circoloId } : {}),
+    ...(globale ? { globale: true } : {}),
     creataIl: serverTimestamp(),
   });
 }

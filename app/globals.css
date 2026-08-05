@@ -371,6 +371,13 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-list-row:last-child{border-bottom:none}
 .admin-list-main{font-size:.92rem;font-weight:700;color:var(--inchiostro)}
 .admin-list-sub{font-size:.78rem;color:var(--grigio);margin-top:.15rem}
+/* Dicitura accanto al nome negli elenchi: corsivo e tono leggero, per
+   distinguere gli Ospiti dai Soci/Tesserati senza appesantire. */
+.admin-etichetta-ospite{font-style:italic;font-weight:400;color:#8A8478;font-size:.8rem}
+/* Ruolo per esteso nella scheda profilo: aprendo la scheda l'admin ha
+   bisogno del dato completo, non di un'abbreviazione. */
+.admin-badge-ruolo{display:inline-block;background:#E6F0EA;color:#1F5C3C;border-radius:6px;padding:.25rem .6rem;font-size:.72rem;font-weight:800;margin-top:.5rem}
+.admin-badge-ruolo-ospite{background:#EFEBE0;color:#6B6355}
 .admin-list-credito{font-size:.95rem;font-weight:800;color:var(--inchiostro)}
 .admin-empty-text{color:var(--grigio);font-size:.85rem}
 
@@ -522,3 +529,88 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .pc-slot.riservato{background:#C9C2D9;border-color:#C9C2D9;cursor:pointer}
 .pc-slot-ora{font-size:.82rem;font-weight:700;color:var(--inchiostro);font-variant-numeric:tabular-nums}
 .pc-slot-sotto{font-size:.62rem;color:var(--grigio);margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+
+/* ============================================================
+   Sezioni allineate all'app mobile: richieste in sospeso,
+   tessere da saldare, test reset.
+   ============================================================ */
+.admin-btn-piccolo-verde{background:#1F7A45;color:#fff;border:none;border-radius:8px;padding:.5rem .8rem;font-size:.78rem;font-weight:800;cursor:pointer}
+.admin-btn-piccolo-verde:disabled{opacity:.5;cursor:default}
+.admin-btn-piccolo-rosso{background:#fff;color:#B3261E;border:1.5px solid #B3261E;border-radius:8px;padding:.5rem .8rem;font-size:.78rem;font-weight:800;cursor:pointer}
+.admin-btn-piccolo-rosso:disabled{opacity:.5;cursor:default}
+.admin-link-whatsapp{display:inline-block;margin-top:.25rem;font-size:.75rem;color:#1F7A45;font-weight:700;text-decoration:none}
+.admin-link-whatsapp:hover{text-decoration:underline}
+.admin-saldo-credito{font-size:.8rem;font-weight:800;color:#1F7A45;margin-top:.3rem}
+.admin-saldo-debito{font-size:.8rem;font-weight:800;color:#B3261E;margin-top:.3rem}
+.admin-esito-ok{display:flex;gap:.5rem;align-items:center;background:#EAF5EE;color:#1F5C3C;border-radius:10px;padding:.75rem;font-size:.8rem;font-weight:600;margin-bottom:.5rem}
+/* Pulsanti di reset: rossi e con la descrizione sotto il titolo, cosi'
+   e' chiaro cosa fanno prima di premerli. */
+.admin-btn-reset{display:flex;flex-direction:column;align-items:center;gap:.15rem;width:100%;background:#fff;border:2px solid #B3261E;border-radius:10px;padding:.75rem;margin-top:.6rem;cursor:pointer}
+.admin-btn-reset strong{color:#B3261E;font-size:.85rem}
+.admin-btn-reset span{color:var(--grigio);font-size:.72rem}
+.admin-errore{color:#B3261E;font-size:.78rem;margin-top:.5rem}
+
+
+/* ============================================================
+   Griglia Admin: selezione multipla, prenotazione e riserva.
+   ============================================================ */
+/* Slot selezionati e slot estendibili: il tratteggio indica dove si
+   puo' allargare la selezione, l'attenuazione cosa e' fuori gioco. */
+.pc-slot.selezionato{background:#B0451F;border-color:#141F1B;border-width:3px;color:#fff}
+.pc-slot.estendibile{border:2px dashed #B0451F}
+.pc-slot.attenuato{opacity:.35}
+.pc-barra-selezione{display:flex;align-items:center;gap:.6rem;background:#0E3B2E;border:2px solid #B0451F;border-radius:12px;padding:.8rem;margin-bottom:.6rem;color:#fff}
+.pc-barra-selezione strong{font-size:.85rem}
+.pc-barra-sub{font-size:.7rem;color:rgba(255,255,255,.75);margin-top:.1rem}
+.pc-scelta-btn{display:flex;flex-direction:column;align-items:center;gap:.15rem;width:100%;background:#1F7A45;color:#fff;border:none;border-radius:12px;padding:.85rem;margin-top:.7rem;cursor:pointer}
+.pc-scelta-btn.riserva{background:#033F63}
+.pc-scelta-btn strong{font-size:.9rem}
+.pc-scelta-btn span{font-size:.72rem;opacity:.85}
+.pc-toggle-row{display:flex;gap:.5rem;margin-top:.9rem}
+.pc-toggle-btn{flex:1;border:2px solid var(--bordo);border-radius:10px;padding:.55rem;background:#fff;font-size:.78rem;font-weight:700;cursor:pointer}
+.pc-toggle-btn.selezionato{background:#0E3B2E;border-color:#0E3B2E;color:#fff}
+.pc-spunta-riga{display:flex;align-items:center;gap:.5rem;margin-top:.9rem;font-size:.8rem;font-weight:600;cursor:pointer}
+
+
+/* ============================================================
+   Registro movimenti — pagina web e foglio di stampa.
+   ============================================================ */
+.mov-filtri{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.4rem}
+.mov-pillola{border:1.5px solid var(--bordo);border-radius:20px;padding:.35rem .8rem;background:#fff;font-size:.78rem;font-weight:700;cursor:pointer}
+.mov-pillola.selezionata{background:#0E3B2E;border-color:#0E3B2E;color:#fff}
+.mov-totali{display:flex;gap:1.5rem;padding-bottom:1rem;margin-bottom:.6rem;border-bottom:1.5px solid var(--bordo)}
+.mov-totale-label{font-size:.68rem;color:var(--grigio);text-transform:uppercase;letter-spacing:.4px}
+.mov-totale-valore{font-size:1.05rem;font-weight:900;margin-top:.15rem}
+.mov-totale-valore.verde,.verde{color:#1F7A45}
+.mov-totale-valore.rosso,.rosso{color:#B3261E}
+.mov-tabella{width:100%;border-collapse:collapse;font-size:.8rem}
+.mov-tabella th{text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;color:var(--grigio);padding:.5rem .4rem;border-bottom:1.5px solid var(--bordo)}
+.mov-tabella td{padding:.55rem .4rem;border-bottom:1px solid var(--riga);vertical-align:top}
+.mov-tabella .destra{text-align:right;white-space:nowrap}
+.mov-saldo{font-size:.72rem;color:var(--grigio)}
+.mov-debito{font-size:.68rem;color:#B3261E;margin-top:.1rem}
+
+/* L'intestazione con nome circolo e periodo serve solo sul foglio
+   stampato: a schermo quelle informazioni sono gia' nel contesto. */
+.solo-stampa{display:none}
+@media print{
+  .no-print{display:none !important}
+  .solo-stampa{display:block;margin-bottom:1rem}
+  .solo-stampa h1{font-size:1.3rem;margin:0}
+  .solo-stampa p{font-size:.8rem;color:#555;margin:.2rem 0 0}
+  .admin-root{background:#fff;padding:0}
+  .admin-card{border:none;box-shadow:none;padding:0;margin:0}
+  .mov-tabella{font-size:.72rem}
+  .mov-tabella th,.mov-tabella td{padding:.3rem .25rem}
+  /* Evita che una riga venga spezzata a meta' fra due pagine. */
+  .mov-tabella tr{page-break-inside:avoid}
+}
+
+.admin-riga-registro{display:flex;align-items:center;gap:.8rem;width:100%;background:#fff;border:1.5px solid var(--bordo);border-radius:14px;padding:1rem;margin:.8rem 0;cursor:pointer;text-align:left}
+.admin-riga-registro-titolo{font-size:.95rem;font-weight:800;color:var(--inchiostro)}
+.admin-riga-registro-sub{font-size:.75rem;color:var(--grigio);margin-top:.15rem}
+
+.admin-header-title{color:#fff;font-size:1.4rem;font-weight:900;margin:.8rem 0 0}
+.admin-header-sub{color:rgba(255,255,255,.75);font-size:.8rem;margin:.25rem 0 0;line-height:1.4}
+.admin-loading{display:flex;align-items:center;justify-content:center;min-height:60vh;color:var(--grigio);font-size:.9rem}

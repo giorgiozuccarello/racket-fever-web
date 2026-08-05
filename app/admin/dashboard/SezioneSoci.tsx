@@ -14,15 +14,15 @@ export default function SezioneSoci({ soci, onSelezionaSocio }: {
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Soci</div>
+      <div className="admin-card-title">Soci/Tesserati e Ospiti</div>
       <p className="admin-card-hint">
-        Cerca un socio per vedere il suo profilo, ricaricare il credito o
+        Cerca un Socio/Tesserato o un Ospite per vedere il suo profilo, ricaricare il credito o
         impostare il limite di ricarica S.O.S.
       </p>
 
       <input
         className="admin-input" value={filtro} onChange={(e) => setFiltro(e.target.value)}
-        placeholder="Cerca socio per nome o email…"
+        placeholder="Cerca Socio/Tesserato o Ospite…"
       />
 
       {risultati.map((soc) => (
@@ -39,7 +39,12 @@ export default function SezioneSoci({ soci, onSelezionaSocio }: {
             </div>
           )}
           <div style={{ flex: 1 }}>
-            <div className="admin-list-main">{soc.nome} {soc.cognome}</div>
+            <div className="admin-list-main">
+              {soc.nome} {soc.cognome}
+              {soc.ruoloTessera === 'ospite' && (
+                <span className="admin-etichetta-ospite"> (ospite)</span>
+              )}
+            </div>
             <div className="admin-list-sub">{soc.email}</div>
           </div>
           <div className="admin-list-credito">€ {(soc.credito ?? 0).toFixed(2)}</div>

@@ -20,6 +20,9 @@ import SezioneLimite from './SezioneLimite';
 import SezionePrezzi from './SezionePrezzi';
 import SezioneBlocchi from './SezioneBlocchi';
 import SezioneSoci from './SezioneSoci';
+import SezioneRichiesteTessera from './SezioneRichiesteTessera';
+import SezioneTessereDaSaldare from './SezioneTessereDaSaldare';
+import SezioneTestReset from './SezioneTestReset';
 import SezioneDebitiSoci from './SezioneDebitiSoci';
 import SchedaSocioModal from './SchedaSocioModal';
 import SezioneMaestri from './SezioneMaestri';
@@ -134,6 +137,9 @@ export default function AdminDashboard() {
       </header>
 
       <main className="admin-main">
+        <SezioneCollassabile id="test-reset" titolo="Test Reset" descrizione="Strumenti per ripartire puliti fra due sessioni di prova">
+          <SezioneTestReset circolo={circolo} sfide={sfide} />
+        </SezioneCollassabile>
         <SezioneCollassabile id="personalizza" titolo="Personalizza App" descrizione="Colori e logo dell'app mostrati ai soci">
           <SezionePersonalizzaApp circolo={circolo} />
         </SezioneCollassabile>
@@ -155,10 +161,29 @@ export default function AdminDashboard() {
         <SezioneCollassabile id="blocchi" titolo="Orari Riservati" descrizione="Manutenzione, tornei, corsi — orari non prenotabili">
           <SezioneBlocchi circoloId={circolo.id} campi={campi} blocchi={blocchi} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="soci" titolo="Soci" descrizione="Anagrafica e credito dei soci">
+        <SezioneCollassabile id="richieste" titolo="Richieste in sospeso" descrizione="Chi ha chiesto di entrare nel circolo">
+          <SezioneRichiesteTessera circolo={circolo} approvatore={responsabile.email} />
+        </SezioneCollassabile>
+        {/* Il registro non e' una sezione collassabile ma una pagina a
+            se': un estratto conto ha bisogno di spazio per i filtri,
+            per la tabella e per la stampa. */}
+        <button className="admin-riga-registro" onClick={() => router.push('/admin/movimenti')}>
+          <div style={{ flex: 1, textAlign: 'left' }}>
+            <div className="admin-riga-registro-titolo">Registro Movimenti</div>
+            <div className="admin-riga-registro-sub">
+              Ricariche, addebiti e rimborsi — prova in caso di contestazione, con stampa
+            </div>
+          </div>
+          <span aria-hidden>›</span>
+        </button>
+
+        <SezioneCollassabile id="saldare" titolo="Tessere da saldare" descrizione="Ex soci con credito da restituire o debito da recuperare">
+          <SezioneTessereDaSaldare circolo={circolo} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="soci" titolo="Soci/Tesserati e Ospiti" descrizione="Anagrafica e credito di Soci/Tesserati e Ospiti">
           <SezioneSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="debiti" titolo="Debiti dei Soci" descrizione="Soci con credito negativo o S.O.S. da saldare">
+        <SezioneCollassabile id="debiti" titolo="Debiti dei Soci/Tesserati e Ospiti" descrizione="Soci/Tesserati e Ospiti con credito negativo o S.O.S. da saldare">
           <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
         </SezioneCollassabile>
         <SezioneCollassabile id="maestri" titolo="Maestri" descrizione="Account e accesso dei maestri del circolo">
@@ -177,7 +202,7 @@ export default function AdminDashboard() {
           onClose={() => setSocioSelUid(null)}
         />
         <SezioneCollassabile id="prenotazioni" titolo="Prenotazione Campi" descrizione="Griglia campi — clicca uno slot per i dettagli">
-          <SezionePrenotazioni campi={campi} blocchi={blocchi} prenotazioni={prenotazioni} sfide={sfide} />
+          <SezionePrenotazioni campi={campi} blocchi={blocchi} prenotazioni={prenotazioni} sfide={sfide} circolo={circolo} soci={soci} />
         </SezioneCollassabile>
         <SezioneCollassabile id="note" titolo="Note alle Prenotazioni" descrizione="Prenotazioni con note lasciate dai soci">
           <SezioneNotePrenotazioni prenotazioni={prenotazioni} />

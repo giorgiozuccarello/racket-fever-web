@@ -31,7 +31,7 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
     const v = parseFloat(importo.replace(',', '.'));
     if (!socio || Number.isNaN(v) || v <= 0) return;
     setInviando(true);
-    await ricaricaCredito(socio.uid, v);
+    await ricaricaCredito(socio.uid, circoloId, v);
     setInviando(false);
     setRicaricaAperta(false);
     setImporto('');
@@ -40,14 +40,14 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
   const salvaLimitePersonale = async (v: number) => {
     if (!socio) return;
     setSalvandoLimite(true);
-    await aggiornaLimitePersonale(socio.uid, v);
+    await aggiornaLimitePersonale(socio.uid, circoloId, v);
     setSalvandoLimite(false);
   };
 
   const confermaRipristino = async () => {
     if (!socio) return;
     setRipristinando(true);
-    await ripristinaSOS(socio.uid);
+    await ripristinaSOS(socio.uid, circoloId);
     setRipristinando(false);
     setConfermaRipristinoAperta(false);
   };
@@ -55,7 +55,7 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
   const confermaAzzeraCredito = async () => {
     if (!socio) return;
     setAzzerando(true);
-    await azzeraCredito(socio.uid);
+    await azzeraCredito(socio.uid, circoloId);
     await creaNotifica(
       socio.uid,
       `Il circolo ha azzerato il tuo credito wallet (era € ${(socio.credito ?? 0).toFixed(2)}). Se non ti torna, rivolgiti alla segreteria.`
@@ -80,6 +80,14 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
               )}
               <div className="admin-modal-title" style={{ marginTop: '.7rem' }}>{socio.nome} {socio.cognome}</div>
               <div className="admin-modal-sub">{socio.email}</div>
+              {/* Ruolo per esteso: nell'elenco basta un'etichetta, ma
+                  aprendo la scheda l'admin deve sapere con chi ha a
+                  che fare. */}
+              <div className={`admin-badge-ruolo${socio.ruoloTessera === 'ospite' ? ' admin-badge-ruolo-ospite' : ''}`}>
+                {socio.ruoloTessera === 'ospite'
+                  ? 'Ospite · tesserato in un altro circolo'
+                  : 'Socio tesserato'}
+              </div>
             </div>
 
             <div className="socio-stats-row">

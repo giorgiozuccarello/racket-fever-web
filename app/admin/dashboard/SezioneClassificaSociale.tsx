@@ -44,7 +44,7 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
     const occupante = posizioneOccupataDa(pos);
     if (occupante) { setErrore(`Posizione già occupata da ${occupante.nome} ${occupante.cognome}.`); return; }
     setSalvando(true);
-    await impostaPosizioneClassificaSociale(socioScelto.uid, pos);
+    await impostaPosizioneClassificaSociale(socioScelto.uid, circolo.id, pos);
     setSalvando(false);
     resetForm();
   };
@@ -63,13 +63,13 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
     const occupante = posizioneOccupataDa(pos, modificaSocio.uid);
     if (occupante) { setModErrore(`Posizione già occupata da ${occupante.nome} ${occupante.cognome}.`); return; }
     setModSalvando(true);
-    await impostaPosizioneClassificaSociale(modificaSocio.uid, pos);
+    await impostaPosizioneClassificaSociale(modificaSocio.uid, circolo.id, pos);
     setModSalvando(false);
     setModificaSocio(null);
   };
 
   const rimuovi = async (uid: string) => {
-    await rimuoviDaClassificaSociale(uid);
+    await rimuoviDaClassificaSociale(uid, circolo.id);
   };
 
   const [salvandoGradiente, setSalvandoGradiente] = useState(false);

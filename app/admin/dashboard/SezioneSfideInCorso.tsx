@@ -108,7 +108,7 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo }: { sfide: S
     if (!daConcludere || !vincitoreScelto || !risultatoTesto.trim()) return;
     setConcludendo(true);
     try {
-      const applicata = await concludiSfida(daConcludere.id, daConcludere.sfidanteId, daConcludere.sfidatoId, vincitoreScelto, soci, 'accettata', risultatoTesto);
+      const applicata = await concludiSfida(daConcludere.id, daConcludere.sfidanteId, daConcludere.sfidatoId, vincitoreScelto, soci, 'accettata', risultatoTesto, daConcludere.circoloId);
       if (applicata) {
         const vinceSfidante = vincitoreScelto === daConcludere.sfidanteId;
         const nomeVincitore = vinceSfidante
