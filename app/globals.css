@@ -629,3 +629,5 @@ footer li a:hover{opacity:1;text-decoration:underline}
 /* Sfondo alternato per BLOCCO, non per riga: le mezz'ore di una stessa
    prenotazione restano sullo stesso sfondo. */
 .mov-riga.alternata td{background:#F4F2EC}
+
+.mov-socio-intestazione{font-size:1rem;font-weight:900;color:var(--inchiostro);padding-bottom:.6rem;margin-bottom:.6rem;border-bottom:1.5px solid var(--bordo)}

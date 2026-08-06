@@ -52,6 +52,64 @@ function indiceBlocco(elenco: Movimento[], i: number): number {
   return blocco;
 }
 
+// Tabella condivisa dalle due sezioni — "Movimenti Totali" e
+// "Movimenti per Socio" — cosi' le due viste non divergono nel tempo.
+function TabellaMovimenti({ elenco, onScegliSocio, dataOra }: {
+  elenco: Movimento[]; onScegliSocio: (n: string) => void; dataOra: (m: Movimento) => string;
+}) {
+  if (elenco.length === 0) {
+    return <p className="admin-empty-text">Nessun movimento con questi filtri.</p>;
+  }
+  return (
+          <table className="mov-tabella">
+            <thead>
+              <tr>
+                <th>Socio</th>
+                <th>Data</th>
+                <th>Tipo</th>
+                <th>Descrizione</th>
+                <th>Eseguito da</th>
+                <th className="destra">Importo</th>
+                <th className="destra">Saldo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* Click sulla riga: filtra su quel socio. Utile quando
+                  il socio e' presente e vuole vedere il proprio
+                  estratto conto. */}
+              {elenco.map((m: Movimento, i: number) => (
+                <tr key={m.id} className={`mov-riga${indiceBlocco(elenco, i) % 2 === 1 ? " alternata" : ""}`} onClick={() => onScegliSocio(m.socioNome || '')}>
+                  <td className="mov-socio">
+                    {m.socioNome || '— nome non registrato'}
+                    {m.socioRuolo === 'ospite' && <span className="admin-etichetta-ospite"> (ospite)</span>}
+                  </td>
+                  <td>{dataOra(m)}</td>
+                  <td>{etichettaMovimento(m)}</td>
+                  {/* Campo, data e intervallo orario: su un rimborso
+                      parziale e' l'unico modo per capire a quale
+                      prenotazione si riferisce. */}
+                  <td>{dettaglioPrenotazione(m) || m.descrizione}</td>
+                  <td>{esecutorePerAdmin(m)}</td>
+                  <td className={`destra ${m.importo >= 0 ? 'verde' : 'rosso'}`}>
+                    {m.importo >= 0 ? '+' : ''}{m.importo.toFixed(2)} €
+                  </td>
+                  {/* La catena dei saldi e' cio' che rende il registro
+                      una prova: ogni riga si aggancia alla precedente. */}
+                  <td className="destra mov-saldo">
+                    € {m.saldoPrima.toFixed(2)} → € {m.saldoDopo.toFixed(2)}
+                    {m.debitoPrima !== m.debitoDopo && (
+                      <div className="mov-debito">
+                        debito € {m.debitoPrima.toFixed(2)} → € {m.debitoDopo.toFixed(2)}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+  );
+}
+
 export default function PaginaMovimenti() {
   const router = useRouter();
   const [responsabile, setResponsabile] = useState<ProfiloResponsabile | null>(null);
@@ -116,6 +174,18 @@ export default function PaginaMovimenti() {
     if (nomi.size === 1 && [...nomi][0].toLowerCase() === testo) return [];
     return [...nomi].slice(0, 6);
   }, [movimenti, filtroNome]);
+
+  const socioSelezionato = useMemo(() => {
+    const testo = filtroNome.trim().toLowerCase();
+    if (testo.length < 2) return null;
+    const esatto = movimenti.find((m: Movimento) => (m.socioNome ?? '').toLowerCase() === testo);
+    return esatto?.socioNome ?? null;
+  }, [movimenti, filtroNome]);
+
+  const movimentiSocio = useMemo(
+    () => (socioSelezionato ? filtrati.filter((m: Movimento) => m.socioNome === socioSelezionato) : []),
+    [filtrati, socioSelezionato]
+  );
 
   const totali = useMemo(() => {
     let entrate = 0;
@@ -220,54 +290,20 @@ export default function PaginaMovimenti() {
         {filtrati.length === 0 ? (
           <p className="admin-empty-text">Nessun movimento con questi filtri.</p>
         ) : (
-          <table className="mov-tabella">
-            <thead>
-              <tr>
-                <th>Socio</th>
-                <th>Data</th>
-                <th>Tipo</th>
-                <th>Descrizione</th>
-                <th>Eseguito da</th>
-                <th className="destra">Importo</th>
-                <th className="destra">Saldo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* Click sulla riga: filtra su quel socio. Utile quando
-                  il socio e' presente e vuole vedere il proprio
-                  estratto conto. */}
-              {filtrati.map((m: Movimento, i: number) => (
-                <tr key={m.id} className={`mov-riga${indiceBlocco(filtrati, i) % 2 === 1 ? " alternata" : ""}`} onClick={() => setFiltroNome(m.socioNome || '')}>
-                  <td className="mov-socio">
-                    {m.socioNome || '— nome non registrato'}
-                    {m.socioRuolo === 'ospite' && <span className="admin-etichetta-ospite"> (ospite)</span>}
-                  </td>
-                  <td>{dataOra(m)}</td>
-                  <td>{etichettaMovimento(m)}</td>
-                  {/* Campo, data e intervallo orario: su un rimborso
-                      parziale e' l'unico modo per capire a quale
-                      prenotazione si riferisce. */}
-                  <td>{dettaglioPrenotazione(m) || m.descrizione}</td>
-                  <td>{esecutorePerAdmin(m)}</td>
-                  <td className={`destra ${m.importo >= 0 ? 'verde' : 'rosso'}`}>
-                    {m.importo >= 0 ? '+' : ''}{m.importo.toFixed(2)} €
-                  </td>
-                  {/* La catena dei saldi e' cio' che rende il registro
-                      una prova: ogni riga si aggancia alla precedente. */}
-                  <td className="destra mov-saldo">
-                    € {m.saldoPrima.toFixed(2)} → € {m.saldoDopo.toFixed(2)}
-                    {m.debitoPrima !== m.debitoDopo && (
-                      <div className="mov-debito">
-                        debito € {m.debitoPrima.toFixed(2)} → € {m.debitoDopo.toFixed(2)}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <TabellaMovimenti elenco={filtrati} onScegliSocio={setFiltroNome} dataOra={dataOra} />
         )}
       </div>
+
+      {/* Seconda sezione: i movimenti della sola persona selezionata.
+          Compare quando il testo di ricerca corrisponde esattamente a
+          un nome, cioe' dopo aver scelto un suggerimento o una riga. */}
+      {!!socioSelezionato && (
+        <div className="admin-card">
+          <div className="admin-card-title">Movimenti per Socio</div>
+          <p className="mov-socio-intestazione">{socioSelezionato}</p>
+          <TabellaMovimenti elenco={movimentiSocio} onScegliSocio={setFiltroNome} dataOra={dataOra} />
+        </div>
+      )}
     </div>
   );
 }
