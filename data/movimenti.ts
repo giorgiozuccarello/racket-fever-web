@@ -66,6 +66,12 @@ export interface Movimento {
   // che dentro la descrizione: leggere una stringa sarebbe fragile e
   // si romperebbe al primo cambio di formulazione. Cosi' si possono
   // anche filtrare o ordinare in futuro.
+  // Data in formato confrontabile e identificativo del campo: senza
+  // questi due, raggruppare le card e capire se una prenotazione e'
+  // conclusa richiederebbe di interpretare l'etichetta testuale
+  // ("Giovedì 7 agosto"), cosa fragile e imprecisa.
+  dataISO?: string | null;
+  campoId?: string | null;
   campoNome?: string | null;
   dataLabel?: string | null;
   orario?: string | null;
@@ -97,6 +103,12 @@ export interface DatiMovimento {
   // che dentro la descrizione: leggere una stringa sarebbe fragile e
   // si romperebbe al primo cambio di formulazione. Cosi' si possono
   // anche filtrare o ordinare in futuro.
+  // Data in formato confrontabile e identificativo del campo: senza
+  // questi due, raggruppare le card e capire se una prenotazione e'
+  // conclusa richiederebbe di interpretare l'etichetta testuale
+  // ("Giovedì 7 agosto"), cosa fragile e imprecisa.
+  dataISO?: string | null;
+  campoId?: string | null;
   campoNome?: string | null;
   dataLabel?: string | null;
   orario?: string | null;
@@ -125,6 +137,8 @@ export function registraMovimentoInTransazione(tx: Transaction, dati: DatiMovime
     eseguitoDaNome: dati.eseguitoDaNome ?? null,
     prenotazioneId: dati.prenotazioneId ?? null,
     gruppoId: dati.gruppoId ?? null,
+    dataISO: dati.dataISO ?? null,
+    campoId: dati.campoId ?? null,
     campoNome: dati.campoNome ?? null,
     dataLabel: dati.dataLabel ?? null,
     orario: dati.orario ?? null,
@@ -152,6 +166,8 @@ function normalizza(id: string, v: Record<string, unknown>): Movimento {
     eseguitoDaRuolo: (v.eseguitoDaRuolo as RuoloEsecutore) ?? 'sistema',
     prenotazioneId: (v.prenotazioneId as string | null) ?? null,
     gruppoId: (v.gruppoId as string | null) ?? null,
+    dataISO: (v.dataISO as string | null) ?? null,
+    campoId: (v.campoId as string | null) ?? null,
     campoNome: (v.campoNome as string | null) ?? null,
     dataLabel: (v.dataLabel as string | null) ?? null,
     orario: (v.orario as string | null) ?? null,
@@ -296,4 +312,122 @@ export async function creaAperturePerCircolo(circoloId: string): Promise<number>
     }
   }
   return create;
+}
+
+// ============================================================
+// VISTA CARD — raggruppa i movimenti in "prenotazioni".
+//
+// Una prenotazione non e' un'operazione singola: e' un blocco di
+// tempo che puo' essere costruito in piu' momenti. Prenotando
+// un'ora oggi e aggiungendo mezz'ora domani, per il socio resta
+// UNA partita — e le card in Home lo mostrano gia' cosi'.
+//
+// Qui si applica lo stesso criterio ai movimenti: stesso socio,
+// stesso campo, stessa data di GIOCO, orari contigui. Con una
+// differenza necessaria: una mezz'ora cancellata non sparisce dalla
+// card, perche' fa parte della storia da raccontare.
+// ============================================================
+
+export interface CardMovimenti {
+  chiave: string;
+  socioNome: string;
+  socioRuolo: 'socio_tesserato' | 'ospite';
+  campoNome: string;
+  dataLabel: string;
+  dataISO: string;
+  orarioInizio: string;
+  orarioFine: string;
+  importoNetto: number;
+  conclusa: boolean;
+  movimenti: Movimento[];   // in ordine cronologico: e' la "storia"
+}
+
+function fineDelloSlot(orario: string): string {
+  const [h, m] = orario.split(':').map(Number);
+  const tot = h * 60 + m + 30;
+  return `${String(Math.floor(tot / 60)).padStart(2, '0')}:${String(tot % 60).padStart(2, '0')}`;
+}
+
+export function raggruppaInCard(movimenti: Movimento[]): CardMovimenti[] {
+  // Solo i movimenti legati a una prenotazione: ricariche, S.O.S. e
+  // azzeramenti non hanno un campo o un orario, quindi non possono
+  // formare una card e restano fuori dalla Vista Card.
+  const utili = movimenti.filter((m) => !!m.campoId && !!m.dataISO && !!m.orario);
+
+  // Prima si raccolgono per socio + campo + giorno, poi dentro ogni
+  // gruppo si spezza dove gli orari non sono contigui.
+  const perGiorno = new Map<string, Movimento[]>();
+  utili.forEach((m) => {
+    const k = `${m.uid}|${m.campoId}|${m.dataISO}`;
+    if (!perGiorno.has(k)) perGiorno.set(k, []);
+    perGiorno.get(k)!.push(m);
+  });
+
+  const card: CardMovimenti[] = [];
+  const adesso = Date.now();
+
+  perGiorno.forEach((elenco, chiaveGiorno) => {
+    // Orari distinti coinvolti, in ordine: e' su questi che si valuta
+    // la contiguita', non sui singoli movimenti (un orario puo' avere
+    // sia un addebito sia un rimborso).
+    const orari = [...new Set(elenco.map((m) => m.orario!))].sort();
+
+    let blocco: string[] = [];
+    const chiudiBlocco = () => {
+      if (blocco.length === 0) return;
+      const primo = blocco[0];
+      const ultimo = blocco[blocco.length - 1];
+      const dentro = elenco
+        .filter((m) => blocco.includes(m.orario!))
+        .sort((a, b) => (a.quando?.seconds ?? 0) - (b.quando?.seconds ?? 0));
+      const rif = dentro[0];
+      const fine = fineDelloSlot(ultimo);
+      const scadenza = new Date(`${rif.dataISO}T${fine}:00`).getTime();
+
+      card.push({
+        chiave: `${chiaveGiorno}|${primo}`,
+        socioNome: rif.socioNome ?? '',
+        socioRuolo: rif.socioRuolo ?? 'socio_tesserato',
+        campoNome: rif.campoNome ?? '',
+        dataLabel: rif.dataLabel ?? '',
+        dataISO: rif.dataISO ?? '',
+        orarioInizio: primo,
+        orarioFine: fine,
+        importoNetto: dentro.reduce((t, m) => t + m.importo, 0),
+        conclusa: Number.isFinite(scadenza) ? adesso >= scadenza : false,
+        movimenti: dentro,
+      });
+      blocco = [];
+    };
+
+    orari.forEach((o, i) => {
+      if (i > 0 && fineDelloSlot(orari[i - 1]) !== o) chiudiBlocco();
+      blocco.push(o);
+    });
+    chiudiBlocco();
+  });
+
+  // Le card piu' recenti in cima, come nell'elenco completo.
+  return card.sort((a, b) => {
+    const qa = a.movimenti[a.movimenti.length - 1]?.quando?.seconds ?? 0;
+    const qb = b.movimenti[b.movimenti.length - 1]?.quando?.seconds ?? 0;
+    return qb - qa;
+  });
+}
+
+// Riga della cronologia nel pop-up: descrive cosa e' successo in
+// quell'istante, con parole diverse da quelle del registro completo
+// perche' qui il contesto (campo, data) e' gia' nella testata.
+export function passoStoria(m: Movimento): string {
+  const fine = m.orario ? fineDelloSlot(m.orario) : '';
+  switch (m.tipo) {
+    case 'addebito':
+      return `Prenotata la mezz'ora ${m.orario} - ${fine}`;
+    case 'rimborso':
+      return m.parziale
+        ? `Cancellata la mezz'ora ${m.orario} - ${fine}`
+        : `Cancellata l'intera prenotazione (${m.orario} - ${fine})`;
+    default:
+      return m.descrizione;
+  }
 }

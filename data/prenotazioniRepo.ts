@@ -66,6 +66,8 @@ export async function prenotaConCredito(params: {
       socioRuolo: params.tipoUtente === 'ospite' ? 'ospite' : 'socio_tesserato',
       tipo: 'addebito',
       gruppoId: params.gruppoId ?? null,
+      dataISO: params.data,
+      campoId: params.campoId,
       campoNome: params.campoNome,
       dataLabel: params.dataLabel,
       orario: params.orario,
@@ -163,6 +165,8 @@ export async function prenotaPerSocioDaAdmin(params: {
       socioRuolo: params.tipoUtente === 'ospite' ? 'ospite' : 'socio_tesserato',
       tipo: 'addebito',
       gruppoId: params.gruppoId ?? null,
+      dataISO: params.data,
+      campoId: params.campoId,
       campoNome: params.campoNome,
       dataLabel: params.dataLabel,
       orario: params.orario,
@@ -533,6 +537,8 @@ export async function cancellaConRimborso(params: {
   // riconoscibile nel registro anche a distanza di mesi.
   campoNome?: string;
   dataLabel?: string;
+  dataISO?: string;
+  campoId?: string;
   orario?: string;
   parziale?: boolean;
 }): Promise<void> {
@@ -553,6 +559,8 @@ export async function cancellaConRimborso(params: {
       socioNome: params.socioNome ?? null,
       tipo: 'rimborso',
       gruppoId: params.gruppoId ?? null,
+      dataISO: params.dataISO ?? null,
+      campoId: params.campoId ?? null,
       campoNome: params.campoNome ?? null,
       dataLabel: params.dataLabel ?? null,
       orario: params.orario ?? null,
@@ -597,6 +605,8 @@ export async function cancellaConRimborsoDiviso(params: {
   // riconoscibile nel registro anche a distanza di mesi.
   campoNome?: string;
   dataLabel?: string;
+  dataISO?: string;
+  campoId?: string;
   orario?: string;
   parziale?: boolean;
 }): Promise<void> {
@@ -628,6 +638,8 @@ export async function cancellaConRimborsoDiviso(params: {
       socioNome: params.socioNome ?? null,
       tipo: 'rimborso',
       gruppoId: params.gruppoId ?? null,
+      dataISO: params.dataISO ?? null,
+      campoId: params.campoId ?? null,
       campoNome: params.campoNome ?? null,
       dataLabel: params.dataLabel ?? null,
       orario: params.orario ?? null,
@@ -650,6 +662,8 @@ export async function cancellaConRimborsoDiviso(params: {
       socioNome: params.compagnoNome ?? null,
       tipo: 'rimborso',
       gruppoId: params.gruppoId ?? null,
+      dataISO: params.dataISO ?? null,
+      campoId: params.campoId ?? null,
       campoNome: params.campoNome ?? null,
       dataLabel: params.dataLabel ?? null,
       orario: params.orario ?? null,

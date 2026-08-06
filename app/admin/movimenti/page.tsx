@@ -22,7 +22,8 @@ import { ascoltaCircolo } from '../../../data/circoliRepo';
 import { Circolo } from '../../../data/circoli';
 import {
   ascoltaMovimentiCircolo, esecutorePerAdmin, etichettaMovimento,
-  dettaglioPrenotazione, Movimento, TipoMovimento,
+  dettaglioPrenotazione, raggruppaInCard, passoStoria,
+  Movimento, TipoMovimento, CardMovimenti,
 } from '../../../data/movimenti';
 
 const PERIODI = [
@@ -110,6 +111,129 @@ function TabellaMovimenti({ elenco, onScegliSocio, dataOra }: {
   );
 }
 
+// Blocco riusato dalle due sezioni: i pulsanti di vista e, sotto,
+// l'elenco nella forma scelta.
+function BloccoElenco({ elenco, onScegliSocio, dataOra, onApriStoria }: {
+  elenco: Movimento[];
+  onScegliSocio: (n: string) => void;
+  dataOra: (m: Movimento) => string;
+  onApriStoria: (c: CardMovimenti) => void;
+}) {
+  // La Vista Card e' quella predefinita: piu' leggibile, e mostra le
+  // prenotazioni come le vede il socio.
+  const [vista, setVista] = useState<'card' | 'completa'>('card');
+  const card = useMemo(() => raggruppaInCard(elenco), [elenco]);
+
+  return (
+    <>
+      <div className="mov-vista-riga">
+        <button
+          className={`mov-vista-btn${vista === 'card' ? ' selezionata' : ''}`}
+          onClick={() => setVista('card')}
+        >Vista Card</button>
+        <button
+          className={`mov-vista-btn${vista === 'completa' ? ' selezionata' : ''}`}
+          onClick={() => setVista('completa')}
+        >Vista Completa</button>
+      </div>
+
+      {vista === 'completa' ? (
+        <TabellaMovimenti elenco={elenco} onScegliSocio={onScegliSocio} dataOra={dataOra} />
+      ) : card.length === 0 ? (
+        <p className="admin-empty-text">
+          Nessuna prenotazione con questi filtri. Ricariche e movimenti S.O.S.
+          si vedono nella Vista Completa.
+        </p>
+      ) : (
+        card.map((cd: CardMovimenti) => (
+          <button key={cd.chiave} className="mov-card" onClick={() => onApriStoria(cd)}>
+            <div className="mov-card-testata">
+              <div style={{ flex: 1, textAlign: 'left' }}>
+                <div className="mov-card-socio">
+                  {cd.socioNome || '— nome non registrato'}
+                  {cd.socioRuolo === 'ospite' && <span className="admin-etichetta-ospite"> (ospite)</span>}
+                </div>
+                <div className="mov-card-campo">{cd.campoNome} · {cd.dataLabel}</div>
+              </div>
+              <span className={`mov-card-stato${cd.conclusa ? ' conclusa' : ''}`}>
+                {cd.conclusa ? 'Conclusa' : 'Attiva'}
+              </span>
+            </div>
+            <div className="mov-card-corpo">
+              <span className="mov-card-orario">{cd.orarioInizio} - {cd.orarioFine}</span>
+              <span style={{ flex: 1 }} />
+              <span className={`mov-card-netto ${cd.importoNetto >= 0 ? 'verde' : 'rosso'}`}>
+                {cd.importoNetto >= 0 ? '+' : ''}{cd.importoNetto.toFixed(2)} €
+              </span>
+            </div>
+            <div className="mov-card-piede">
+              Clicca per la storia della prenotazione · {cd.movimenti.length} movimenti
+            </div>
+          </button>
+        ))
+      )}
+    </>
+  );
+}
+
+// Pop-up: la storia dall'alto verso il basso, con i passi in box
+// collegati da un filo verticale — come un diagramma di flusso.
+function StoriaPrenotazione({ card, onChiudi }: { card: CardMovimenti | null; onChiudi: () => void }) {
+  if (!card) return null;
+  const quando = (m: Movimento) => m.quando
+    ? new Date(m.quando.seconds * 1000).toLocaleString('it-IT', {
+        day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit',
+      })
+    : '—';
+
+  return (
+    <div className="mov-storia-backdrop" onClick={onChiudi}>
+      <div className="mov-storia-foglio" onClick={(e) => e.stopPropagation()}>
+        <div className="mov-storia-testata">
+          <div>
+            <div className="admin-modal-title">Storia della prenotazione</div>
+            <p className="admin-modal-sub">
+              {card.socioNome} · {card.campoNome} · {card.dataLabel} · {card.orarioInizio} - {card.orarioFine}
+            </p>
+          </div>
+          <button className="mov-storia-chiudi" onClick={onChiudi}>×</button>
+        </div>
+
+        <div className="mov-storia-corpo">
+          {card.movimenti.map((m: Movimento, i: number) => (
+            <div key={m.id}>
+              <div className="mov-passo">
+                <span className="mov-passo-ora">{quando(m)}</span>
+                <div className="mov-passo-testo">{passoStoria(m)}</div>
+                <div className="mov-passo-riga">
+                  <span className={m.importo >= 0 ? 'verde' : 'rosso'} style={{ fontWeight: 900 }}>
+                    {m.importo >= 0 ? '+' : ''}{m.importo.toFixed(2)} €
+                  </span>
+                  <span className="mov-passo-saldo">
+                    saldo € {m.saldoPrima.toFixed(2)} → € {m.saldoDopo.toFixed(2)}
+                  </span>
+                </div>
+                <div className="mov-passo-chi">{esecutorePerAdmin(m)}</div>
+              </div>
+              {i < card.movimenti.length - 1 && <div className="mov-connettore"><span /></div>}
+            </div>
+          ))}
+
+          <div className="mov-connettore"><span /></div>
+          <div className="mov-passo finale">
+            <div className="mov-passo-testo">
+              {card.conclusa ? '✓ Prenotazione conclusa' : '⏳ Prenotazione ancora da giocare'}
+            </div>
+            <div className="mov-passo-saldo">
+              Totale: {card.importoNetto >= 0 ? '+' : ''}{card.importoNetto.toFixed(2)} €
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PaginaMovimenti() {
   const router = useRouter();
   const [responsabile, setResponsabile] = useState<ProfiloResponsabile | null>(null);
@@ -120,6 +244,7 @@ export default function PaginaMovimenti() {
   const [filtroNome, setFiltroNome] = useState('');
   const [periodo, setPeriodo] = useState('30');
   const [tipo, setTipo] = useState<TipoMovimento | 'tutti'>('tutti');
+  const [storiaAperta, setStoriaAperta] = useState<CardMovimenti | null>(null);
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (user) => {
@@ -290,7 +415,7 @@ export default function PaginaMovimenti() {
         {filtrati.length === 0 ? (
           <p className="admin-empty-text">Nessun movimento con questi filtri.</p>
         ) : (
-          <TabellaMovimenti elenco={filtrati} onScegliSocio={setFiltroNome} dataOra={dataOra} />
+          <BloccoElenco elenco={filtrati} onScegliSocio={setFiltroNome} dataOra={dataOra} onApriStoria={setStoriaAperta} />
         )}
       </div>
 
@@ -301,9 +426,10 @@ export default function PaginaMovimenti() {
         <div className="admin-card">
           <div className="admin-card-title">Movimenti per Socio</div>
           <p className="mov-socio-intestazione">{socioSelezionato}</p>
-          <TabellaMovimenti elenco={movimentiSocio} onScegliSocio={setFiltroNome} dataOra={dataOra} />
+          <BloccoElenco elenco={movimentiSocio} onScegliSocio={setFiltroNome} dataOra={dataOra} onApriStoria={setStoriaAperta} />
         </div>
       )}
+      <StoriaPrenotazione card={storiaAperta} onChiudi={() => setStoriaAperta(null)} />
     </div>
   );
 }
