@@ -163,6 +163,15 @@ function BloccoElenco({ elenco, onScegliSocio, dataOra, onApriStoria }: {
                 {!!cd.movimenti[0]?.maestroNome && (
                   <div className="mov-card-maestro">Lezione con {cd.movimenti[0].maestroNome}</div>
                 )}
+                {/* Con una prenotazione condivisa serve distinguere chi
+                    ha deciso da chi e' stato invitato. */}
+                {!!cd.movimenti[0]?.compagnoNome && (
+                  <div className="mov-card-compagno">
+                    {cd.movimenti[0].sonoCompagno
+                      ? `Aggiunto da ${cd.movimenti[0].compagnoNome}`
+                      : `Ha invitato ${cd.movimenti[0].compagnoNome}`}
+                  </div>
+                )}
               </div>
               <span className={`mov-card-stato${cd.cancellata ? ' cancellata' : cd.conclusa ? ' conclusa' : ''}`}>
                 {cd.cancellata ? 'Cancellata' : cd.conclusa ? 'Conclusa' : 'Attiva'}
@@ -248,6 +257,61 @@ function StoriaPrenotazione({ card, onChiudi }: { card: CardMovimenti | null; on
   );
 }
 
+// Sezione richiudibile con titolo e totali propri. Definirla una
+// volta sola evita che le due sezioni divergano: prima i totali
+// esistevano solo nei Totali e il titolo solo nella sezione Socio.
+function SezioneMovimenti({ titolo, sottotitolo, elenco, aperta, disabilitata, onApriChiudi, onScegliSocio, dataOra, onApriStoria }: {
+  titolo: string;
+  sottotitolo?: string;
+  elenco: Movimento[];
+  aperta: boolean;
+  disabilitata?: boolean;
+  onApriChiudi: () => void;
+  onScegliSocio: (n: string) => void;
+  dataOra: (m: Movimento) => string;
+  onApriStoria: (c: CardMovimenti) => void;
+}) {
+  const entrate = elenco.filter((m: Movimento) => m.importo > 0).reduce((t, m) => t + m.importo, 0);
+  const uscite = elenco.filter((m: Movimento) => m.importo < 0).reduce((t, m) => t + Math.abs(m.importo), 0);
+
+  return (
+    <div className="admin-card">
+      <button
+        className={`mov-sezione-testata${disabilitata ? ' disabilitata' : ''}`}
+        onClick={onApriChiudi}
+        disabled={disabilitata}
+      >
+        <div style={{ flex: 1, textAlign: 'left' }}>
+          <div className="admin-card-title" style={{ margin: 0 }}>{titolo}</div>
+          {!!sottotitolo && <div className="mov-sezione-sub">{sottotitolo}</div>}
+        </div>
+        <span className="mov-sezione-conteggio">{elenco.length}</span>
+        <span>{aperta ? '▲' : '▼'}</span>
+      </button>
+
+      {aperta && (
+        <>
+          <div className="mov-totali">
+            <div>
+              <div className="mov-totale-label">Entrate</div>
+              <div className="mov-totale-valore verde">+ € {entrate.toFixed(2)}</div>
+            </div>
+            <div>
+              <div className="mov-totale-label">Uscite</div>
+              <div className="mov-totale-valore rosso">− € {uscite.toFixed(2)}</div>
+            </div>
+            <div>
+              <div className="mov-totale-label">Movimenti</div>
+              <div className="mov-totale-valore">{elenco.length}</div>
+            </div>
+          </div>
+          <BloccoElenco elenco={elenco} onScegliSocio={onScegliSocio} dataOra={dataOra} onApriStoria={onApriStoria} />
+        </>
+      )}
+    </div>
+  );
+}
+
 export default function PaginaMovimenti() {
   const router = useRouter();
   const [responsabile, setResponsabile] = useState<ProfiloResponsabile | null>(null);
@@ -260,6 +324,8 @@ export default function PaginaMovimenti() {
   const [tipo, setTipo] = useState<TipoMovimento | 'tutti' | typeof FILTRO_LEZIONI>('tutti');
   const [maestroFiltro, setMaestroFiltro] = useState<string | null>(null);
   const [storiaAperta, setStoriaAperta] = useState<CardMovimenti | null>(null);
+  const [totaliAperti, setTotaliAperti] = useState(false);
+  const [socioAperto, setSocioAperto] = useState(false);
 
   useEffect(() => {
     return onAuthStateChanged(auth, async (user) => {
@@ -335,15 +401,6 @@ export default function PaginaMovimenti() {
     [filtrati, socioSelezionato]
   );
 
-  const totali = useMemo(() => {
-    let entrate = 0;
-    let uscite = 0;
-    filtrati.forEach((m: Movimento) => {
-      if (m.importo > 0) entrate += m.importo;
-      else uscite += Math.abs(m.importo);
-    });
-    return { entrate, uscite };
-  }, [filtrati]);
 
   const dataOra = (m: Movimento) => m.quando
     ? new Date(m.quando.seconds * 1000).toLocaleString('it-IT', {
@@ -439,39 +496,30 @@ export default function PaginaMovimenti() {
         </button>
       </div>
 
-      <div className="admin-card">
-        <div className="mov-totali">
-          <div>
-            <div className="mov-totale-label">Entrate</div>
-            <div className="mov-totale-valore verde">+ € {totali.entrate.toFixed(2)}</div>
-          </div>
-          <div>
-            <div className="mov-totale-label">Uscite</div>
-            <div className="mov-totale-valore rosso">− € {totali.uscite.toFixed(2)}</div>
-          </div>
-          <div>
-            <div className="mov-totale-label">Movimenti</div>
-            <div className="mov-totale-valore">{filtrati.length}</div>
-          </div>
-        </div>
+      {/* Due sezioni richiudibili, ciascuna con i propri totali:
+          "Movimenti Totali" e "Movimenti per Socio". */}
+      <SezioneMovimenti
+        titolo="Movimenti Totali"
+        elenco={filtrati}
+        aperta={totaliAperti}
+        onApriChiudi={() => setTotaliAperti((v) => !v)}
+        onScegliSocio={setFiltroNome}
+        dataOra={dataOra}
+        onApriStoria={setStoriaAperta}
+      />
 
-        {filtrati.length === 0 ? (
-          <p className="admin-empty-text">Nessun movimento con questi filtri.</p>
-        ) : (
-          <BloccoElenco elenco={filtrati} onScegliSocio={setFiltroNome} dataOra={dataOra} onApriStoria={setStoriaAperta} />
-        )}
-      </div>
+      <SezioneMovimenti
+        titolo="Movimenti per Socio"
+        sottotitolo={socioSelezionato ?? 'Scegli una persona dalla ricerca o dall\'elenco'}
+        elenco={movimentiSocio}
+        aperta={socioAperto && !!socioSelezionato}
+        disabilitata={!socioSelezionato}
+        onApriChiudi={() => socioSelezionato && setSocioAperto((v) => !v)}
+        onScegliSocio={setFiltroNome}
+        dataOra={dataOra}
+        onApriStoria={setStoriaAperta}
+      />
 
-      {/* Seconda sezione: i movimenti della sola persona selezionata.
-          Compare quando il testo di ricerca corrisponde esattamente a
-          un nome, cioe' dopo aver scelto un suggerimento o una riga. */}
-      {!!socioSelezionato && (
-        <div className="admin-card">
-          <div className="admin-card-title">Movimenti per Socio</div>
-          <p className="mov-socio-intestazione">{socioSelezionato}</p>
-          <BloccoElenco elenco={movimentiSocio} onScegliSocio={setFiltroNome} dataOra={dataOra} onApriStoria={setStoriaAperta} />
-        </div>
-      )}
       <StoriaPrenotazione card={storiaAperta} onChiudi={() => setStoriaAperta(null)} />
     </div>
   );

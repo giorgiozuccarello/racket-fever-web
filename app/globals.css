@@ -675,3 +675,13 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .mov-passo-intervallo{margin-top:.55rem;padding-top:.5rem;border-top:1px solid var(--riga);font-size:.75rem;font-weight:700;color:#0E3B2E}
 
 .mov-card-maestro{font-size:.75rem;color:#B0451F;font-weight:700;margin-top:.15rem}
+
+/* Testata richiudibile delle due sezioni del registro. */
+.mov-sezione-testata{display:flex;align-items:center;gap:.7rem;width:100%;background:none;border:none;padding:0 0 .8rem;cursor:pointer;text-align:left}
+.mov-sezione-testata.disabilitata{opacity:.5;cursor:default}
+.mov-sezione-sub{font-size:.75rem;color:var(--grigio);margin-top:.15rem}
+.mov-sezione-conteggio{background:var(--riga);color:var(--grigio);border-radius:10px;padding:.1rem .55rem;font-size:.72rem;font-weight:800}
+/* Sfondo proprio per la riga dei totali: senza, si confondeva con il
+   primo movimento dell'elenco subito sotto. */
+.mov-totali{background:var(--riga);border-radius:12px;padding:.8rem 1rem;margin-bottom:1rem;border:none}
+.mov-card-compagno{font-size:.75rem;color:#1F5C3C;font-weight:700;margin-top:.15rem}

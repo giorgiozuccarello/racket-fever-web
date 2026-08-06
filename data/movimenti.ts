@@ -76,6 +76,11 @@ export interface Movimento {
   // Alimenta i filtri dinamici del registro: cosi' un maestro che ha
   // smesso resta comunque cercabile finche' esistono sue lezioni.
   maestroNome?: string | null;
+  // Con chi si condivide la prenotazione, e se questo portafoglio e'
+  // di chi ha deciso o di chi e' stato invitato. Senza, la card
+  // dovrebbe dedurlo dal testo della descrizione — fragile.
+  compagnoNome?: string | null;
+  sonoCompagno?: boolean;
   campoNome?: string | null;
   dataLabel?: string | null;
   orario?: string | null;
@@ -117,6 +122,11 @@ export interface DatiMovimento {
   // Alimenta i filtri dinamici del registro: cosi' un maestro che ha
   // smesso resta comunque cercabile finche' esistono sue lezioni.
   maestroNome?: string | null;
+  // Con chi si condivide la prenotazione, e se questo portafoglio e'
+  // di chi ha deciso o di chi e' stato invitato. Senza, la card
+  // dovrebbe dedurlo dal testo della descrizione — fragile.
+  compagnoNome?: string | null;
+  sonoCompagno?: boolean;
   campoNome?: string | null;
   dataLabel?: string | null;
   orario?: string | null;
@@ -148,6 +158,8 @@ export function registraMovimentoInTransazione(tx: Transaction, dati: DatiMovime
     dataISO: dati.dataISO ?? null,
     campoId: dati.campoId ?? null,
     maestroNome: dati.maestroNome ?? null,
+    compagnoNome: dati.compagnoNome ?? null,
+    sonoCompagno: !!dati.sonoCompagno,
     campoNome: dati.campoNome ?? null,
     dataLabel: dati.dataLabel ?? null,
     orario: dati.orario ?? null,
@@ -172,6 +184,8 @@ export async function registraMovimentoSemplice(dati: DatiMovimento): Promise<vo
       prenotazioneId: dati.prenotazioneId ?? null,
       gruppoId: dati.gruppoId ?? null,
       maestroNome: dati.maestroNome ?? null,
+    compagnoNome: dati.compagnoNome ?? null,
+    sonoCompagno: !!dati.sonoCompagno,
       campoNome: dati.campoNome ?? null,
       dataISO: dati.dataISO ?? null,
       campoId: dati.campoId ?? null,
@@ -209,6 +223,8 @@ function normalizza(id: string, v: Record<string, unknown>): Movimento {
     dataISO: (v.dataISO as string | null) ?? null,
     campoId: (v.campoId as string | null) ?? null,
     maestroNome: (v.maestroNome as string | null) ?? null,
+    compagnoNome: (v.compagnoNome as string | null) ?? null,
+    sonoCompagno: !!v.sonoCompagno,
     campoNome: (v.campoNome as string | null) ?? null,
     dataLabel: (v.dataLabel as string | null) ?? null,
     orario: (v.orario as string | null) ?? null,

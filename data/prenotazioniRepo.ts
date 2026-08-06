@@ -413,6 +413,8 @@ export async function prenotaConCompagno(params: {
       eseguitoDaNome: `${params.utenteNome} ${params.utenteCognome}`,
       eseguitoDaRuolo: 'socio',
       prenotazioneId: prenotazioneRef.id,
+      compagnoNome: `${params.compagnoNome} ${params.compagnoCognome}`,
+      sonoCompagno: false,
       descrizione: `Prenotazione con ${params.compagnoNome} ${params.compagnoCognome} — la tua metà`,
     });
     registraMovimentoInTransazione(tx, {
@@ -430,7 +432,9 @@ export async function prenotaConCompagno(params: {
       // Chi ha prenotato non e' il titolare di questo portafoglio.
       eseguitoDaRuolo: 'compagno',
       prenotazioneId: prenotazioneRef.id,
-      descrizione: `Aggiunto da ${params.utenteNome} ${params.utenteCognome} — la tua metà`,
+      compagnoNome: `${params.utenteNome} ${params.utenteCognome}`,
+      sonoCompagno: true,
+      descrizione: `Sei stato aggiunto da ${params.utenteNome} ${params.utenteCognome} — la tua metà`,
     });
 
     tx.set(prenotazioneRef, {
