@@ -11,6 +11,7 @@ import { db } from '../lib/firebase';
 import { rimuoviDisponibilitaPerSlot } from './disponibilitaLezioni';
 import { registraMovimentoInTransazione } from './movimenti';
 import { idTessera } from './tessere';
+import { orarioFineSlot } from './circoli';
 
 // Il portafoglio NON vive più sul profilo utente ma sulla TESSERA
 // (una per ogni coppia utente-circolo): il credito versato in
@@ -65,6 +66,10 @@ export async function prenotaConCredito(params: {
       socioRuolo: params.tipoUtente === 'ospite' ? 'ospite' : 'socio_tesserato',
       tipo: 'addebito',
       gruppoId: params.gruppoId ?? null,
+      campoNome: params.campoNome,
+      dataLabel: params.dataLabel,
+      orario: params.orario,
+      orarioFine: orarioFineSlot(params.orario),
       importo: -params.prezzo,
       saldoPrima: creditoAttuale,
       saldoDopo: creditoAttuale - daCredito,
@@ -158,6 +163,10 @@ export async function prenotaPerSocioDaAdmin(params: {
       socioRuolo: params.tipoUtente === 'ospite' ? 'ospite' : 'socio_tesserato',
       tipo: 'addebito',
       gruppoId: params.gruppoId ?? null,
+      campoNome: params.campoNome,
+      dataLabel: params.dataLabel,
+      orario: params.orario,
+      orarioFine: orarioFineSlot(params.orario),
       importo: -params.prezzo,
       saldoPrima: creditoAttuale,
       saldoDopo: creditoAttuale - daCredito,
@@ -520,6 +529,12 @@ export async function cancellaConRimborso(params: {
   socioNome?: string;
   compagnoNome?: string;
   gruppoId?: string;
+  // Dati della prenotazione cancellata, per rendere il rimborso
+  // riconoscibile nel registro anche a distanza di mesi.
+  campoNome?: string;
+  dataLabel?: string;
+  orario?: string;
+  parziale?: boolean;
 }): Promise<void> {
   const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
   const prenotazioneRef = doc(db, 'prenotazioni', params.prenotazioneId);
@@ -538,6 +553,11 @@ export async function cancellaConRimborso(params: {
       socioNome: params.socioNome ?? null,
       tipo: 'rimborso',
       gruppoId: params.gruppoId ?? null,
+      campoNome: params.campoNome ?? null,
+      dataLabel: params.dataLabel ?? null,
+      orario: params.orario ?? null,
+      orarioFine: params.orario ? orarioFineSlot(params.orario) : null,
+      parziale: !!params.parziale,
       importo: params.prezzo,
       saldoPrima: creditoAttuale,
       saldoDopo: dopo.credito,
@@ -573,6 +593,12 @@ export async function cancellaConRimborsoDiviso(params: {
   socioNome?: string;
   compagnoNome?: string;
   gruppoId?: string;
+  // Dati della prenotazione cancellata, per rendere il rimborso
+  // riconoscibile nel registro anche a distanza di mesi.
+  campoNome?: string;
+  dataLabel?: string;
+  orario?: string;
+  parziale?: boolean;
 }): Promise<void> {
   const utenteRef = doc(db, 'tessere', idTessera(params.utenteId, params.circoloId));
   const compagnoRef = doc(db, 'tessere', idTessera(params.compagnoId, params.circoloId));
@@ -602,6 +628,11 @@ export async function cancellaConRimborsoDiviso(params: {
       socioNome: params.socioNome ?? null,
       tipo: 'rimborso',
       gruppoId: params.gruppoId ?? null,
+      campoNome: params.campoNome ?? null,
+      dataLabel: params.dataLabel ?? null,
+      orario: params.orario ?? null,
+      orarioFine: params.orario ? orarioFineSlot(params.orario) : null,
+      parziale: !!params.parziale,
       importo: meta,
       saldoPrima: creditoUtente,
       saldoDopo: dopoUtente.credito,
@@ -619,6 +650,11 @@ export async function cancellaConRimborsoDiviso(params: {
       socioNome: params.compagnoNome ?? null,
       tipo: 'rimborso',
       gruppoId: params.gruppoId ?? null,
+      campoNome: params.campoNome ?? null,
+      dataLabel: params.dataLabel ?? null,
+      orario: params.orario ?? null,
+      orarioFine: params.orario ? orarioFineSlot(params.orario) : null,
+      parziale: !!params.parziale,
       importo: meta,
       saldoPrima: creditoCompagno,
       saldoDopo: dopoCompagno.credito,

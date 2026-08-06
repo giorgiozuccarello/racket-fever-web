@@ -21,8 +21,8 @@ import { leggiSessioneCollaboratore } from '../../../data/collaboratori';
 import { ascoltaCircolo } from '../../../data/circoliRepo';
 import { Circolo } from '../../../data/circoli';
 import {
-  ascoltaMovimentiCircolo, ETICHETTA_TIPO, esecutorePerAdmin,
-  Movimento, TipoMovimento,
+  ascoltaMovimentiCircolo, esecutorePerAdmin, etichettaMovimento,
+  dettaglioPrenotazione, Movimento, TipoMovimento,
 } from '../../../data/movimenti';
 
 const PERIODI = [
@@ -243,8 +243,11 @@ export default function PaginaMovimenti() {
                     {m.socioRuolo === 'ospite' && <span className="admin-etichetta-ospite"> (ospite)</span>}
                   </td>
                   <td>{dataOra(m)}</td>
-                  <td>{ETICHETTA_TIPO[m.tipo]}</td>
-                  <td>{m.descrizione}</td>
+                  <td>{etichettaMovimento(m)}</td>
+                  {/* Campo, data e intervallo orario: su un rimborso
+                      parziale e' l'unico modo per capire a quale
+                      prenotazione si riferisce. */}
+                  <td>{dettaglioPrenotazione(m) || m.descrizione}</td>
                   <td>{esecutorePerAdmin(m)}</td>
                   <td className={`destra ${m.importo >= 0 ? 'verde' : 'rosso'}`}>
                     {m.importo >= 0 ? '+' : ''}{m.importo.toFixed(2)} €

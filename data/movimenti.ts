@@ -62,6 +62,17 @@ export interface Movimento {
   // da una cancellazione parziale si risale alla prenotazione di
   // partenza.
   gruppoId?: string | null;
+  // Dati della prenotazione, scritti come campi strutturati invece
+  // che dentro la descrizione: leggere una stringa sarebbe fragile e
+  // si romperebbe al primo cambio di formulazione. Cosi' si possono
+  // anche filtrare o ordinare in futuro.
+  campoNome?: string | null;
+  dataLabel?: string | null;
+  orario?: string | null;
+  orarioFine?: string | null;
+  // Vero se la cancellazione ha riguardato solo una parte del blocco
+  // prenotato: l'informazione non e' ricavabile a posteriori.
+  parziale?: boolean;
   descrizione: string;
   quando?: { seconds: number };
 }
@@ -82,6 +93,17 @@ export interface DatiMovimento {
   eseguitoDaRuolo: RuoloEsecutore;
   prenotazioneId?: string | null;
   gruppoId?: string | null;
+  // Dati della prenotazione, scritti come campi strutturati invece
+  // che dentro la descrizione: leggere una stringa sarebbe fragile e
+  // si romperebbe al primo cambio di formulazione. Cosi' si possono
+  // anche filtrare o ordinare in futuro.
+  campoNome?: string | null;
+  dataLabel?: string | null;
+  orario?: string | null;
+  orarioFine?: string | null;
+  // Vero se la cancellazione ha riguardato solo una parte del blocco
+  // prenotato: l'informazione non e' ricavabile a posteriori.
+  parziale?: boolean;
   descrizione: string;
 }
 
@@ -103,6 +125,11 @@ export function registraMovimentoInTransazione(tx: Transaction, dati: DatiMovime
     eseguitoDaNome: dati.eseguitoDaNome ?? null,
     prenotazioneId: dati.prenotazioneId ?? null,
     gruppoId: dati.gruppoId ?? null,
+    campoNome: dati.campoNome ?? null,
+    dataLabel: dati.dataLabel ?? null,
+    orario: dati.orario ?? null,
+    orarioFine: dati.orarioFine ?? null,
+    parziale: !!dati.parziale,
     quando: serverTimestamp(),
   });
 }
@@ -125,6 +152,11 @@ function normalizza(id: string, v: Record<string, unknown>): Movimento {
     eseguitoDaRuolo: (v.eseguitoDaRuolo as RuoloEsecutore) ?? 'sistema',
     prenotazioneId: (v.prenotazioneId as string | null) ?? null,
     gruppoId: (v.gruppoId as string | null) ?? null,
+    campoNome: (v.campoNome as string | null) ?? null,
+    dataLabel: (v.dataLabel as string | null) ?? null,
+    orario: (v.orario as string | null) ?? null,
+    orarioFine: (v.orarioFine as string | null) ?? null,
+    parziale: !!v.parziale,
     descrizione: (v.descrizione as string) ?? '',
     quando: v.quando as { seconds: number } | undefined,
   };
@@ -181,6 +213,27 @@ export const ETICHETTA_TIPO: Record<TipoMovimento, string> = {
   azzeramento: 'Azzeramento credito',
   saldo_chiusura: 'Saldo alla chiusura',
 };
+
+// Il rimborso ha due letture diverse: intero se copre tutta la
+// prenotazione, parziale se ne riguarda solo una mezz'ora.
+export function etichettaMovimento(m: Movimento): string {
+  if (m.tipo === 'rimborso') return m.parziale ? 'Rimborso parziale' : 'Rimborso Intero';
+  return ETICHETTA_TIPO[m.tipo];
+}
+
+// Riga leggibile con campo, data e intervallo orario. Usata da tutte
+// e tre le viste, cosi' la formulazione resta unica.
+export function dettaglioPrenotazione(m: Movimento): string {
+  const pezzi: string[] = [];
+  if (m.campoNome) pezzi.push(m.campoNome);
+  if (m.dataLabel) {
+    const ore = m.orario
+      ? `, ${m.orario}${m.orarioFine ? ` - ${m.orarioFine}` : ''}`
+      : '';
+    pezzi.push(`Prenotazione del ${m.dataLabel}${ore}`);
+  }
+  return pezzi.join(' · ');
+}
 
 // Il socio non deve vedere il nome dell'operatore di segreteria: per
 // lui basta sapere che e' stato il circolo. Admin e Super Admin
