@@ -328,6 +328,27 @@ export async function creaAperturePerCircolo(circoloId: string): Promise<number>
 // card, perche' fa parte della storia da raccontare.
 // ============================================================
 
+// Un passo della storia: puo' raccogliere piu' movimenti nati dalla
+// STESSA operazione. Prenotando tre mezz'ore insieme si generano tre
+// movimenti con lo stesso istante di registrazione, e mostrarli come
+// tre box separati sarebbe illeggibile — oltre che in ordine casuale,
+// visto che condividono lo stesso orario.
+export interface PassoStoria {
+  chiave: string;
+  movimenti: Movimento[];
+  quandoSec: number;
+  tipo: TipoMovimento;
+  importo: number;
+  saldoPrima: number;
+  saldoDopo: number;
+  orari: string[];
+  // Intervallo della prenotazione COME RISULTA DOPO questo passo: e'
+  // cio' che permette di seguire una partita che cambia orario nel
+  // tempo (nata 17:00-18:30, diventata 19:00-20:30).
+  intervalloDopo: { inizio: string; fine: string } | null;
+  esecutore: Movimento;
+}
+
 export interface CardMovimenti {
   chiave: string;
   socioNome: string;
@@ -339,7 +360,11 @@ export interface CardMovimenti {
   orarioFine: string;
   importoNetto: number;
   conclusa: boolean;
+  // Vero quando ogni mezz'ora e' stata rimborsata: la prenotazione non
+  // esiste piu', ma la sua storia resta.
+  cancellata: boolean;
   movimenti: Movimento[];   // in ordine cronologico: e' la "storia"
+  passi: PassoStoria[];     // la storia raggruppata per operazione
 }
 
 function fineDelloSlot(orario: string): string {
@@ -348,14 +373,24 @@ function fineDelloSlot(orario: string): string {
   return `${String(Math.floor(tot / 60)).padStart(2, '0')}:${String(tot % 60).padStart(2, '0')}`;
 }
 
+// Ricostruisce lo stato della prenotazione MOVIMENTO PER MOVIMENTO,
+// cosi' ogni passo della storia sa com'era l'orario in quel momento.
+//
+// Una mezz'ora e' attiva se gli addebiti superano i rimborsi. Si
+// contano le operazioni, non gli importi: una prenotazione gratuita
+// ha importo zero ma e' comunque attiva.
+function intervalloAttivo(attive: Set<string>): { inizio: string; fine: string } | null {
+  if (attive.size === 0) return null;
+  const ordinati = [...attive].sort();
+  return { inizio: ordinati[0], fine: fineDelloSlot(ordinati[ordinati.length - 1]) };
+}
+
 export function raggruppaInCard(movimenti: Movimento[]): CardMovimenti[] {
   // Solo i movimenti legati a una prenotazione: ricariche, S.O.S. e
   // azzeramenti non hanno un campo o un orario, quindi non possono
   // formare una card e restano fuori dalla Vista Card.
   const utili = movimenti.filter((m) => !!m.campoId && !!m.dataISO && !!m.orario);
 
-  // Prima si raccolgono per socio + campo + giorno, poi dentro ogni
-  // gruppo si spezza dove gli orari non sono contigui.
   const perGiorno = new Map<string, Movimento[]>();
   utili.forEach((m) => {
     const k = `${m.uid}|${m.campoId}|${m.dataISO}`;
@@ -367,35 +402,83 @@ export function raggruppaInCard(movimenti: Movimento[]): CardMovimenti[] {
   const adesso = Date.now();
 
   perGiorno.forEach((elenco, chiaveGiorno) => {
-    // Orari distinti coinvolti, in ordine: e' su questi che si valuta
-    // la contiguita', non sui singoli movimenti (un orario puo' avere
-    // sia un addebito sia un rimborso).
     const orari = [...new Set(elenco.map((m) => m.orario!))].sort();
 
     let blocco: string[] = [];
     const chiudiBlocco = () => {
       if (blocco.length === 0) return;
-      const primo = blocco[0];
-      const ultimo = blocco[blocco.length - 1];
       const dentro = elenco
         .filter((m) => blocco.includes(m.orario!))
         .sort((a, b) => (a.quando?.seconds ?? 0) - (b.quando?.seconds ?? 0));
       const rif = dentro[0];
-      const fine = fineDelloSlot(ultimo);
-      const scadenza = new Date(`${rif.dataISO}T${fine}:00`).getTime();
+
+      // Ricostruzione progressiva: si scorrono i movimenti in ordine e
+      // si tiene traccia di quali mezz'ore sono attive dopo ognuno.
+      // Quelli nati dalla stessa operazione (stesso gruppo e stesso
+      // istante) confluiscono in un unico passo.
+      const attive = new Set<string>();
+      const passi: PassoStoria[] = [];
+      dentro.forEach((m) => {
+        if (m.tipo === 'addebito') attive.add(m.orario!);
+        else if (m.tipo === 'rimborso') attive.delete(m.orario!);
+
+        const sec = m.quando?.seconds ?? 0;
+        const ultimo = passi[passi.length - 1];
+        const stessaOperazione = ultimo
+          && ultimo.tipo === m.tipo
+          && Math.abs(ultimo.quandoSec - sec) <= 5
+          && (m.gruppoId ? ultimo.movimenti[0].gruppoId === m.gruppoId : true);
+
+        if (stessaOperazione) {
+          ultimo.movimenti.push(m);
+          ultimo.importo += m.importo;
+          ultimo.saldoDopo = m.saldoDopo;
+          ultimo.orari.push(m.orario!);
+          ultimo.intervalloDopo = intervalloAttivo(attive);
+        } else {
+          passi.push({
+            chiave: `${m.id}`,
+            movimenti: [m],
+            quandoSec: sec,
+            tipo: m.tipo,
+            importo: m.importo,
+            saldoPrima: m.saldoPrima,
+            saldoDopo: m.saldoDopo,
+            orari: [m.orario!],
+            intervalloDopo: intervalloAttivo(attive),
+            esecutore: m,
+          });
+        }
+      });
+
+      // La card mostra l'intervallo ATTUALE, non quello iniziale: e'
+      // il risultato dell'ultimo passo.
+      const finale = passi[passi.length - 1]?.intervalloDopo ?? null;
+      // Se non resta nulla di attivo, si mostra l'ultimo intervallo
+      // esistito prima della cancellazione, cosi' la card resta
+      // riconoscibile.
+      const ultimoNonVuoto = [...passi].reverse().find((p) => p.intervalloDopo)?.intervalloDopo ?? null;
+      const mostrato = finale ?? ultimoNonVuoto;
+      const cancellata = finale === null;
+
+      const scadenza = mostrato
+        ? new Date(`${rif.dataISO}T${mostrato.fine}:00`).getTime()
+        : NaN;
 
       card.push({
-        chiave: `${chiaveGiorno}|${primo}`,
+        chiave: `${chiaveGiorno}|${blocco[0]}`,
         socioNome: rif.socioNome ?? '',
         socioRuolo: rif.socioRuolo ?? 'socio_tesserato',
         campoNome: rif.campoNome ?? '',
         dataLabel: rif.dataLabel ?? '',
         dataISO: rif.dataISO ?? '',
-        orarioInizio: primo,
-        orarioFine: fine,
+        orarioInizio: mostrato?.inizio ?? blocco[0],
+        orarioFine: mostrato?.fine ?? fineDelloSlot(blocco[blocco.length - 1]),
         importoNetto: dentro.reduce((t, m) => t + m.importo, 0),
-        conclusa: Number.isFinite(scadenza) ? adesso >= scadenza : false,
+        conclusa: !cancellata && Number.isFinite(scadenza) ? adesso >= scadenza : false,
+        cancellata,
         movimenti: dentro,
+        passi,
       });
       blocco = [];
     };
@@ -407,7 +490,6 @@ export function raggruppaInCard(movimenti: Movimento[]): CardMovimenti[] {
     chiudiBlocco();
   });
 
-  // Le card piu' recenti in cima, come nell'elenco completo.
   return card.sort((a, b) => {
     const qa = a.movimenti[a.movimenti.length - 1]?.quando?.seconds ?? 0;
     const qb = b.movimenti[b.movimenti.length - 1]?.quando?.seconds ?? 0;
@@ -415,19 +497,30 @@ export function raggruppaInCard(movimenti: Movimento[]): CardMovimenti[] {
   });
 }
 
-// Riga della cronologia nel pop-up: descrive cosa e' successo in
-// quell'istante, con parole diverse da quelle del registro completo
-// perche' qui il contesto (campo, data) e' gia' nella testata.
-export function passoStoria(m: Movimento): string {
-  const fine = m.orario ? fineDelloSlot(m.orario) : '';
-  switch (m.tipo) {
-    case 'addebito':
-      return `Prenotata la mezz'ora ${m.orario} - ${fine}`;
-    case 'rimborso':
-      return m.parziale
-        ? `Cancellata la mezz'ora ${m.orario} - ${fine}`
-        : `Cancellata l'intera prenotazione (${m.orario} - ${fine})`;
-    default:
-      return m.descrizione;
+// Descrizione di un passo della storia. Il passo puo' raccogliere piu'
+// mezz'ore prenotate insieme, quindi il testo lo dice al plurale.
+export function testoPasso(p: PassoStoria): string {
+  const ordinati = [...p.orari].sort();
+  const da = ordinati[0];
+  const a = fineDelloSlot(ordinati[ordinati.length - 1]);
+  const quante = p.orari.length;
+
+  if (p.tipo === 'addebito') {
+    return quante === 1
+      ? `Prenotata la mezz'ora ${da} - ${a}`
+      : `Prenotate ${quante} mezz'ore, dalle ${da} alle ${a}`;
   }
+  if (p.tipo === 'rimborso') {
+    return quante === 1
+      ? `Cancellata la mezz'ora ${da} - ${a}`
+      : `Cancellate ${quante} mezz'ore, dalle ${da} alle ${a}`;
+  }
+  return p.movimenti[0].descrizione;
+}
+
+// Riga in fondo a ogni box: com'era la prenotazione DOPO quel passo.
+// L'ultimo box coincide sempre con l'orario mostrato nella card.
+export function intervalloDelPasso(p: PassoStoria): string {
+  if (!p.intervalloDopo) return 'Prenotazione cancellata';
+  return `Prenotazione dalle ${p.intervalloDopo.inizio} alle ${p.intervalloDopo.fine}`;
 }

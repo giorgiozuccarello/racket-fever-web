@@ -22,8 +22,8 @@ import { ascoltaCircolo } from '../../../data/circoliRepo';
 import { Circolo } from '../../../data/circoli';
 import {
   ascoltaMovimentiCircolo, esecutorePerAdmin, etichettaMovimento,
-  dettaglioPrenotazione, raggruppaInCard, passoStoria,
-  Movimento, TipoMovimento, CardMovimenti,
+  dettaglioPrenotazione, raggruppaInCard, testoPasso, intervalloDelPasso,
+  Movimento, TipoMovimento, CardMovimenti, PassoStoria,
 } from '../../../data/movimenti';
 
 const PERIODI = [
@@ -155,8 +155,8 @@ function BloccoElenco({ elenco, onScegliSocio, dataOra, onApriStoria }: {
                 </div>
                 <div className="mov-card-campo">{cd.campoNome} · {cd.dataLabel}</div>
               </div>
-              <span className={`mov-card-stato${cd.conclusa ? ' conclusa' : ''}`}>
-                {cd.conclusa ? 'Conclusa' : 'Attiva'}
+              <span className={`mov-card-stato${cd.cancellata ? ' cancellata' : cd.conclusa ? ' conclusa' : ''}`}>
+                {cd.cancellata ? 'Cancellata' : cd.conclusa ? 'Conclusa' : 'Attiva'}
               </span>
             </div>
             <div className="mov-card-corpo">
@@ -167,7 +167,7 @@ function BloccoElenco({ elenco, onScegliSocio, dataOra, onApriStoria }: {
               </span>
             </div>
             <div className="mov-card-piede">
-              Clicca per la storia della prenotazione · {cd.movimenti.length} movimenti
+              Clicca per la storia della prenotazione · {cd.passi.length} operazioni
             </div>
           </button>
         ))
@@ -200,29 +200,34 @@ function StoriaPrenotazione({ card, onChiudi }: { card: CardMovimenti | null; on
         </div>
 
         <div className="mov-storia-corpo">
-          {card.movimenti.map((m: Movimento, i: number) => (
-            <div key={m.id}>
+          {card.passi.map((p: PassoStoria, i: number) => (
+            <div key={p.chiave}>
               <div className="mov-passo">
-                <span className="mov-passo-ora">{quando(m)}</span>
-                <div className="mov-passo-testo">{passoStoria(m)}</div>
+                <span className="mov-passo-ora">{quando(p.esecutore)}</span>
+                <div className="mov-passo-testo">{testoPasso(p)}</div>
                 <div className="mov-passo-riga">
-                  <span className={m.importo >= 0 ? 'verde' : 'rosso'} style={{ fontWeight: 900 }}>
-                    {m.importo >= 0 ? '+' : ''}{m.importo.toFixed(2)} €
+                  <span className={p.importo >= 0 ? 'verde' : 'rosso'} style={{ fontWeight: 900 }}>
+                    {p.importo >= 0 ? '+' : ''}{p.importo.toFixed(2)} €
                   </span>
                   <span className="mov-passo-saldo">
-                    saldo € {m.saldoPrima.toFixed(2)} → € {m.saldoDopo.toFixed(2)}
+                    saldo € {p.saldoPrima.toFixed(2)} → € {p.saldoDopo.toFixed(2)}
                   </span>
                 </div>
-                <div className="mov-passo-chi">{esecutorePerAdmin(m)}</div>
+                <div className="mov-passo-chi">{esecutorePerAdmin(p.esecutore)}</div>
+                {/* L'orario risultante DOPO questo passo: l'ultimo box
+                    coincide sempre con quello mostrato nella card. */}
+                <div className="mov-passo-intervallo">{intervalloDelPasso(p)}</div>
               </div>
-              {i < card.movimenti.length - 1 && <div className="mov-connettore"><span /></div>}
+              {i < card.passi.length - 1 && <div className="mov-connettore"><span /></div>}
             </div>
           ))}
 
           <div className="mov-connettore"><span /></div>
           <div className="mov-passo finale">
             <div className="mov-passo-testo">
-              {card.conclusa ? '✓ Prenotazione conclusa' : '⏳ Prenotazione ancora da giocare'}
+              {card.cancellata
+                ? '✕ Prenotazione cancellata'
+                : card.conclusa ? '✓ Prenotazione conclusa' : '⏳ Prenotazione ancora da giocare'}
             </div>
             <div className="mov-passo-saldo">
               Totale: {card.importoNetto >= 0 ? '+' : ''}{card.importoNetto.toFixed(2)} €
