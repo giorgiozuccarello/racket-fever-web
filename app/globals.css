@@ -673,3 +673,5 @@ footer li a:hover{opacity:1;text-decoration:underline}
 
 .mov-card-stato.cancellata{background:#FDECEA;color:#B3261E}
 .mov-passo-intervallo{margin-top:.55rem;padding-top:.5rem;border-top:1px solid var(--riga);font-size:.75rem;font-weight:700;color:#0E3B2E}
+
+.mov-card-maestro{font-size:.75rem;color:#B0451F;font-weight:700;margin-top:.15rem}

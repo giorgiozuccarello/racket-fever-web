@@ -72,6 +72,10 @@ export interface Movimento {
   // ("Giovedì 7 agosto"), cosa fragile e imprecisa.
   dataISO?: string | null;
   campoId?: string | null;
+  // Nome del maestro, quando il movimento nasce da una lezione.
+  // Alimenta i filtri dinamici del registro: cosi' un maestro che ha
+  // smesso resta comunque cercabile finche' esistono sue lezioni.
+  maestroNome?: string | null;
   campoNome?: string | null;
   dataLabel?: string | null;
   orario?: string | null;
@@ -109,6 +113,10 @@ export interface DatiMovimento {
   // ("Giovedì 7 agosto"), cosa fragile e imprecisa.
   dataISO?: string | null;
   campoId?: string | null;
+  // Nome del maestro, quando il movimento nasce da una lezione.
+  // Alimenta i filtri dinamici del registro: cosi' un maestro che ha
+  // smesso resta comunque cercabile finche' esistono sue lezioni.
+  maestroNome?: string | null;
   campoNome?: string | null;
   dataLabel?: string | null;
   orario?: string | null;
@@ -139,6 +147,7 @@ export function registraMovimentoInTransazione(tx: Transaction, dati: DatiMovime
     gruppoId: dati.gruppoId ?? null,
     dataISO: dati.dataISO ?? null,
     campoId: dati.campoId ?? null,
+    maestroNome: dati.maestroNome ?? null,
     campoNome: dati.campoNome ?? null,
     dataLabel: dati.dataLabel ?? null,
     orario: dati.orario ?? null,
@@ -146,6 +155,37 @@ export function registraMovimentoInTransazione(tx: Transaction, dati: DatiMovime
     parziale: !!dati.parziale,
     quando: serverTimestamp(),
   });
+}
+
+// Per chi NON ha un portafoglio (gli esterni): non c'e' alcun saldo
+// da muovere, quindi non serve una transazione. Il movimento si
+// registra comunque, perche' l'occupazione del campo va documentata
+// anche quando non comporta denaro.
+export async function registraMovimentoSemplice(dati: DatiMovimento): Promise<void> {
+  try {
+    await setDoc(doc(collection(db, 'movimenti')), {
+      ...dati,
+      socioNome: dati.socioNome ?? null,
+      socioRuolo: dati.socioRuolo ?? 'socio_tesserato',
+      eseguitoDaUid: dati.eseguitoDaUid ?? null,
+      eseguitoDaNome: dati.eseguitoDaNome ?? null,
+      prenotazioneId: dati.prenotazioneId ?? null,
+      gruppoId: dati.gruppoId ?? null,
+      maestroNome: dati.maestroNome ?? null,
+      campoNome: dati.campoNome ?? null,
+      dataISO: dati.dataISO ?? null,
+      campoId: dati.campoId ?? null,
+      dataLabel: dati.dataLabel ?? null,
+      orario: dati.orario ?? null,
+      orarioFine: dati.orarioFine ?? null,
+      parziale: !!dati.parziale,
+      quando: serverTimestamp(),
+    });
+  } catch (e) {
+    // Non deve mai impedire la prenotazione: un movimento mancante e'
+    // meno grave di un campo che resta libero per errore.
+    console.warn('Movimento non registrato:', e);
+  }
 }
 
 function normalizza(id: string, v: Record<string, unknown>): Movimento {
@@ -168,6 +208,7 @@ function normalizza(id: string, v: Record<string, unknown>): Movimento {
     gruppoId: (v.gruppoId as string | null) ?? null,
     dataISO: (v.dataISO as string | null) ?? null,
     campoId: (v.campoId as string | null) ?? null,
+    maestroNome: (v.maestroNome as string | null) ?? null,
     campoNome: (v.campoNome as string | null) ?? null,
     dataLabel: (v.dataLabel as string | null) ?? null,
     orario: (v.orario as string | null) ?? null,

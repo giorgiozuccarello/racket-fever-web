@@ -42,6 +42,9 @@ const TIPI: { chiave: TipoMovimento | 'tutti'; label: string }[] = [
   { chiave: 'ripristino_sos', label: 'Ripristini' },
 ];
 
+// Le lezioni non sono un tipo a se': sono addebiti con un maestro.
+const FILTRO_LEZIONI = 'lezioni';
+
 // Numero progressivo del BLOCCO a cui appartiene una riga: cambia solo
 // quando cambia il gruppo rispetto alla riga precedente. Serve ad
 // alternare gli sfondi per prenotazione invece che riga per riga.
@@ -89,7 +92,10 @@ function TabellaMovimenti({ elenco, onScegliSocio, dataOra }: {
                   {/* Campo, data e intervallo orario: su un rimborso
                       parziale e' l'unico modo per capire a quale
                       prenotazione si riferisce. */}
-                  <td>{dettaglioPrenotazione(m) || m.descrizione}</td>
+                  <td>
+                    {dettaglioPrenotazione(m) || m.descrizione}
+                    {!!m.maestroNome && <div className="mov-card-maestro">Lezione con {m.maestroNome}</div>}
+                  </td>
                   <td>{esecutorePerAdmin(m)}</td>
                   <td className={`destra ${m.importo >= 0 ? 'verde' : 'rosso'}`}>
                     {m.importo >= 0 ? '+' : ''}{m.importo.toFixed(2)} €
@@ -154,6 +160,9 @@ function BloccoElenco({ elenco, onScegliSocio, dataOra, onApriStoria }: {
                   {cd.socioRuolo === 'ospite' && <span className="admin-etichetta-ospite"> (ospite)</span>}
                 </div>
                 <div className="mov-card-campo">{cd.campoNome} · {cd.dataLabel}</div>
+                {!!cd.movimenti[0]?.maestroNome && (
+                  <div className="mov-card-maestro">Lezione con {cd.movimenti[0].maestroNome}</div>
+                )}
               </div>
               <span className={`mov-card-stato${cd.cancellata ? ' cancellata' : cd.conclusa ? ' conclusa' : ''}`}>
                 {cd.cancellata ? 'Cancellata' : cd.conclusa ? 'Conclusa' : 'Attiva'}
@@ -248,7 +257,8 @@ export default function PaginaMovimenti() {
 
   const [filtroNome, setFiltroNome] = useState('');
   const [periodo, setPeriodo] = useState('30');
-  const [tipo, setTipo] = useState<TipoMovimento | 'tutti'>('tutti');
+  const [tipo, setTipo] = useState<TipoMovimento | 'tutti' | typeof FILTRO_LEZIONI>('tutti');
+  const [maestroFiltro, setMaestroFiltro] = useState<string | null>(null);
   const [storiaAperta, setStoriaAperta] = useState<CardMovimenti | null>(null);
 
   useEffect(() => {
@@ -290,7 +300,7 @@ export default function PaginaMovimenti() {
         && !(m.eseguitoDaNome ?? '').toLowerCase().includes(testo)) return false;
       return true;
     });
-  }, [movimenti, filtroNome, periodo, tipo]);
+  }, [movimenti, filtroNome, periodo, tipo, maestroFiltro]);
 
   // Suggerimenti sui nomi presenti nel registro: evita di dover
   // ricordare l'ortografia esatta.
@@ -304,6 +314,14 @@ export default function PaginaMovimenti() {
     if (nomi.size === 1 && [...nomi][0].toLowerCase() === testo) return [];
     return [...nomi].slice(0, 6);
   }, [movimenti, filtroNome]);
+
+  // I maestri si ricavano DAL REGISTRO, non dall'elenco del circolo:
+  // uno che ha smesso resta cercabile finche' esistono sue lezioni.
+  const maestri = useMemo(() => {
+    const nomi = new Set<string>();
+    movimenti.forEach((m: Movimento) => { if (m.maestroNome) nomi.add(m.maestroNome); });
+    return [...nomi].sort();
+  }, [movimenti]);
 
   const socioSelezionato = useMemo(() => {
     const testo = filtroNome.trim().toLowerCase();
@@ -391,10 +409,30 @@ export default function PaginaMovimenti() {
             <button
               key={t.chiave}
               className={`mov-pillola${tipo === t.chiave ? ' selezionata' : ''}`}
-              onClick={() => setTipo(t.chiave)}
+              onClick={() => { setTipo(t.chiave); setMaestroFiltro(null); }}
             >{t.label}</button>
           ))}
+          <button
+            className={`mov-pillola${tipo === FILTRO_LEZIONI ? ' selezionata' : ''}`}
+            onClick={() => { setTipo(FILTRO_LEZIONI); setMaestroFiltro(null); }}
+          >Lezioni</button>
         </div>
+
+        {/* Un pulsante per ogni maestro presente nel registro. */}
+        {maestri.length > 0 && (
+          <>
+            <label className="admin-label" style={{ marginTop: '1rem' }}>Maestro</label>
+            <div className="mov-filtri">
+              {maestri.map((nome: string) => (
+                <button
+                  key={nome}
+                  className={`mov-pillola${maestroFiltro === nome ? ' selezionata' : ''}`}
+                  onClick={() => setMaestroFiltro(maestroFiltro === nome ? null : nome)}
+                >{nome}</button>
+              ))}
+            </div>
+          </>
+        )}
 
         <button className="admin-btn-full" style={{ marginTop: '1.2rem' }} onClick={() => window.print()}>
           Stampa il prospetto

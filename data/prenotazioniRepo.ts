@@ -9,7 +9,7 @@
 import { runTransaction, doc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { rimuoviDisponibilitaPerSlot } from './disponibilitaLezioni';
-import { registraMovimentoInTransazione } from './movimenti';
+import { registraMovimentoInTransazione, registraMovimentoSemplice } from './movimenti';
 import { idTessera } from './tessere';
 import { orarioFineSlot } from './circoli';
 
@@ -227,6 +227,9 @@ export async function prenotaEsternoDaAdmin(params: {
   etichetta?: string | null;
   nomeEsterno: string;
   note?: string;
+  gruppoId?: string;
+  eseguitoDaUid?: string | null;
+  eseguitoDaNome?: string | null;
 }): Promise<void> {
   await addDoc(collection(db, 'prenotazioni'), {
     utenteId: '',
@@ -249,7 +252,26 @@ export async function prenotaEsternoDaAdmin(params: {
     tipo: 'campo',
     tipoUtente: 'esterno',
     prenotataDa: 'admin',
+    gruppoId: params.gruppoId ?? null,
     creataIl: serverTimestamp(),
+  });
+
+  // Nessun portafoglio da muovere, ma l'occupazione del campo va
+  // comunque documentata: l'admin deve poter risalire a chi ha usato
+  // quell'ora e capire perche' non c'e' stato addebito.
+  await registraMovimentoSemplice({
+    circoloId: params.circoloId, uid: '',
+    socioNome: params.nomeEsterno,
+    tipo: 'addebito', gruppoId: params.gruppoId ?? null,
+    dataISO: params.data, campoId: params.campoId,
+    campoNome: params.campoNome, dataLabel: params.dataLabel,
+    orario: params.orario, orarioFine: orarioFineSlot(params.orario),
+    importo: 0,
+    saldoPrima: 0, saldoDopo: 0, debitoPrima: 0, debitoDopo: 0,
+    eseguitoDaUid: params.eseguitoDaUid ?? null,
+    eseguitoDaNome: params.eseguitoDaNome ?? null,
+    eseguitoDaRuolo: 'admin',
+    descrizione: 'Prenotazione del circolo per un esterno — nessun addebito, non ha un account',
   });
 }
 
@@ -342,6 +364,7 @@ export async function prenotaConCompagno(params: {
   note?: string;
   nascondiInfo?: boolean;
   sfidaId?: string | null;
+  gruppoId?: string;
 }): Promise<{ id: string; sosUsatoUtente: boolean; sosUsatoCompagno: boolean }> {
   const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
   const compagnoRef = doc(db, 'tessere', idTessera(params.compagnoId, params.circoloId));
@@ -374,6 +397,42 @@ export async function prenotaConCompagno(params: {
       credito: creditoCompagno - daCreditoCompagno,
       ...(sosUsatoCompagno ? { sosUtilizzato: sosCompagnoAttuale + daSOSCompagno } : {}),
     });
+    // Due movimenti distinti, uno per portafoglio: ciascuno deve
+    // ritrovare nella propria storia la meta' che ha pagato.
+    registraMovimentoInTransazione(tx, {
+      circoloId: params.circoloId, uid: params.uid,
+      socioNome: `${params.utenteNome} ${params.utenteCognome}`,
+      tipo: 'addebito', gruppoId: params.gruppoId ?? null,
+      dataISO: params.data, campoId: params.campoId,
+      campoNome: params.campoNome, dataLabel: params.dataLabel,
+      orario: params.orario, orarioFine: orarioFineSlot(params.orario),
+      importo: -meta,
+      saldoPrima: creditoUtente, saldoDopo: creditoUtente - daCreditoUtente,
+      debitoPrima: sosUtenteAttuale, debitoDopo: sosUtenteAttuale + daSOSUtente,
+      eseguitoDaUid: params.uid,
+      eseguitoDaNome: `${params.utenteNome} ${params.utenteCognome}`,
+      eseguitoDaRuolo: 'socio',
+      prenotazioneId: prenotazioneRef.id,
+      descrizione: `Prenotazione con ${params.compagnoNome} ${params.compagnoCognome} — la tua metà`,
+    });
+    registraMovimentoInTransazione(tx, {
+      circoloId: params.circoloId, uid: params.compagnoId,
+      socioNome: `${params.compagnoNome} ${params.compagnoCognome}`,
+      tipo: 'addebito', gruppoId: params.gruppoId ?? null,
+      dataISO: params.data, campoId: params.campoId,
+      campoNome: params.campoNome, dataLabel: params.dataLabel,
+      orario: params.orario, orarioFine: orarioFineSlot(params.orario),
+      importo: -meta,
+      saldoPrima: creditoCompagno, saldoDopo: creditoCompagno - daCreditoCompagno,
+      debitoPrima: sosCompagnoAttuale, debitoDopo: sosCompagnoAttuale + daSOSCompagno,
+      eseguitoDaUid: params.uid,
+      eseguitoDaNome: `${params.utenteNome} ${params.utenteCognome}`,
+      // Chi ha prenotato non e' il titolare di questo portafoglio.
+      eseguitoDaRuolo: 'compagno',
+      prenotazioneId: prenotazioneRef.id,
+      descrizione: `Aggiunto da ${params.utenteNome} ${params.utenteCognome} — la tua metà`,
+    });
+
     tx.set(prenotazioneRef, {
       utenteId: params.uid,
       circoloId: params.circoloId,
@@ -422,6 +481,7 @@ export async function prenotaLezione(params: {
   maestroNome: string;
   maestroCognome: string;
   nascondiInfo?: boolean;
+  gruppoId?: string;
   prenotataDa: 'socio' | 'maestro';
 }): Promise<void> {
   const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
@@ -433,12 +493,40 @@ export async function prenotaLezione(params: {
 
     const creditoAttuale = (utenteSnap.data().credito as number) ?? 0;
     const sosAttuale = (utenteSnap.data().sosUtilizzato as number) ?? 0;
-    const { daCredito, daSOS } = calcolaAddebitoConSOS(creditoAttuale, params.prezzo);
+    // La lezione non si paga nell'app: nei circoli il Maestro chiede un
+    // importo unico che comprende lezione e campo, e regola il campo
+    // con la segreteria per conto suo. Addebitare qui significherebbe
+    // far pagare due volte il socio.
+    const { daCredito, daSOS } = calcolaAddebitoConSOS(creditoAttuale, 0);
 
     tx.update(utenteRef, {
       credito: creditoAttuale - daCredito,
       ...(daSOS > 0 ? { sosUtilizzato: sosAttuale + daSOS } : {}),
     });
+
+    // Registrata comunque, con importo zero: l'admin deve sapere
+    // quante ore di campo sono state usate per lezioni e da chi,
+    // anche senza movimento di denaro.
+    registraMovimentoInTransazione(tx, {
+      circoloId: params.circoloId, uid: params.uid,
+      socioNome: `${params.utenteNome} ${params.utenteCognome}`,
+      tipo: 'addebito', gruppoId: params.gruppoId ?? null,
+      dataISO: params.data, campoId: params.campoId,
+      campoNome: params.campoNome, dataLabel: params.dataLabel,
+      orario: params.orario, orarioFine: orarioFineSlot(params.orario),
+      maestroNome: `${params.maestroNome} ${params.maestroCognome}`,
+      importo: 0,
+      saldoPrima: creditoAttuale, saldoDopo: creditoAttuale,
+      debitoPrima: sosAttuale, debitoDopo: sosAttuale,
+      eseguitoDaUid: params.uid,
+      eseguitoDaNome: params.prenotataDa === 'maestro'
+        ? `${params.maestroNome} ${params.maestroCognome}`
+        : `${params.utenteNome} ${params.utenteCognome}`,
+      eseguitoDaRuolo: params.prenotataDa === 'maestro' ? 'maestro' : 'socio',
+      prenotazioneId: prenotazioneRef.id,
+      descrizione: `Lezione con il Maestro ${params.maestroNome} ${params.maestroCognome} — nessun addebito`,
+    });
+
     tx.set(prenotazioneRef, {
       utenteId: params.uid,
       circoloId: params.circoloId,
@@ -508,6 +596,24 @@ export async function prenotaLezioneEsterno(params: {
     prenotataDa: 'maestro',
     nascondiInfo: !!params.nascondiInfo,
     creataIl: serverTimestamp(),
+  });
+
+  // L'allievo esterno non ha un portafoglio, ma la lezione occupa il
+  // campo: va documentata come tutte le altre.
+  await registraMovimentoSemplice({
+    circoloId: params.circoloId, uid: '',
+    socioNome: params.nomeEsterno,
+    tipo: 'addebito',
+    dataISO: params.data, campoId: params.campoId,
+    campoNome: params.campoNome, dataLabel: params.dataLabel,
+    orario: params.orario, orarioFine: orarioFineSlot(params.orario),
+    maestroNome: `${params.maestroNome} ${params.maestroCognome}`,
+    importo: 0,
+    saldoPrima: 0, saldoDopo: 0, debitoPrima: 0, debitoDopo: 0,
+    eseguitoDaUid: params.maestroId,
+    eseguitoDaNome: `${params.maestroNome} ${params.maestroCognome}`,
+    eseguitoDaRuolo: 'maestro',
+    descrizione: 'Lezione con un allievo esterno — nessun addebito, non ha un account',
   });
 
   await rimuoviDisponibilitaPerSlot(params.circoloId, params.campoId, params.data, params.orario);
