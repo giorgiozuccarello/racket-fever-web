@@ -24,6 +24,7 @@ export async function prenotaConCredito(params: {
   // (tesserato altrove): lo si registra sulla prenotazione, cosi'
   // la griglia e gli elenchi lo mostrano senza doverlo ricavare.
   tipoUtente?: 'socio' | 'ospite';
+  gruppoId?: string;
   campoId: string;
   campoNome: string;
   data: string;
@@ -60,7 +61,10 @@ export async function prenotaConCredito(params: {
     registraMovimentoInTransazione(tx, {
       circoloId: params.circoloId,
       uid: params.uid,
+      socioNome: `${params.utenteNome} ${params.utenteCognome}`,
+      socioRuolo: params.tipoUtente === 'ospite' ? 'ospite' : 'socio_tesserato',
       tipo: 'addebito',
+      gruppoId: params.gruppoId ?? null,
       importo: -params.prezzo,
       saldoPrima: creditoAttuale,
       saldoDopo: creditoAttuale - daCredito,
@@ -112,6 +116,8 @@ export async function prenotaPerSocioDaAdmin(params: {
   uid: string;
   circoloId: string;
   tipoUtente?: 'socio' | 'ospite';
+  // Lega le mezz'ore prenotate insieme, nel documento e nel registro.
+  gruppoId?: string;
   // Chi ha materialmente eseguito: finisce nel registro movimenti,
   // dove serve in caso di contestazione.
   eseguitoDaUid?: string | null;
@@ -148,7 +154,10 @@ export async function prenotaPerSocioDaAdmin(params: {
     registraMovimentoInTransazione(tx, {
       circoloId: params.circoloId,
       uid: params.uid,
+      socioNome: `${params.utenteNome} ${params.utenteCognome}`,
+      socioRuolo: params.tipoUtente === 'ospite' ? 'ospite' : 'socio_tesserato',
       tipo: 'addebito',
+      gruppoId: params.gruppoId ?? null,
       importo: -params.prezzo,
       saldoPrima: creditoAttuale,
       saldoDopo: creditoAttuale - daCredito,
@@ -183,6 +192,7 @@ export async function prenotaPerSocioDaAdmin(params: {
       costoDiviso: false,
       tipo: 'campo',
       tipoUtente: params.tipoUtente ?? 'socio',
+      gruppoId: params.gruppoId ?? null,
       prenotataDa: 'admin',
       creataIl: serverTimestamp(),
     });
@@ -506,6 +516,10 @@ export async function cancellaConRimborso(params: {
   eseguitoDaNome?: string | null;
   eseguitoDaRuolo?: 'socio' | 'compagno' | 'admin' | 'maestro';
   descrizione?: string;
+  // Nome del socio, per rendere il registro leggibile lato Admin.
+  socioNome?: string;
+  compagnoNome?: string;
+  gruppoId?: string;
 }): Promise<void> {
   const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
   const prenotazioneRef = doc(db, 'prenotazioni', params.prenotazioneId);
@@ -521,7 +535,9 @@ export async function cancellaConRimborso(params: {
     registraMovimentoInTransazione(tx, {
       circoloId: params.circoloId,
       uid: params.uid,
+      socioNome: params.socioNome ?? null,
       tipo: 'rimborso',
+      gruppoId: params.gruppoId ?? null,
       importo: params.prezzo,
       saldoPrima: creditoAttuale,
       saldoDopo: dopo.credito,
@@ -553,6 +569,10 @@ export async function cancellaConRimborsoDiviso(params: {
   eseguitoDaNome?: string | null;
   eseguitoDaRuolo?: 'socio' | 'compagno' | 'admin' | 'maestro';
   descrizione?: string;
+  // Nome del socio, per rendere il registro leggibile lato Admin.
+  socioNome?: string;
+  compagnoNome?: string;
+  gruppoId?: string;
 }): Promise<void> {
   const utenteRef = doc(db, 'tessere', idTessera(params.utenteId, params.circoloId));
   const compagnoRef = doc(db, 'tessere', idTessera(params.compagnoId, params.circoloId));
@@ -579,7 +599,9 @@ export async function cancellaConRimborsoDiviso(params: {
     registraMovimentoInTransazione(tx, {
       circoloId: params.circoloId,
       uid: params.utenteId,
+      socioNome: params.socioNome ?? null,
       tipo: 'rimborso',
+      gruppoId: params.gruppoId ?? null,
       importo: meta,
       saldoPrima: creditoUtente,
       saldoDopo: dopoUtente.credito,
@@ -594,7 +616,9 @@ export async function cancellaConRimborsoDiviso(params: {
     registraMovimentoInTransazione(tx, {
       circoloId: params.circoloId,
       uid: params.compagnoId,
+      socioNome: params.compagnoNome ?? null,
       tipo: 'rimborso',
+      gruppoId: params.gruppoId ?? null,
       importo: meta,
       saldoPrima: creditoCompagno,
       saldoDopo: dopoCompagno.credito,
@@ -624,7 +648,7 @@ export async function cancellaSenzaRimborso(prenotazioneId: string): Promise<voi
 // avrebbe credito e debito accesi insieme dopo aver appena pagato.
 export async function ricaricaCredito(
   uid: string, circoloId: string, importo: number,
-  eseguitoDa?: { uid: string; nome: string }
+  eseguitoDa?: { uid: string; nome: string }, socioNome?: string
 ): Promise<void> {
   const utenteRef = doc(db, 'tessere', idTessera(uid, circoloId));
   await runTransaction(db, async (tx) => {
@@ -635,6 +659,7 @@ export async function ricaricaCredito(
     tx.update(utenteRef, dopo);
     registraMovimentoInTransazione(tx, {
       circoloId, uid,
+      socioNome: socioNome ?? null,
       tipo: 'ricarica',
       importo,
       saldoPrima: attuale, saldoDopo: dopo.credito,
@@ -653,7 +678,7 @@ export async function ricaricaCredito(
 // di usare il wallet e la segreteria lo rimborsa in contanti/altro
 // canale reale, fuori dall'app.
 export async function azzeraCredito(
-  uid: string, circoloId: string, eseguitoDa?: { uid: string; nome: string }
+  uid: string, circoloId: string, eseguitoDa?: { uid: string; nome: string }, socioNome?: string
 ): Promise<void> {
   const rif = doc(db, 'tessere', idTessera(uid, circoloId));
   await runTransaction(db, async (tx) => {
@@ -663,6 +688,7 @@ export async function azzeraCredito(
     tx.update(rif, { credito: 0 });
     registraMovimentoInTransazione(tx, {
       circoloId, uid,
+      socioNome: socioNome ?? null,
       tipo: 'azzeramento',
       importo: -attuale,
       saldoPrima: attuale, saldoDopo: 0,
@@ -678,7 +704,7 @@ export async function azzeraCredito(
 // Ricarica S.O.S. self-service del socio: aggiorna credito E il
 // contatore di quanto plafond S.O.S. è stato consumato, in un'unica
 // transazione atomica (le due cose devono sempre restare coerenti).
-export async function ricaricaSOS(uid: string, circoloId: string, importo: number): Promise<void> {
+export async function ricaricaSOS(uid: string, circoloId: string, importo: number, socioNome?: string): Promise<void> {
   const utenteRef = doc(db, 'tessere', idTessera(uid, circoloId));
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(utenteRef);
@@ -690,6 +716,7 @@ export async function ricaricaSOS(uid: string, circoloId: string, importo: numbe
     });
     registraMovimentoInTransazione(tx, {
       circoloId, uid,
+      socioNome: socioNome ?? null,
       tipo: 'sos',
       importo,
       saldoPrima: creditoAttuale, saldoDopo: creditoAttuale + importo,
@@ -728,6 +755,9 @@ export interface PrenotazioneAdmin {
   // Prima esisteva un solo booleano "ospite" che copriva gli ultimi
   // due casi insieme, rendendoli indistinguibili.
   tipoUtente?: 'socio' | 'ospite' | 'esterno';
+  // Lega le mezz'ore di una stessa prenotazione: serve a far ereditare
+  // il gruppo anche al movimento di rimborso.
+  gruppoId?: string | null;
   maestroId?: string;
   maestroNome?: string;
   maestroCognome?: string;
@@ -765,6 +795,7 @@ export function ascoltaPrenotazioniCircolo(
           prenotataDa: v.prenotataDa,
           sfidaId: v.sfidaId ?? null,
           tipoUtente: v.tipoUtente ?? 'socio',
+          gruppoId: v.gruppoId ?? null,
           maestroId: v.maestroId,
           maestroNome: v.maestroNome,
           maestroCognome: v.maestroCognome,

@@ -217,7 +217,7 @@ export async function aggiornaLimitePersonale(uid: string, circoloId: string, li
 // segreteria a saldare quanto usato in S.O.S.: azzera il contatore,
 // restituendogli tutto il plafond da usare di nuovo in emergenza.
 export async function ripristinaSOS(
-  uid: string, circoloId: string, eseguitoDa?: { uid: string; nome: string }
+  uid: string, circoloId: string, eseguitoDa?: { uid: string; nome: string }, socioNome?: string
 ) {
   const rif = doc(db, 'tessere', `${uid}_${circoloId}`);
   await runTransaction(db, async (tx) => {
@@ -227,6 +227,7 @@ export async function ripristinaSOS(
     tx.update(rif, { sosUtilizzato: 0 });
     registraMovimentoInTransazione(tx, {
       circoloId, uid,
+      socioNome: socioNome ?? null,
       tipo: 'ripristino_sos',
       importo: 0,
       saldoPrima: credito, saldoDopo: credito,

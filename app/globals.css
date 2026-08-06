@@ -614,3 +614,18 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-header-title{color:#fff;font-size:1.4rem;font-weight:900;margin:.8rem 0 0}
 .admin-header-sub{color:rgba(255,255,255,.75);font-size:.8rem;margin:.25rem 0 0;line-height:1.4}
 .admin-loading{display:flex;align-items:center;justify-content:center;min-height:60vh;color:var(--grigio);font-size:.9rem}
+
+/* Senza questo, su iPad la pressione prolungata su uno slot fa partire
+   la selezione del testo e il gesto viene interrotto prima che scatti
+   il timer della multiselezione. */
+.pc-slot{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+
+.mov-socio{font-weight:800;color:var(--inchiostro)}
+.mov-riga{cursor:pointer}
+.mov-riga:hover{background:#FBFAF6}
+.mov-suggerimento{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--riga);padding:.55rem .25rem;font-size:.82rem;font-weight:600;color:var(--inchiostro);cursor:pointer}
+.mov-suggerimento:hover{background:#FBFAF6}
+
+/* Sfondo alternato per BLOCCO, non per riga: le mezz'ore di una stessa
+   prenotazione restano sullo stesso sfondo. */
+.mov-riga.alternata td{background:#F4F2EC}

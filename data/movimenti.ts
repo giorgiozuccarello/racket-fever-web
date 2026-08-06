@@ -40,6 +40,11 @@ export interface Movimento {
   id: string;
   circoloId: string;
   uid: string;                 // il socio a cui appartiene il portafoglio
+  // Nome e ruolo duplicati qui apposta: il registro deve restare
+  // leggibile anche se il socio cambia nome o esce dal circolo. Un
+  // estratto conto che rimanda a un profilo cancellato non prova nulla.
+  socioNome?: string;
+  socioRuolo?: 'socio_tesserato' | 'ospite';
   tipo: TipoMovimento;
   importo: number;             // positivo = entra, negativo = esce
   saldoPrima: number;
@@ -50,6 +55,13 @@ export interface Movimento {
   eseguitoDaNome?: string | null;
   eseguitoDaRuolo: RuoloEsecutore;
   prenotazioneId?: string | null;
+  // Lega fra loro i movimenti nati dalla STESSA operazione: prenotando
+  // un'ora e mezza si creano tre documenti (uno per mezz'ora) e quindi
+  // tre movimenti, che senza questo codice sembrerebbero scollegati.
+  // Il rimborso EREDITA il gruppo della prenotazione originale, cosi'
+  // da una cancellazione parziale si risale alla prenotazione di
+  // partenza.
+  gruppoId?: string | null;
   descrizione: string;
   quando?: { seconds: number };
 }
@@ -57,6 +69,8 @@ export interface Movimento {
 export interface DatiMovimento {
   circoloId: string;
   uid: string;
+  socioNome?: string | null;
+  socioRuolo?: 'socio_tesserato' | 'ospite';
   tipo: TipoMovimento;
   importo: number;
   saldoPrima: number;
@@ -67,18 +81,28 @@ export interface DatiMovimento {
   eseguitoDaNome?: string | null;
   eseguitoDaRuolo: RuoloEsecutore;
   prenotazioneId?: string | null;
+  gruppoId?: string | null;
   descrizione: string;
 }
 
 // Da usare DENTRO una runTransaction gia' aperta, cosi' il movimento
 // e il saldo vivono o cadono insieme.
+// Codice per legare i movimenti di una stessa operazione. Si genera
+// una volta sola, prima del ciclo che prenota le singole mezz'ore.
+export function nuovoGruppoId(): string {
+  return `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function registraMovimentoInTransazione(tx: Transaction, dati: DatiMovimento): void {
   const rif = doc(collection(db, 'movimenti'));
   tx.set(rif, {
     ...dati,
+    socioNome: dati.socioNome ?? null,
+    socioRuolo: dati.socioRuolo ?? 'socio_tesserato',
     eseguitoDaUid: dati.eseguitoDaUid ?? null,
     eseguitoDaNome: dati.eseguitoDaNome ?? null,
     prenotazioneId: dati.prenotazioneId ?? null,
+    gruppoId: dati.gruppoId ?? null,
     quando: serverTimestamp(),
   });
 }
@@ -88,6 +112,8 @@ function normalizza(id: string, v: Record<string, unknown>): Movimento {
     id,
     circoloId: (v.circoloId as string) ?? '',
     uid: (v.uid as string) ?? '',
+    socioNome: (v.socioNome as string) ?? '',
+    socioRuolo: (v.socioRuolo as 'socio_tesserato' | 'ospite') ?? 'socio_tesserato',
     tipo: (v.tipo as TipoMovimento) ?? 'addebito',
     importo: (v.importo as number) ?? 0,
     saldoPrima: (v.saldoPrima as number) ?? 0,
@@ -98,6 +124,7 @@ function normalizza(id: string, v: Record<string, unknown>): Movimento {
     eseguitoDaNome: (v.eseguitoDaNome as string | null) ?? null,
     eseguitoDaRuolo: (v.eseguitoDaRuolo as RuoloEsecutore) ?? 'sistema',
     prenotazioneId: (v.prenotazioneId as string | null) ?? null,
+    gruppoId: (v.gruppoId as string | null) ?? null,
     descrizione: (v.descrizione as string) ?? '',
     quando: v.quando as { seconds: number } | undefined,
   };
@@ -195,6 +222,8 @@ export async function creaAperturePerCircolo(circoloId: string): Promise<number>
       await setDoc(rif, {
         circoloId,
         uid: v.uid,
+        socioNome: `${v.nome ?? ''} ${v.cognome ?? ''}`.trim(),
+        socioRuolo: v.ruolo ?? 'socio_tesserato',
         tipo: 'apertura',
         importo: 0,
         saldoPrima: credito,

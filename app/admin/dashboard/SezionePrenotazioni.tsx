@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Campo, Blocco, Circolo, ORARI, fasciaOraria, orarioFineSlot } from '../../../data/circoli';
 import { SocioCircolo } from '../../../data/users';
 import { calcolaPrezzo } from '../../../data/prezzi';
@@ -86,6 +86,28 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
 
   const slotPrenotabile = (ora: string) =>
     !prenotazioneSlot(ora) && !bloccoAttivo(ora);
+
+  // Timer della pressione prolungata: se il dito resta fermo mezzo
+  // secondo, parte la selezione. pressioneLunga evita che al rilascio
+  // scatti anche il click normale sullo stesso slot.
+  const timerPressione = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pressioneLunga = useRef(false);
+
+  const avviaTimerPressione = (ora: string) => {
+    pressioneLunga.current = false;
+    if (timerPressione.current) clearTimeout(timerPressione.current);
+    timerPressione.current = setTimeout(() => {
+      pressioneLunga.current = true;
+      iniziaSelezione(ora);
+    }, 500);
+  };
+
+  const annullaTimerPressione = () => {
+    if (timerPressione.current) {
+      clearTimeout(timerPressione.current);
+      timerPressione.current = null;
+    }
+  };
 
   const iniziaSelezione = (ora: string) => {
     if (!slotPrenotabile(ora)) return;
@@ -314,15 +336,26 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             <button
               key={ora}
               onClick={() => {
+                // Dopo una pressione prolungata il browser emette
+                // comunque un click: qui lo si ignora, altrimenti la
+                // selezione appena avviata verrebbe subito annullata.
+                if (pressioneLunga.current) { pressioneLunga.current = false; return; }
                 if (selezioneMultipla.length > 0) { clickDuranteSelezione(ora); return; }
                 if (p?.sfidaId) setSfidaInfo(sfide.find((sf) => sf.id === p.sfidaId) ?? null);
                 else if (p) setDaAnnullare(p);
                 else if (blocco) setBloccoInfo(blocco);
                 else setOreDaAssegnare([ora]);
               }}
-              // Sul web non esiste la pressione prolungata: la selezione
-              // multipla si avvia con un click destro (o pressione lunga
-              // sui dispositivi touch), che qui e' il gesto equivalente.
+              // La selezione multipla si avvia con la pressione
+              // prolungata. Su Safari iOS il menu contestuale non si
+              // attiva con quel gesto — il sistema lo intercetta per la
+              // selezione del testo — quindi la pressione si rileva a
+              // mano con un timer. Il click destro resta valido per chi
+              // lavora da PC con il mouse.
+              onPointerDown={() => avviaTimerPressione(ora)}
+              onPointerUp={annullaTimerPressione}
+              onPointerLeave={annullaTimerPressione}
+              onPointerCancel={annullaTimerPressione}
               onContextMenu={(e) => { e.preventDefault(); iniziaSelezione(ora); }}
               className={`pc-slot ${p ? 'occupato' : ''} ${eLezione ? 'lezione' : ''} ${blocco ? 'riservato' : ''}${selezionatoOra ? ' selezionato' : ''}${estendibileOra ? ' estendibile' : ''}${selezioneMultipla.length > 0 && !selezionatoOra && !estendibileOra ? ' attenuato' : ''}`}
             >

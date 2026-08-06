@@ -41,6 +41,17 @@ const TIPI: { chiave: TipoMovimento | 'tutti'; label: string }[] = [
   { chiave: 'ripristino_sos', label: 'Ripristini' },
 ];
 
+// Numero progressivo del BLOCCO a cui appartiene una riga: cambia solo
+// quando cambia il gruppo rispetto alla riga precedente. Serve ad
+// alternare gli sfondi per prenotazione invece che riga per riga.
+function indiceBlocco(elenco: Movimento[], i: number): number {
+  let blocco = 0;
+  for (let k = 1; k <= i; k++) {
+    if (!elenco[k].gruppoId || elenco[k].gruppoId !== elenco[k - 1].gruppoId) blocco++;
+  }
+  return blocco;
+}
+
 export default function PaginaMovimenti() {
   const router = useRouter();
   const [responsabile, setResponsabile] = useState<ProfiloResponsabile | null>(null);
@@ -83,11 +94,28 @@ export default function PaginaMovimenti() {
     return movimenti.filter((m) => {
       if (tipo !== 'tutti' && m.tipo !== tipo) return false;
       if (limite && (m.quando?.seconds ?? 0) < limite) return false;
-      if (testo && !m.descrizione.toLowerCase().includes(testo)
+      // La ricerca guarda prima di tutto il nome del socio: e' cio'
+      // che l'admin digita quando cerca un estratto conto.
+      if (testo
+        && !(m.socioNome ?? '').toLowerCase().includes(testo)
+        && !m.descrizione.toLowerCase().includes(testo)
         && !(m.eseguitoDaNome ?? '').toLowerCase().includes(testo)) return false;
       return true;
     });
   }, [movimenti, filtroNome, periodo, tipo]);
+
+  // Suggerimenti sui nomi presenti nel registro: evita di dover
+  // ricordare l'ortografia esatta.
+  const suggerimenti = useMemo(() => {
+    const testo = filtroNome.trim().toLowerCase();
+    if (testo.length < 2) return [];
+    const nomi = new Set<string>();
+    movimenti.forEach((m: Movimento) => {
+      if (m.socioNome && m.socioNome.toLowerCase().includes(testo)) nomi.add(m.socioNome);
+    });
+    if (nomi.size === 1 && [...nomi][0].toLowerCase() === testo) return [];
+    return [...nomi].slice(0, 6);
+  }, [movimenti, filtroNome]);
 
   const totali = useMemo(() => {
     let entrate = 0;
@@ -140,6 +168,11 @@ export default function PaginaMovimenti() {
           onChange={(e) => setFiltroNome(e.target.value)}
           placeholder="Cerca per nome o descrizione…"
         />
+        {suggerimenti.map((nome: string) => (
+          <button key={nome} className="mov-suggerimento" onClick={() => setFiltroNome(nome)}>
+            {nome}
+          </button>
+        ))}
 
         <label className="admin-label" style={{ marginTop: '1rem' }}>Periodo</label>
         <div className="mov-filtri">
@@ -190,6 +223,7 @@ export default function PaginaMovimenti() {
           <table className="mov-tabella">
             <thead>
               <tr>
+                <th>Socio</th>
                 <th>Data</th>
                 <th>Tipo</th>
                 <th>Descrizione</th>
@@ -199,8 +233,15 @@ export default function PaginaMovimenti() {
               </tr>
             </thead>
             <tbody>
-              {filtrati.map((m: Movimento) => (
-                <tr key={m.id}>
+              {/* Click sulla riga: filtra su quel socio. Utile quando
+                  il socio e' presente e vuole vedere il proprio
+                  estratto conto. */}
+              {filtrati.map((m: Movimento, i: number) => (
+                <tr key={m.id} className={`mov-riga${indiceBlocco(filtrati, i) % 2 === 1 ? " alternata" : ""}`} onClick={() => setFiltroNome(m.socioNome || '')}>
+                  <td className="mov-socio">
+                    {m.socioNome || '— nome non registrato'}
+                    {m.socioRuolo === 'ospite' && <span className="admin-etichetta-ospite"> (ospite)</span>}
+                  </td>
                   <td>{dataOra(m)}</td>
                   <td>{ETICHETTA_TIPO[m.tipo]}</td>
                   <td>{m.descrizione}</td>
