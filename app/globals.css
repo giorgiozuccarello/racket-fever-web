@@ -685,3 +685,6 @@ footer li a:hover{opacity:1;text-decoration:underline}
    primo movimento dell'elenco subito sotto. */
 .mov-totali{background:var(--riga);border-radius:12px;padding:.8rem 1rem;margin-bottom:1rem;border:none}
 .mov-card-compagno{font-size:.75rem;color:#1F5C3C;font-weight:700;margin-top:.15rem}
+
+.mov-nota-bloccata{font-size:.78rem;color:var(--grigio);text-align:center;line-height:1.5;margin-top:.8rem;font-style:italic}
+.mov-nota-rimborso{font-size:.8rem;color:var(--grigio);text-align:center;line-height:1.5;margin-top:.5rem}

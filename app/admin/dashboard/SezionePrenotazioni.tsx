@@ -32,12 +32,17 @@ function intestazionePrenotazione(p: PrenotazioneAdmin): string {
   return `${p.utenteNome} ${p.utenteCognome}`;
 }
 
-export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfide, circolo, soci }: {
+export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfide, circolo, soci, nomeEsecutore }: {
   campi: Campo[]; blocchi: Blocco[]; prenotazioni: PrenotazioneAdmin[]; sfide: Sfida[]; circolo: Circolo; soci: SocioCircolo[];
+  // Chi sta operando: finisce nel registro movimenti.
+  nomeEsecutore: string;
 }) {
   const [selDay, setSelDay] = useState(0);
   const [selCampoId, setSelCampoId] = useState('');
   const [daAnnullare, setDaAnnullare] = useState<PrenotazioneAdmin | null>(null);
+  // Mezz'ora centrale: il pop-up resta completo, sparisce solo il
+  // pulsante di cancellazione.
+  const [bloccataInMezzo, setBloccataInMezzo] = useState(false);
   const [bloccoInfo, setBloccoInfo] = useState<Blocco | null>(null);
   const [sfidaInfo, setSfidaInfo] = useState<Sfida | null>(null);
   const [elaborando, setElaborando] = useState(false);
@@ -83,6 +88,21 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
 
   const campoSel = campi.find((c) => c.id === selCampoId);
   const MASSIMO_SLOT_MULTIPLI = 8;
+
+  // Una mezz'ora "in mezzo" non si cancella: spezzerebbe la
+  // prenotazione in due tronconi. Vale solo per le PRENOTAZIONI —
+  // sugli orari riservati non c'e' vincolo di consequenzialita'.
+  const inMezzoAllaPrenotazione = (ora: string): boolean => {
+    const questa = prenotazioneSlot(ora);
+    if (!questa) return false;
+    const idx = ORARI.indexOf(ora);
+    const stessa = (o?: string) => {
+      if (!o) return false;
+      const p = prenotazioneSlot(o);
+      return !!p && p.utenteId === questa.utenteId && p.campoId === questa.campoId;
+    };
+    return stessa(ORARI[idx - 1]) && stessa(ORARI[idx + 1]);
+  };
 
   const slotPrenotabile = (ora: string) =>
     !prenotazioneSlot(ora) && !bloccoAttivo(ora);
@@ -230,6 +250,17 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           compagnoId: daAnnullare.compagnoId,
           prenotazioneId: daAnnullare.id,
           prezzoTotale: daAnnullare.prezzo,
+          campoNome: daAnnullare.campoNome,
+          dataLabel: daAnnullare.dataLabel,
+          dataISO: daAnnullare.data,
+          campoId: daAnnullare.campoId,
+          orario: daAnnullare.orario,
+          gruppoId: daAnnullare.gruppoId ?? undefined,
+          socioNome: `${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}`,
+          compagnoNome: `${daAnnullare.compagnoNome ?? ''} ${daAnnullare.compagnoCognome ?? ''}`.trim(),
+          eseguitoDaNome: nomeEsecutore,
+          eseguitoDaRuolo: 'admin',
+          parziale: true,
         });
         await creaNotifica(
           daAnnullare.utenteId,
@@ -245,6 +276,20 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           uid: daAnnullare.utenteId,
           prenotazioneId: daAnnullare.id,
           prezzo: daAnnullare.prezzo,
+          // Senza questi dati il movimento resta privo di campo e
+          // orario, e la card non riconosce la mezz'ora come
+          // cancellata: continuerebbe a mostrarla come attiva.
+          campoNome: daAnnullare.campoNome,
+          dataLabel: daAnnullare.dataLabel,
+          dataISO: daAnnullare.data,
+          campoId: daAnnullare.campoId,
+          orario: daAnnullare.orario,
+          gruppoId: daAnnullare.gruppoId ?? undefined,
+          socioNome: `${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}`,
+          eseguitoDaNome: nomeEsecutore,
+          eseguitoDaRuolo: 'admin',
+          // Dalla griglia si cancella sempre una sola mezz'ora.
+          parziale: true,
         });
         await creaNotifica(
           daAnnullare.utenteId,
@@ -342,7 +387,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
                 if (pressioneLunga.current) { pressioneLunga.current = false; return; }
                 if (selezioneMultipla.length > 0) { clickDuranteSelezione(ora); return; }
                 if (p?.sfidaId) setSfidaInfo(sfide.find((sf) => sf.id === p.sfidaId) ?? null);
-                else if (p) setDaAnnullare(p);
+                else if (p) { setBloccataInMezzo(inMezzoAllaPrenotazione(ora)); setDaAnnullare(p); }
                 else if (blocco) setBloccoInfo(blocco);
                 else setOreDaAssegnare([ora]);
               }}
@@ -569,19 +614,41 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           {daAnnullare?.campoNome} · {daAnnullare?.dataLabel} {daAnnullare ? fasciaOraria(daAnnullare.orario) : ''}
           {daAnnullare?.etichetta ? ` · ${daAnnullare.etichetta}` : ''}
         </div>
-        <div className="admin-modal-amount" style={{ fontSize: '.9rem', opacity: 0.75 }}>
-          {!daAnnullare?.utenteId
-            ? 'Nessun rimborso (allievo non socio)'
-            : daAnnullare?.costoDiviso
-              ? `Saranno rimborsati entrambi: ${daAnnullare.utenteNome} e ${daAnnullare.compagnoNome} · € ${(daAnnullare.prezzo / 2).toFixed(2)} a testa`
-              : `Rimborso: € ${daAnnullare?.prezzo.toFixed(2)}`}
-        </div>
-        <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Indietro</button>
-          <button className="admin-modal-btn-confirm danger" onClick={confermaAnnulla} disabled={elaborando}>
-            {elaborando ? 'Attendere…' : 'Annulla e rimborsa'}
-          </button>
-        </div>
+        {bloccataInMezzo ? (
+          <>
+            {/* Le informazioni restano tutte: sparisce solo il pulsante
+                di cancellazione, sostituito dalla spiegazione. */}
+            <p className="mov-nota-bloccata">
+              Non puoi cancellare questa mezz&apos;ora: sta in mezzo alla prenotazione
+              e resterebbero due spezzoni separati. Cancella dalle estremità — la
+              prima o l&apos;ultima mezz&apos;ora.
+            </p>
+            <div className="admin-modal-btn-row">
+              <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Chiudi</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="admin-modal-sub" style={{ marginTop: '.8rem', fontWeight: 700 }}>
+              Vuoi annullare questa prenotazione?
+            </p>
+            {/* Chi viene rimborsato e come: sta SOTTO la domanda perche'
+                riguarda la conseguenza della cancellazione. */}
+            <p className="mov-nota-rimborso">
+              {!daAnnullare?.utenteId || daAnnullare?.prezzo === 0
+                ? 'Non è previsto rimborso per questa cancellazione.'
+                : daAnnullare?.costoDiviso && daAnnullare?.compagnoNome
+                  ? `Saranno rimborsati ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome} e ${daAnnullare.compagnoNome} ${daAnnullare.compagnoCognome ?? ''}, € ${(daAnnullare.prezzo / 2).toFixed(2)} a testa.`
+                  : `Il credito sarà rimborsato a ${daAnnullare?.utenteNome} ${daAnnullare?.utenteCognome}: € ${daAnnullare?.prezzo.toFixed(2)}.`}
+            </p>
+            <div className="admin-modal-btn-row">
+              <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Indietro</button>
+              <button className="admin-modal-btn-confirm danger" onClick={confermaAnnulla} disabled={elaborando}>
+                {elaborando ? 'Attendere…' : 'Cancella prenotazione'}
+              </button>
+            </div>
+          </>
+        )}
       </Modal>
     </div>
   );
