@@ -88,6 +88,10 @@ export interface Movimento {
   // Vero se la cancellazione ha riguardato solo una parte del blocco
   // prenotato: l'informazione non e' ricavabile a posteriori.
   parziale?: boolean;
+  // Scelta esplicita dell'utente: pur essendo adiacente a una
+  // prenotazione attiva, questa e' una partita distinta e non un
+  // prolungamento. Senza, l'adiacenza le fonderebbe da sola.
+  nuovaPrenotazione?: boolean;
   descrizione: string;
   quando?: { seconds: number };
 }
@@ -134,6 +138,10 @@ export interface DatiMovimento {
   // Vero se la cancellazione ha riguardato solo una parte del blocco
   // prenotato: l'informazione non e' ricavabile a posteriori.
   parziale?: boolean;
+  // Scelta esplicita dell'utente: pur essendo adiacente a una
+  // prenotazione attiva, questa e' una partita distinta e non un
+  // prolungamento. Senza, l'adiacenza le fonderebbe da sola.
+  nuovaPrenotazione?: boolean;
   descrizione: string;
 }
 
@@ -165,6 +173,7 @@ export function registraMovimentoInTransazione(tx: Transaction, dati: DatiMovime
     orario: dati.orario ?? null,
     orarioFine: dati.orarioFine ?? null,
     parziale: !!dati.parziale,
+    nuovaPrenotazione: !!dati.nuovaPrenotazione,
     quando: serverTimestamp(),
   });
 }
@@ -193,6 +202,7 @@ export async function registraMovimentoSemplice(dati: DatiMovimento): Promise<vo
       orario: dati.orario ?? null,
       orarioFine: dati.orarioFine ?? null,
       parziale: !!dati.parziale,
+    nuovaPrenotazione: !!dati.nuovaPrenotazione,
       quando: serverTimestamp(),
     });
   } catch (e) {
@@ -230,6 +240,7 @@ function normalizza(id: string, v: Record<string, unknown>): Movimento {
     orario: (v.orario as string | null) ?? null,
     orarioFine: (v.orarioFine as string | null) ?? null,
     parziale: !!v.parziale,
+    nuovaPrenotazione: !!v.nuovaPrenotazione,
     descrizione: (v.descrizione as string) ?? '',
     quando: v.quando as { seconds: number } | undefined,
   };
@@ -290,8 +301,20 @@ export const ETICHETTA_TIPO: Record<TipoMovimento, string> = {
 // Il rimborso ha due letture diverse: intero se copre tutta la
 // prenotazione, parziale se ne riguarda solo una mezz'ora.
 export function etichettaMovimento(m: Movimento): string {
-  if (m.tipo === 'rimborso') return m.parziale ? 'Rimborso parziale' : 'Rimborso Intero';
+  if (m.tipo === 'rimborso') {
+    // Con importo zero (una lezione, o una prenotazione senza addebito)
+    // non c'e' nulla da rimborsare: chiamarlo "rimborso" e mostrarlo in
+    // verde con +0,00 e' fuorviante.
+    if (m.importo === 0) return m.parziale ? 'Cancellata mezz\'ora' : 'Cancellata';
+    return m.parziale ? 'Rimborso parziale' : 'Rimborso Intero';
+  }
   return ETICHETTA_TIPO[m.tipo];
+}
+
+// Vero quando la cifra non va mostrata: un movimento a importo zero
+// non racconta nulla, e in verde sembrerebbe un accredito.
+export function importoDaMostrare(importo: number): boolean {
+  return importo !== 0;
 }
 
 // Riga leggibile con campo, data e intervallo orario. Usata da tutte
@@ -459,92 +482,114 @@ export function raggruppaInCard(movimenti: Movimento[]): CardMovimenti[] {
   const adesso = Date.now();
 
   perGiorno.forEach((elenco, chiaveGiorno) => {
-    const orari = [...new Set(elenco.map((m) => m.orario!))].sort();
+    // ORDINE CRONOLOGICO, non per orario: la vita di una prenotazione
+    // si segue nel tempo. Una card si chiude quando gli slot attivi
+    // tornano a zero, e la prenotazione successiva — anche sugli
+    // stessi orari — ne apre una nuova con la propria storia.
+    const cronologico = [...elenco].sort(
+      (a, b) => (a.quando?.seconds ?? 0) - (b.quando?.seconds ?? 0)
+    );
 
-    let blocco: string[] = [];
-    const chiudiBlocco = () => {
-      if (blocco.length === 0) return;
-      const dentro = elenco
-        .filter((m) => blocco.includes(m.orario!))
-        .sort((a, b) => (a.quando?.seconds ?? 0) - (b.quando?.seconds ?? 0));
+    let attive = new Set<string>();
+    let passi: PassoStoria[] = [];
+    let dentro: Movimento[] = [];
+    let vissute = new Set<string>();   // tutti gli orari toccati da questa card
+
+    const chiudiCard = () => {
+      if (passi.length === 0) return;
       const rif = dentro[0];
-
-      // Ricostruzione progressiva: si scorrono i movimenti in ordine e
-      // si tiene traccia di quali mezz'ore sono attive dopo ognuno.
-      // Quelli nati dalla stessa operazione (stesso gruppo e stesso
-      // istante) confluiscono in un unico passo.
-      const attive = new Set<string>();
-      const passi: PassoStoria[] = [];
-      dentro.forEach((m) => {
-        if (m.tipo === 'addebito') attive.add(m.orario!);
-        else if (m.tipo === 'rimborso') attive.delete(m.orario!);
-
-        const sec = m.quando?.seconds ?? 0;
-        const ultimo = passi[passi.length - 1];
-        const stessaOperazione = ultimo
-          && ultimo.tipo === m.tipo
-          && Math.abs(ultimo.quandoSec - sec) <= 5
-          && (m.gruppoId ? ultimo.movimenti[0].gruppoId === m.gruppoId : true);
-
-        if (stessaOperazione) {
-          ultimo.movimenti.push(m);
-          ultimo.importo += m.importo;
-          ultimo.saldoDopo = m.saldoDopo;
-          ultimo.orari.push(m.orario!);
-          ultimo.intervalloDopo = intervalloAttivo(attive);
-        } else {
-          passi.push({
-            chiave: `${m.id}`,
-            movimenti: [m],
-            quandoSec: sec,
-            tipo: m.tipo,
-            importo: m.importo,
-            saldoPrima: m.saldoPrima,
-            saldoDopo: m.saldoDopo,
-            orari: [m.orario!],
-            intervalloDopo: intervalloAttivo(attive),
-            esecutore: m,
-          });
-        }
-      });
-
-      // La card mostra l'intervallo ATTUALE, non quello iniziale: e'
-      // il risultato dell'ultimo passo.
-      const finale = passi[passi.length - 1]?.intervalloDopo ?? null;
-      // Se non resta nulla di attivo, si mostra l'ultimo intervallo
-      // esistito prima della cancellazione, cosi' la card resta
-      // riconoscibile.
+      const finale = passi[passi.length - 1].intervalloDopo;
       const ultimoNonVuoto = [...passi].reverse().find((p) => p.intervalloDopo)?.intervalloDopo ?? null;
       const mostrato = finale ?? ultimoNonVuoto;
       const cancellata = finale === null;
-
       const scadenza = mostrato
         ? new Date(`${rif.dataISO}T${mostrato.fine}:00`).getTime()
         : NaN;
+      const ordinateVissute = [...vissute].sort();
 
       card.push({
-        chiave: `${chiaveGiorno}|${blocco[0]}`,
+        // La chiave include l'istante del primo movimento: due
+        // prenotazioni distinte sugli stessi orari devono avere
+        // identificativi diversi, altrimenti la vista le confonde.
+        chiave: `${chiaveGiorno}|${ordinateVissute[0]}|${rif.quando?.seconds ?? 0}`,
         socioNome: rif.socioNome ?? '',
         socioRuolo: rif.socioRuolo ?? 'socio_tesserato',
         campoNome: rif.campoNome ?? '',
         dataLabel: rif.dataLabel ?? '',
         dataISO: rif.dataISO ?? '',
-        orarioInizio: mostrato?.inizio ?? blocco[0],
-        orarioFine: mostrato?.fine ?? fineDelloSlot(blocco[blocco.length - 1]),
+        orarioInizio: mostrato?.inizio ?? ordinateVissute[0],
+        orarioFine: mostrato?.fine ?? fineDelloSlot(ordinateVissute[ordinateVissute.length - 1]),
         importoNetto: dentro.reduce((t, m) => t + m.importo, 0),
         conclusa: !cancellata && Number.isFinite(scadenza) ? adesso >= scadenza : false,
         cancellata,
         movimenti: dentro,
         passi,
       });
-      blocco = [];
+
+      attive = new Set();
+      passi = [];
+      dentro = [];
+      vissute = new Set();
     };
 
-    orari.forEach((o, i) => {
-      if (i > 0 && fineDelloSlot(orari[i - 1]) !== o) chiudiBlocco();
-      blocco.push(o);
+    // Vero se l'orario tocca il blocco attivo: dentro, subito prima o
+    // subito dopo. Serve a capire se un addebito PROLUNGA la card in
+    // corso o ne inaugura una nuova.
+    const attaccaAlBlocco = (ora: string): boolean => {
+      if (attive.size === 0) return false;
+      if (attive.has(ora)) return true;
+      const ordinati = [...attive].sort();
+      const primo = ordinati[0];
+      const dopoUltimo = fineDelloSlot(ordinati[ordinati.length - 1]);
+      return fineDelloSlot(ora) === primo || ora === dopoUltimo;
+    };
+
+    cronologico.forEach((m) => {
+      if (m.tipo === 'addebito' && passi.length > 0) {
+        // Si apre una card nuova in due casi:
+        //  - non resta nulla di attivo: la precedente e' conclusa;
+        //  - l'orario e' staccato dal blocco attivo: e' un'altra
+        //    partita, non un prolungamento;
+        //  - l'utente ha scelto esplicitamente "prenotazione nuova"
+        //    pur essendo adiacente.
+        if (attive.size === 0 || !attaccaAlBlocco(m.orario!) || m.nuovaPrenotazione) chiudiCard();
+      }
+
+      if (m.tipo === 'addebito') { attive.add(m.orario!); vissute.add(m.orario!); }
+      else if (m.tipo === 'rimborso') attive.delete(m.orario!);
+
+      dentro.push(m);
+
+      const sec = m.quando?.seconds ?? 0;
+      const ultimo = passi[passi.length - 1];
+      const stessaOperazione = ultimo
+        && ultimo.tipo === m.tipo
+        && Math.abs(ultimo.quandoSec - sec) <= 5
+        && (m.gruppoId ? ultimo.movimenti[0].gruppoId === m.gruppoId : true);
+
+      if (stessaOperazione) {
+        ultimo.movimenti.push(m);
+        ultimo.importo += m.importo;
+        ultimo.saldoDopo = m.saldoDopo;
+        ultimo.orari.push(m.orario!);
+        ultimo.intervalloDopo = intervalloAttivo(attive);
+      } else {
+        passi.push({
+          chiave: m.id,
+          movimenti: [m],
+          quandoSec: sec,
+          tipo: m.tipo,
+          importo: m.importo,
+          saldoPrima: m.saldoPrima,
+          saldoDopo: m.saldoDopo,
+          orari: [m.orario!],
+          intervalloDopo: intervalloAttivo(attive),
+          esecutore: m,
+        });
+      }
     });
-    chiudiBlocco();
+
+    chiudiCard();
   });
 
   return card.sort((a, b) => {

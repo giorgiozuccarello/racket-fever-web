@@ -34,7 +34,7 @@ export default function SezioneTestReset({ circolo, sfide }: { circolo: Circolo;
     setErrore(''); setResettando(true);
     try {
       const r = await resettaSociTest(circolo.id);
-      setEsito(`Azzerati ${r.tessereAzzerate} portafogli e cancellate ${r.prenotazioniCancellate} prenotazioni.`);
+      setEsito(`Azzerati ${r.tessereAzzerate} portafogli · ${r.prenotazioniCancellate} prenotazioni, ${r.movimentiCancellati} movimenti, ${r.avvisiCancellati} avvisi e ${r.sfideCancellate} sfide cancellati.`);
       setConfermaSoci(false);
     } catch (e: any) {
       setErrore(e?.message ?? 'Errore sconosciuto — controlla la connessione e riprova.');
@@ -54,8 +54,8 @@ export default function SezioneTestReset({ circolo, sfide }: { circolo: Circolo;
       {!!esito && <div className="admin-esito-ok">{esito}</div>}
 
       <button className="admin-btn-reset" onClick={() => { setEsito(''); setConfermaSoci(true); }}>
-        <strong>Reset Soci</strong>
-        <span>Azzera crediti, debiti e tutte le prenotazioni</span>
+        <strong>Reset Completo Soci</strong>
+        <span>Azzera portafogli, prenotazioni, movimenti, avvisi e sfide</span>
       </button>
 
       <button className="admin-btn-reset" onClick={() => { setEsito(''); setConfermaSfide(true); }}>
@@ -64,10 +64,11 @@ export default function SezioneTestReset({ circolo, sfide }: { circolo: Circolo;
       </button>
 
       <Modal visible={confermaSoci} onClose={() => setConfermaSoci(false)}>
-        <div className="admin-modal-title">Reset Soci</div>
+        <div className="admin-modal-title">Reset Completo Soci</div>
         <p className="admin-modal-sub">
           Per TUTTI i Soci/Tesserati e gli Ospiti di questo circolo azzera credito e
-          debito, e cancella tutte le prenotazioni — comprese quelle passate.
+          debito, e cancella prenotazioni, movimenti del registro, avvisi e sfide —
+          comprese le prenotazioni passate.
         </p>
         <p className="admin-modal-sub" style={{ marginTop: '.5rem', fontWeight: 800, color: '#B3261E' }}>
           Nessuno viene rimosso dal circolo e le posizioni in classifica restano
@@ -79,7 +80,7 @@ export default function SezioneTestReset({ circolo, sfide }: { circolo: Circolo;
             Annulla
           </button>
           <button className="admin-modal-btn-confirm danger" onClick={resetSoci} disabled={resettando}>
-            {resettando ? 'Attendere…' : 'Reset Soci'}
+            {resettando ? 'Attendere…' : 'Reset Completo'}
           </button>
         </div>
       </Modal>

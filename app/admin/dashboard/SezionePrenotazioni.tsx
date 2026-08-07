@@ -43,6 +43,9 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   // Mezz'ora centrale: il pop-up resta completo, sparisce solo il
   // pulsante di cancellazione.
   const [bloccataInMezzo, setBloccataInMezzo] = useState(false);
+  // Scelta fra prolungare una prenotazione adiacente e aprirne una nuova.
+  const [sceltaProlunga, setSceltaProlunga] = useState<{ ore: string[]; vicine: PrenotazioneAdmin[] } | null>(null);
+  const [nuovaPrenotazione, setNuovaPrenotazione] = useState(false);
   const [bloccoInfo, setBloccoInfo] = useState<Blocco | null>(null);
   const [sfidaInfo, setSfidaInfo] = useState<Sfida | null>(null);
   const [elaborando, setElaborando] = useState(false);
@@ -151,6 +154,44 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     if (idx === idxMax + 1 && slotPrenotabile(ora)) setSelezioneMultipla([...selezioneMultipla, ora]);
   };
 
+  // Prenotazioni ancora attive che toccano le estremita' del blocco
+  // scelto: servono a chiedere se prolungare o aprirne una nuova.
+  const prenotazioniAdiacenti = (ore: string[]): PrenotazioneAdmin[] => {
+    const tocca = (o?: string) => {
+      if (!o || ore.includes(o)) return undefined;
+      const p = prenotazioneSlot(o);
+      return p && p.campoId === selCampoId ? p : undefined;
+    };
+    const i0 = ORARI.indexOf(ore[0]);
+    const i1 = ORARI.indexOf(ore[ore.length - 1]);
+    const trovate = [tocca(ORARI[i0 - 1]), tocca(ORARI[i1 + 1])].filter(Boolean) as PrenotazioneAdmin[];
+    return trovate.filter((v, i, a) => a.findIndex((x) => x.id === v.id) === i);
+  };
+
+  // Passa alla prenotazione vera. Prolungando si eredita il socio (o
+  // l'esterno) della prenotazione esistente: l'admin non deve
+  // riselezionarlo.
+  const vaiAPrenotazione = (ore: string[], daProlungare: PrenotazioneAdmin | null) => {
+    setSceltaProlunga(null);
+    setNuovaPrenotazione(daProlungare === null);
+    if (daProlungare) {
+      if (!daProlungare.utenteId) {
+        setModalitaEsterno(true);
+        setNomeEsterno(daProlungare.utenteNome);
+      } else {
+        setModalitaEsterno(false);
+        const so = soci.find((x) => x.uid === daProlungare.utenteId);
+        if (so) setSocioScelto(so);
+      }
+    } else {
+      setModalitaEsterno(false);
+      setSocioScelto(null);
+      setNomeEsterno('');
+    }
+    setOreDaPrenotare(ore);
+    setOreDaAssegnare([]);
+  };
+
   const chiudiTutto = () => {
     setOreDaAssegnare([]); setOreDaPrenotare([]); setOreDaRiservare([]);
     setSelezioneMultipla([]); setModalitaEsterno(false); setNomeEsterno('');
@@ -184,7 +225,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           await prenotaEsternoDaAdmin({ ...base, nomeEsterno: nomeEsterno.trim() });
         } else if (socioScelto) {
           await prenotaPerSocioDaAdmin({
-            ...base, uid: socioScelto.uid,
+            ...base, uid: socioScelto.uid, nuovaPrenotazione,
             utenteNome: socioScelto.nome, utenteCognome: socioScelto.cognome,
             tipoUtente: socioScelto.ruoloTessera === 'ospite' ? 'ospite' : 'socio',
           });
@@ -411,6 +452,40 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         })}
       </div>
 
+      {/* Prolunga o nuova prenotazione: compare quando il blocco
+          scelto tocca una prenotazione ancora attiva. */}
+      <Modal visible={!!sceltaProlunga} onClose={() => setSceltaProlunga(null)}>
+        <div className="admin-modal-title">C&apos;è già una prenotazione qui accanto</div>
+        <p className="admin-modal-sub">Vuoi prolungarla, oppure è una partita a sé?</p>
+
+        {sceltaProlunga?.vicine.map((v) => (
+          <button
+            key={v.id}
+            className="pc-scelta-btn"
+            onClick={() => vaiAPrenotazione(sceltaProlunga.ore, v)}
+          >
+            <strong>Prolunga quella delle {v.orario}</strong>
+            <span>
+              {v.utenteNome} {v.utenteCognome}
+              {v.compagnoNome ? ` · con ${v.compagnoNome} ${v.compagnoCognome ?? ''}` : ''}
+              {v.maestroNome ? ` · Lezione con ${v.maestroNome}` : ''}
+            </span>
+          </button>
+        ))}
+
+        <button
+          className="pc-scelta-btn nuova"
+          onClick={() => sceltaProlunga && vaiAPrenotazione(sceltaProlunga.ore, null)}
+        >
+          <strong>È una prenotazione nuova</strong>
+          <span>Non verrà unita a quella accanto</span>
+        </button>
+
+        <button className="admin-modal-btn-cancel" style={{ marginTop: '.8rem', width: '100%' }} onClick={() => setSceltaProlunga(null)}>
+          Annulla
+        </button>
+      </Modal>
+
       {/* Scelta: cosa fare degli slot selezionati */}
       <Modal visible={oreDaAssegnare.length > 0} onClose={chiudiTutto}>
         <div className="admin-modal-title">Cosa vuoi fare?</div>
@@ -422,7 +497,16 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         <p className="admin-modal-sub">{campoSel?.nome} · {dataLeggibile}</p>
         <button
           className="pc-scelta-btn"
-          onClick={() => { setOreDaPrenotare([...oreDaAssegnare]); setOreDaAssegnare([]); }}
+          onClick={() => {
+            // La scelta si fa una volta per l'intero blocco.
+            const vicine = prenotazioniAdiacenti(oreDaAssegnare);
+            if (vicine.length > 0) {
+              setSceltaProlunga({ ore: [...oreDaAssegnare], vicine });
+              setOreDaAssegnare([]);
+            } else {
+              vaiAPrenotazione([...oreDaAssegnare], null);
+            }
+          }}
         >
           <strong>Prenota</strong><span>Per un socio o per un esterno</span>
         </button>

@@ -22,7 +22,7 @@ import { ascoltaCircolo } from '../../../data/circoliRepo';
 import { Circolo } from '../../../data/circoli';
 import {
   ascoltaMovimentiCircolo, esecutorePerAdmin, etichettaMovimento,
-  dettaglioPrenotazione, raggruppaInCard, testoPasso, intervalloDelPasso,
+  dettaglioPrenotazione, raggruppaInCard, testoPasso, intervalloDelPasso, importoDaMostrare,
   Movimento, TipoMovimento, CardMovimenti, PassoStoria,
 } from '../../../data/movimenti';
 
@@ -97,8 +97,10 @@ function TabellaMovimenti({ elenco, onScegliSocio, dataOra }: {
                     {!!m.maestroNome && <div className="mov-card-maestro">Lezione con {m.maestroNome}</div>}
                   </td>
                   <td>{esecutorePerAdmin(m)}</td>
-                  <td className={`destra ${m.importo >= 0 ? 'verde' : 'rosso'}`}>
-                    {m.importo >= 0 ? '+' : ''}{m.importo.toFixed(2)} €
+                  <td className={`destra ${m.importo > 0 ? 'verde' : m.importo < 0 ? 'rosso' : ''}`}>
+                    {importoDaMostrare(m.importo)
+                      ? `${m.importo > 0 ? '+' : ''}${m.importo.toFixed(2)} €`
+                      : '—'}
                   </td>
                   {/* La catena dei saldi e' cio' che rende il registro
                       una prova: ogni riga si aggancia alla precedente. */}
@@ -180,8 +182,10 @@ function BloccoElenco({ elenco, onScegliSocio, dataOra, onApriStoria }: {
             <div className="mov-card-corpo">
               <span className="mov-card-orario">{cd.orarioInizio} - {cd.orarioFine}</span>
               <span style={{ flex: 1 }} />
-              <span className={`mov-card-netto ${cd.importoNetto >= 0 ? 'verde' : 'rosso'}`}>
-                {cd.importoNetto >= 0 ? '+' : ''}{cd.importoNetto.toFixed(2)} €
+              <span className={`mov-card-netto ${cd.importoNetto > 0 ? 'verde' : cd.importoNetto < 0 ? 'rosso' : ''}`}>
+                {cd.importoNetto === 0
+                  ? 'Nessun addebito'
+                  : `${cd.importoNetto > 0 ? '+' : ''}${cd.importoNetto.toFixed(2)} €`}
               </span>
             </div>
             <div className="mov-card-piede">
@@ -224,14 +228,25 @@ function StoriaPrenotazione({ card, onChiudi }: { card: CardMovimenti | null; on
                 <span className="mov-passo-ora">{quando(p.esecutore)}</span>
                 <div className="mov-passo-testo">{testoPasso(p)}</div>
                 <div className="mov-passo-riga">
-                  <span className={p.importo >= 0 ? 'verde' : 'rosso'} style={{ fontWeight: 900 }}>
-                    {p.importo >= 0 ? '+' : ''}{p.importo.toFixed(2)} €
+                  <span className={p.importo > 0 ? 'verde' : p.importo < 0 ? 'rosso' : ''} style={{ fontWeight: 900 }}>
+                    {importoDaMostrare(p.importo)
+                      ? `${p.importo > 0 ? '+' : ''}${p.importo.toFixed(2)} €`
+                      : 'Nessun addebito'}
                   </span>
                   <span className="mov-passo-saldo">
                     saldo € {p.saldoPrima.toFixed(2)} → € {p.saldoDopo.toFixed(2)}
                   </span>
                 </div>
                 <div className="mov-passo-chi">{esecutorePerAdmin(p.esecutore)}</div>
+                {/* Chi ha invitato chi: nella storia serve quanto nella
+                    card, perche' e' qui che si legge il racconto. */}
+                {!!p.esecutore.compagnoNome && (
+                  <div className="mov-card-compagno">
+                    {p.esecutore.sonoCompagno
+                      ? `Aggiunto da ${p.esecutore.compagnoNome}`
+                      : `Ha invitato ${p.esecutore.compagnoNome}`}
+                  </div>
+                )}
                 {/* L'orario risultante DOPO questo passo: l'ultimo box
                     coincide sempre con quello mostrato nella card. */}
                 <div className="mov-passo-intervallo">{intervalloDelPasso(p)}</div>

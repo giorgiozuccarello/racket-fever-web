@@ -369,6 +369,8 @@ export async function resettaSociTest(circoloId: string): Promise<{
   prenotazioniCancellate: number;
   movimentiCancellati: number;
   aperture: number;
+  avvisiCancellati: number;
+  sfideCancellate: number;
 }> {
   // Primo passo: portafogli a zero, tessera per tessera.
   const qT = query(collection(db, 'tessere'), where('circoloId', '==', circoloId));
@@ -413,9 +415,38 @@ export async function resettaSociTest(circoloId: string): Promise<{
     }
   }
 
+  // Quarto passo: gli avvisi. Restando, l'utente si ritroverebbe
+  // notifiche che rimandano a prenotazioni e sfide non piu' esistenti.
+  let avvisiCancellati = 0;
+  for (const raccolta of ['notifiche', 'notifiche_admin']) {
+    try {
+      const snap = await getDocs(query(collection(db, raccolta), where('circoloId', '==', circoloId)));
+      for (const d of snap.docs) {
+        try { await deleteDoc(d.ref); avvisiCancellati++; } catch (e) { console.warn('Avviso non cancellato:', d.id, e); }
+      }
+    } catch (e) {
+      console.warn('Avvisi non letti durante il reset:', raccolta, e);
+    }
+  }
+
+  // Quinto passo: le sfide. Le loro prenotazioni sono gia' state
+  // cancellate al secondo passo, qui restano i documenti sfida.
+  let sfideCancellate = 0;
+  try {
+    const snap = await getDocs(query(collection(db, 'sfide'), where('circoloId', '==', circoloId)));
+    for (const d of snap.docs) {
+      try { await deleteDoc(d.ref); sfideCancellate++; } catch (e) { console.warn('Sfida non cancellata:', d.id, e); }
+    }
+  } catch (e) {
+    console.warn('Sfide non lette durante il reset:', e);
+  }
+
   const aperture = await creaAperturePerCircolo(circoloId);
 
-  return { tessereAzzerate, prenotazioniCancellate, movimentiCancellati, aperture };
+  return {
+    tessereAzzerate, prenotazioniCancellate, movimentiCancellati,
+    aperture, avvisiCancellati, sfideCancellate,
+  };
 }
 
 // ============================================================

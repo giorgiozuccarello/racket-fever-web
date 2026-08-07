@@ -688,3 +688,8 @@ footer li a:hover{opacity:1;text-decoration:underline}
 
 .mov-nota-bloccata{font-size:.78rem;color:var(--grigio);text-align:center;line-height:1.5;margin-top:.8rem;font-style:italic}
 .mov-nota-rimborso{font-size:.8rem;color:var(--grigio);text-align:center;line-height:1.5;margin-top:.5rem}
+
+/* Variante chiara per "nuova prenotazione": si distingue dal verde
+   del prolungamento senza sembrare un'azione pericolosa. */
+.pc-scelta-btn.nuova{background:#fff;color:#0E3B2E;border:2px solid #0E3B2E}
+.pc-scelta-btn.nuova span{opacity:.7}

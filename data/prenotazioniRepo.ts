@@ -26,6 +26,8 @@ export async function prenotaConCredito(params: {
   // la griglia e gli elenchi lo mostrano senza doverlo ricavare.
   tipoUtente?: 'socio' | 'ospite';
   gruppoId?: string;
+  // Scelta dell'utente nel pop-up: partita distinta o prolungamento.
+  nuovaPrenotazione?: boolean;
   campoId: string;
   campoNome: string;
   data: string;
@@ -66,6 +68,7 @@ export async function prenotaConCredito(params: {
       socioRuolo: params.tipoUtente === 'ospite' ? 'ospite' : 'socio_tesserato',
       tipo: 'addebito',
       gruppoId: params.gruppoId ?? null,
+      nuovaPrenotazione: !!params.nuovaPrenotazione,
       dataISO: params.data,
       campoId: params.campoId,
       campoNome: params.campoNome,
@@ -125,6 +128,8 @@ export async function prenotaPerSocioDaAdmin(params: {
   tipoUtente?: 'socio' | 'ospite';
   // Lega le mezz'ore prenotate insieme, nel documento e nel registro.
   gruppoId?: string;
+  // Scelta dell'admin: partita distinta o prolungamento di una attiva.
+  nuovaPrenotazione?: boolean;
   // Chi ha materialmente eseguito: finisce nel registro movimenti,
   // dove serve in caso di contestazione.
   eseguitoDaUid?: string | null;
@@ -165,6 +170,7 @@ export async function prenotaPerSocioDaAdmin(params: {
       socioRuolo: params.tipoUtente === 'ospite' ? 'ospite' : 'socio_tesserato',
       tipo: 'addebito',
       gruppoId: params.gruppoId ?? null,
+      nuovaPrenotazione: !!params.nuovaPrenotazione,
       dataISO: params.data,
       campoId: params.campoId,
       campoNome: params.campoNome,
