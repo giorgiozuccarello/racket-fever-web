@@ -7,6 +7,13 @@ export interface DatiCard {
   campoId: string;
   data: string;
   utenteId: string;
+  // Serve per gli ESTERNI, che non hanno un account: il loro utenteId
+  // e' la stringa vuota, quindi senza il nome due allievi diversi
+  // sarebbero indistinguibili.
+  utenteNome?: string;
+  // Campo e lezione vivono in due sezioni diverse della Home: non
+  // possono finire nella stessa card nemmeno condividendo il cardId.
+  tipo?: 'campo' | 'lezione';
   maestroId?: string;
   cardId?: string | null;
   compagnoId?: string | null;
@@ -20,25 +27,43 @@ export interface DatiCard {
 // impedisce di cancellare l'estremita' di una perche' "sta in mezzo"
 // all'altra.
 //
-// Il confronto sul cardId ha una via di mezzo: quando NESSUNA delle due
-// lo porta si ricade sulla sola contiguita', per non perdere i dati
-// nati prima che il campo esistesse. Quando almeno una ce l'ha, invece,
-// deve corrispondere: il ripiego sull'id documento (sempre diverso)
-// tiene giustamente separate le prenotazioni distinte.
+// Quando c'e' un cardId, DECIDE lui. E' l'identita' scritta sul dato
+// nel momento in cui l'utente ha scelto "Prolunga" o "prenotazione
+// nuova", e vince su qualunque somiglianza dedotta a posteriori.
+// Confrontare anche maestro e compagno, la' dove il cardId c'e' gia',
+// spezzava in due card una prenotazione sola: basta prolungarne una e
+// cambiare compagno perche' le mezz'ore smettano di somigliarsi, pur
+// essendo — per esplicita scelta di chi ha prenotato — la stessa
+// partita.
+//
+// Senza cardId — i dati nati prima che il campo esistesse — non resta
+// che dedurre: stesso campo, stesso giorno, stessa persona, stesso
+// maestro, stesso compagno. E' il criterio di sempre, tenuto solo per
+// loro.
 export function stessaCard(
   a: DatiCard | null | undefined,
   b: DatiCard | null | undefined
 ): boolean {
   if (!a || !b) return false;
-  const stessoIdentificativo = (a.cardId == null && b.cardId == null)
-    ? true
-    : (a.cardId ?? a.id) === (b.cardId ?? b.id);
-  return a.campoId === b.campoId
-    && a.data === b.data
-    && a.utenteId === b.utenteId
-    && (a.maestroId ?? null) === (b.maestroId ?? null)
-    && (a.compagnoId ?? null) === (b.compagnoId ?? null)
-    && stessoIdentificativo;
+  if (a.campoId !== b.campoId || a.data !== b.data || a.utenteId !== b.utenteId) return false;
+  // Un esterno non ha account: l'utenteId e' vuoto per tutti. Senza il
+  // nome, "Mario" delle 18:00 e "Luigi" delle 18:30 sullo stesso campo
+  // risulterebbero la stessa persona.
+  if (!a.utenteId && (a.utenteNome ?? '') !== (b.utenteNome ?? '')) return false;
+  // Il tipo e' strutturale, non una somiglianza: la Home tiene i campi
+  // e le lezioni in due elenchi separati, quindi una card mista non
+  // potrebbe comunque esistere a schermo. Vale anche a cardId uguale.
+  if ((a.tipo ?? 'campo') !== (b.tipo ?? 'campo')) return false;
+
+  if (a.cardId != null || b.cardId != null) {
+    // Il ripiego sull'id documento tiene separate le prenotazioni
+    // distinte, e fa combaciare il prolungamento di una prenotazione
+    // vecchia: il cardId che eredita E' l'id della mezz'ora prolungata.
+    return (a.cardId ?? a.id) === (b.cardId ?? b.id);
+  }
+
+  return (a.maestroId ?? null) === (b.maestroId ?? null)
+    && (a.compagnoId ?? null) === (b.compagnoId ?? null);
 }
 
 // Raggruppa in "blocchi" le prenotazioni che formano mezz'ore

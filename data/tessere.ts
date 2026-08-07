@@ -22,6 +22,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { creaAperturePerCircolo } from './movimenti';
+import { raggruppaConsecutive } from './raggruppamento';
 
 export type StatoTessera = 'in_attesa' | 'approvata' | 'sospesa' | 'chiusa' | 'rifiutata';
 
@@ -496,7 +497,15 @@ export async function rimuoviSocioDaCircolo(params: {
   // Riceve la prenotazione intera: al rimborso servono anche il tipo
   // (una lezione non si rimborsa) e il cardId (il rimborso deve finire
   // sulla card giusta del registro).
-  rimborsa: (p: { id: string; prezzo: number; tipo?: 'campo' | 'lezione'; cardId?: string | null }) => Promise<void>;
+  rimborsa: (p: {
+    id: string; prezzo: number; tipo?: 'campo' | 'lezione'; cardId?: string | null;
+    gruppoId?: string | null;
+    // Campo, giorno e ora: senza, il movimento di rimborso resta
+    // fuori dalla Vista Card del registro, che scarta i movimenti
+    // privi di questi dati — e la card resterebbe "attiva" per
+    // sempre, pur essendo stata cancellata.
+    campoId?: string; campoNome?: string; data?: string; dataLabel?: string; orario?: string;
+  }) => Promise<void>;
 }): Promise<{ prenotazioniCancellate: number; posizioneLiberata: number | null }> {
   const { uid, circoloId, rimborsa } = params;
   const oggi = new Date().toISOString().slice(0, 10);
@@ -513,20 +522,60 @@ export async function rimuoviSocioDaCircolo(params: {
     where('utenteId', '==', uid)
   );
   const snapP = await getDocs(qP);
-  let prenotazioniCancellate = 0;
-  for (const d of snapP.docs) {
-    const dati = d.data();
-    if ((dati.data as string) < oggi) continue;
-    try {
-      await rimborsa({
+
+  const future = snapP.docs
+    .filter((d) => (d.data().data as string) >= oggi)
+    .map((d) => {
+      const v = d.data();
+      return {
         id: d.id,
-        prezzo: (dati.prezzo as number) ?? 0,
-        tipo: dati.tipo as 'campo' | 'lezione' | undefined,
-        cardId: (dati.cardId as string | null) ?? null,
-      });
-      prenotazioniCancellate++;
-    } catch (e) {
-      console.warn('Prenotazione non cancellata durante la rimozione:', d.id, e);
+        campoId: (v.campoId as string) ?? '',
+        campoNome: (v.campoNome as string) ?? '',
+        data: (v.data as string) ?? '',
+        dataLabel: (v.dataLabel as string) ?? '',
+        orario: (v.orario as string) ?? '',
+        prezzo: (v.prezzo as number) ?? 0,
+        utenteId: (v.utenteId as string) ?? '',
+        utenteNome: (v.utenteNome as string) ?? '',
+        tipo: v.tipo as 'campo' | 'lezione' | undefined,
+        maestroId: v.maestroId as string | undefined,
+        compagnoId: (v.compagnoId as string | null) ?? null,
+        cardId: (v.cardId as string | null) ?? null,
+        gruppoId: (v.gruppoId as string | null) ?? null,
+      };
+    });
+
+  // Si cancella UNA PRENOTAZIONE ALLA VOLTA, e dentro ciascuna
+  // dall'ultima mezz'ora verso la prima.
+  //
+  // E' l'unico percorso che cancella senza passare da un'interfaccia,
+  // quindi l'unico che potrebbe aggirare il vincolo della mezz'ora
+  // centrale: cancellando alla rinfusa, se fallisse proprio quella in
+  // mezzo resterebbe un buco e la prenotazione si spezzerebbe in due
+  // card. Partendo dal fondo, un'interruzione lascia sempre un blocco
+  // iniziale intero. E fermarsi su QUELLA prenotazione, non su tutte,
+  // permette comunque di liberare i campi delle altre.
+  let prenotazioniCancellate = 0;
+  for (const gruppo of raggruppaConsecutive(future)) {
+    for (const p of [...gruppo].reverse()) {
+      try {
+        await rimborsa({
+          id: p.id,
+          prezzo: p.prezzo,
+          tipo: p.tipo,
+          cardId: p.cardId,
+          gruppoId: p.gruppoId,
+          campoId: p.campoId,
+          campoNome: p.campoNome,
+          data: p.data,
+          dataLabel: p.dataLabel,
+          orario: p.orario,
+        });
+        prenotazioniCancellate++;
+      } catch (e) {
+        console.warn('Prenotazione non cancellata durante la rimozione:', p.id, e);
+        break;
+      }
     }
   }
 

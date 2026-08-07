@@ -180,7 +180,13 @@ function BloccoElenco({ elenco, onScegliSocio, dataOra, onApriStoria }: {
               </span>
             </div>
             <div className="mov-card-corpo">
-              <span className="mov-card-orario">{cd.orarioInizio} - {cd.orarioFine}</span>
+              {/* Su una card cancellata l'orario non c'e' piu': la
+                  prenotazione non esiste, e una fascia oraria farebbe
+                  pensare che sia ancora in piedi. La storia completa,
+                  orari compresi, resta dentro la card. */}
+              <span className={`mov-card-orario${cd.cancellata ? ' cancellata' : ''}`}>
+                {cd.cancellata ? 'Cancellata' : `${cd.orarioInizio} - ${cd.orarioFine}`}
+              </span>
               <span style={{ flex: 1 }} />
               <span className={`mov-card-netto ${cd.importoNetto > 0 ? 'verde' : cd.importoNetto < 0 ? 'rosso' : ''}`}>
                 {cd.importoNetto === 0
@@ -216,6 +222,7 @@ function StoriaPrenotazione({ card, onChiudi }: { card: CardMovimenti | null; on
             <div className="admin-modal-title">Storia della prenotazione</div>
             <p className="admin-modal-sub">
               {card.socioNome} · {card.campoNome} · {card.dataLabel} · {card.orarioInizio} - {card.orarioFine}
+              {card.cancellata ? ' · cancellata' : ''}
             </p>
           </div>
           <button className="mov-storia-chiudi" onClick={onChiudi}>×</button>

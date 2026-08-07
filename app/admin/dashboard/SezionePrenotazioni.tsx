@@ -161,6 +161,11 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     const tocca = (o?: string) => {
       if (!o || ore.includes(o)) return undefined;
       const p = prenotazioneSlot(o);
+      // Le lezioni restano fuori: l'Admin scrive sempre prenotazioni di
+      // campo, quindi "prolungare" una lezione produceva meta' card di
+      // un tipo e meta' dell'altro, con lo stesso cardId. Una lezione
+      // la prolunga il Maestro, dalla sua dashboard.
+      if (p?.tipo === 'lezione') return undefined;
       return p && p.campoId === selCampoId ? p : undefined;
     };
     const i0 = ORARI.indexOf(ore[0]);
@@ -209,10 +214,19 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
 
   const dataLeggibile = `${GIORNI_IT_ESTESO[giornoSel.getDay()]} ${giornoSel.getDate()} ${MESI_IT[giornoSel.getMonth()]}`;
 
+  // Blocco sincrono contro il doppio click, come nell'app mobile:
+  // "elaborando" e' uno stato React e non chiude la finestra fra il
+  // click e il ridisegno. Due click rapidi scrivevano la prenotazione
+  // due volte, sugli stessi orari e con lo stesso cardId: in Home la
+  // partita si presentava spezzata in tre pezzi.
+  const invioInCorso = useRef(false);
+
   const confermaPrenotazione = async () => {
+    if (invioInCorso.current) return;
     if (oreDaPrenotare.length === 0 || !campoSel) return;
     if (modalitaEsterno && !nomeEsterno.trim()) return;
     if (!modalitaEsterno && !socioScelto) return;
+    invioInCorso.current = true;
     setElaborando(true);
     try {
       // Uno scritto per mezz'ora, in sequenza: stesso principio del
@@ -263,6 +277,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     } catch {
       alert('Non è stato possibile completare la prenotazione. Riprova.');
     } finally {
+      invioInCorso.current = false;
       setElaborando(false);
     }
   };

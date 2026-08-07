@@ -649,6 +649,7 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .mov-card-stato.conclusa{background:var(--riga);color:var(--grigio)}
 .mov-card-corpo{display:flex;align-items:center;padding:.8rem}
 .mov-card-orario{background:#1A1A1A;color:#fff;border-radius:8px;padding:.35rem .7rem;font-size:.82rem;font-weight:800}
+.mov-card-orario.cancellata{background:#B3261E}
 .mov-card-netto{font-size:1rem;font-weight:900}
 .mov-card-piede{padding:.55rem .8rem;background:#FBFAF6;border-top:1px solid var(--riga);font-size:.7rem;color:var(--grigio);font-weight:600}
 

@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Campo, Blocco, Circolo, ORARI, orarioFineSlot } from './circoli';
-import { PrenotazioneAdmin, prenotaConCompagno } from './prenotazioniRepo';
+import { PrenotazioneAdmin, prenotaConCompagno, cancellaConRimborsoDiviso } from './prenotazioniRepo';
 import { calcolaPrezzo } from './prezzi';
 import { SocioCircolo, impostaCongelamentoSfide } from './users';
 import { formatISO } from './settimana';
@@ -369,31 +369,74 @@ async function fissaMatch(
   // registro, stesso cardId in Home. L'id della sfida e' gia' unico e
   // stabile, quindi serve da identificativo della card.
   const gruppoId = `sfida_${sfida.id}`;
-  for (const ora of orari) {
-    const prezzo = calcolaPrezzo(campo, giorno, ora);
-    const risultato = await prenotaConCompagno({
-      uid: sfida.sfidanteId,
-      compagnoId: sfida.sfidatoId,
-      circoloId: sfida.circoloId,
-      campoId: campo.id,
-      campoNome: campo.nome,
-      data: dataIso,
-      dataLabel,
-      orario: ora,
-      prezzo,
-      etichetta: null,
-      utenteNome: sfida.sfidanteNome,
-      utenteCognome: sfida.sfidanteCognome,
-      compagnoNome: sfida.sfidatoNome,
-      compagnoCognome: sfida.sfidatoCognome,
-      sfidaId: sfida.id,
-      gruppoId,
-      cardId: gruppoId,
-    });
-    prenotazioneIds.push(risultato.id);
-    if (risultato.sosUsatoUtente) sosUsatoSfidante = true;
-    if (risultato.sosUsatoCompagno) sosUsatoSfidato = true;
+
+  // Tutte le mezz'ore o nessuna. Se una fallisce a meta' — il caso
+  // tipico e' il credito che non basta sulla seconda — quelle gia'
+  // create vanno disfatte subito: la sfida non verrebbe fissata
+  // (l'aggiornamento qui sotto non viene raggiunto), quindi
+  // resterebbero appese a nulla, con il campo occupato e nessun
+  // annullamento in grado di ritrovarle.
+  const creati: { id: string; orario: string; prezzo: number }[] = [];
+  try {
+    for (const ora of orari) {
+      const prezzo = calcolaPrezzo(campo, giorno, ora);
+      const risultato = await prenotaConCompagno({
+        uid: sfida.sfidanteId,
+        compagnoId: sfida.sfidatoId,
+        circoloId: sfida.circoloId,
+        campoId: campo.id,
+        campoNome: campo.nome,
+        data: dataIso,
+        dataLabel,
+        orario: ora,
+        prezzo,
+        etichetta: null,
+        utenteNome: sfida.sfidanteNome,
+        utenteCognome: sfida.sfidanteCognome,
+        compagnoNome: sfida.sfidatoNome,
+        compagnoCognome: sfida.sfidatoCognome,
+        sfidaId: sfida.id,
+        gruppoId,
+        cardId: gruppoId,
+      });
+      creati.push({ id: risultato.id, orario: ora, prezzo });
+      prenotazioneIds.push(risultato.id);
+      if (risultato.sosUsatoUtente) sosUsatoSfidante = true;
+      if (risultato.sosUsatoCompagno) sosUsatoSfidato = true;
+    }
+  } catch (errore) {
+    // A ritroso: se anche il disfacimento si interrompe, quel che resta
+    // e' un blocco iniziale intero e non una prenotazione bucata.
+    for (const c of [...creati].reverse()) {
+      try {
+        await cancellaConRimborsoDiviso({
+          utenteId: sfida.sfidanteId,
+          compagnoId: sfida.sfidatoId,
+          circoloId: sfida.circoloId,
+          prenotazioneId: c.id,
+          prezzoTotale: c.prezzo,
+          gruppoId,
+          cardId: gruppoId,
+          socioNome: `${sfida.sfidanteNome} ${sfida.sfidanteCognome}`,
+          compagnoNome: `${sfida.sfidatoNome} ${sfida.sfidatoCognome}`,
+          campoNome: campo.nome,
+          dataLabel,
+          dataISO: dataIso,
+          campoId: campo.id,
+          orario: c.orario,
+          eseguitoDaUid: sfida.sfidanteId,
+          eseguitoDaNome: `${sfida.sfidanteNome} ${sfida.sfidanteCognome}`,
+          eseguitoDaRuolo: 'socio',
+          parziale: true,
+          descrizione: 'Rimborso: la sfida non è stata fissata',
+        });
+      } catch (e) {
+        console.warn('Mezz\'ora della sfida non disfatta dopo l\'errore:', c.id, e);
+      }
+    }
+    throw errore;
   }
+
   await updateDoc(doc(db, 'sfide', sfida.id), {
     fase: 'accettata',
     prenotazioneScadenza: null,

@@ -532,9 +532,16 @@ export function raggruppaInCard(movimenti: Movimento[]): CardMovimenti[] {
       if (passi.length === 0) return;
       const rif = dentro[0];
       const finale = passi[passi.length - 1].intervalloDopo;
-      const ultimoNonVuoto = [...passi].reverse().find((p) => p.intervalloDopo)?.intervalloDopo ?? null;
-      const mostrato = finale ?? ultimoNonVuoto;
       const cancellata = finale === null;
+      // Di una card cancellata si mostra l'intervallo COMPLETO che era
+      // stato prenotato, non quello che restava un attimo prima
+      // dell'ultimo rimborso. Cancellando tre mezz'ore una dopo
+      // l'altra, l'ultimo passo non vuoto e' la sola mezz'ora rimasta:
+      // leggere "20:00 - 20:30" su una prenotazione che era 19:00 -
+      // 20:30 e' fuorviante. Non essendoci piu' nulla di attivo, la
+      // domanda "fino a quando" non ha una risposta: si torna a
+      // raccontare cosa era stato prenotato.
+      const mostrato = cancellata ? null : finale;
       const scadenza = mostrato
         ? new Date(`${rif.dataISO}T${mostrato.fine}:00`).getTime()
         : NaN;
