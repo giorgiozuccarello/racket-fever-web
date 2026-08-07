@@ -323,7 +323,10 @@ export default function PaginaMovimenti() {
   const [periodo, setPeriodo] = useState('30');
   const [tipo, setTipo] = useState<TipoMovimento | 'tutti' | typeof FILTRO_LEZIONI>('tutti');
   const [maestroFiltro, setMaestroFiltro] = useState<string | null>(null);
-  const [storiaAperta, setStoriaAperta] = useState<CardMovimenti | null>(null);
+  // Si conserva solo la CHIAVE della card aperta, non la card stessa:
+  // tenendo una copia, il pop-up resterebbe fermo alla fotografia
+  // scattata all'apertura mentre i movimenti continuano ad arrivare.
+  const [chiaveStoria, setChiaveStoria] = useState<string | null>(null);
   const [totaliAperti, setTotaliAperti] = useState(false);
   const [socioAperto, setSocioAperto] = useState(false);
 
@@ -383,6 +386,11 @@ export default function PaginaMovimenti() {
 
   // I maestri si ricavano DAL REGISTRO, non dall'elenco del circolo:
   // uno che ha smesso resta cercabile finche' esistono sue lezioni.
+  const storiaAperta = useMemo(
+    () => (chiaveStoria ? raggruppaInCard(movimenti).find((c: CardMovimenti) => c.chiave === chiaveStoria) ?? null : null),
+    [chiaveStoria, movimenti]
+  );
+
   const maestri = useMemo(() => {
     const nomi = new Set<string>();
     movimenti.forEach((m: Movimento) => { if (m.maestroNome) nomi.add(m.maestroNome); });
@@ -505,7 +513,7 @@ export default function PaginaMovimenti() {
         onApriChiudi={() => setTotaliAperti((v) => !v)}
         onScegliSocio={setFiltroNome}
         dataOra={dataOra}
-        onApriStoria={setStoriaAperta}
+        onApriStoria={(cd: CardMovimenti) => setChiaveStoria(cd.chiave)}
       />
 
       <SezioneMovimenti
@@ -517,10 +525,10 @@ export default function PaginaMovimenti() {
         onApriChiudi={() => socioSelezionato && setSocioAperto((v) => !v)}
         onScegliSocio={setFiltroNome}
         dataOra={dataOra}
-        onApriStoria={setStoriaAperta}
+        onApriStoria={(cd: CardMovimenti) => setChiaveStoria(cd.chiave)}
       />
 
-      <StoriaPrenotazione card={storiaAperta} onChiudi={() => setStoriaAperta(null)} />
+      <StoriaPrenotazione card={storiaAperta} onChiudi={() => setChiaveStoria(null)} />
     </div>
   );
 }
