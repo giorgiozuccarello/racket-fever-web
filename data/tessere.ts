@@ -520,3 +520,53 @@ export async function rimuoviSocioDaCircolo(params: {
   await chiudiTessera(uid, circoloId);
   return { prenotazioniCancellate, posizioneLiberata };
 }
+
+// ============================================================
+// ALLINEAMENTO PROFILI
+//
+// Il campo circoloId sul profilo utente e' quello che le regole
+// Firestore usano per stabilire se due persone appartengono allo
+// stesso circolo — serve, per esempio, a leggere il credito di un
+// compagno di gioco prima di dividere una prenotazione.
+//
+// Chi e' stato approvato PRIMA che l'approvazione lo scrivesse ha
+// quel campo vuoto: sembra tutto a posto, ma non puo' essere scelto
+// come compagno perche' la lettura del suo profilo viene rifiutata.
+//
+// Questo controllo gira all'apertura della dashboard Admin e rimette
+// in riga i profili rimasti indietro. Non tocca nulla se non serve.
+// ============================================================
+export async function allineaProfiliCircolo(circoloId: string): Promise<number> {
+  let allineati = 0;
+  try {
+    const snap = await getDocs(query(
+      collection(db, 'tessere'),
+      where('circoloId', '==', circoloId),
+      where('stato', '==', 'approvata')
+    ));
+
+    for (const d of snap.docs) {
+      const t = d.data();
+      // Solo la tessera PRINCIPALE determina il circolo del profilo:
+      // un Ospite resta legato al proprio circolo di tesseramento.
+      if (t.principale !== true) continue;
+
+      try {
+        const rifUtente = doc(db, 'utenti', t.uid as string);
+        const profilo = await getDoc(rifUtente);
+        if (!profilo.exists()) continue;
+        if (profilo.data().circoloId === circoloId) continue;
+
+        await updateDoc(rifUtente, { circoloId });
+        allineati++;
+      } catch (e) {
+        // Un profilo che non si riesce ad allineare non deve fermare
+        // gli altri: si prosegue e si annota.
+        console.warn('Profilo non allineato:', t.uid, e);
+      }
+    }
+  } catch (e) {
+    console.warn('Allineamento profili non eseguito:', e);
+  }
+  return allineati;
+}

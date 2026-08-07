@@ -4,6 +4,7 @@ import { useEffect, useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { auth } from '../../../lib/firebase';
+import { allineaProfiliCircolo } from '../../../data/tessere';
 import { leggiResponsabile, ProfiloResponsabile } from '../../../data/responsabili';
 import { leggiSessioneCollaboratore } from '../../../data/collaboratori';
 import { ascoltaSociCircolo, SocioCircolo } from '../../../data/users';
@@ -57,6 +58,12 @@ export default function AdminDashboard() {
       if (r) {
         setResponsabile(r);
         setCaricando(false);
+        // Rimette in riga i profili approvati prima che l'app scrivesse
+        // il circolo sul profilo: senza, quelle persone non possono
+        // essere scelte come compagno di gioco.
+        allineaProfiliCircolo(r.circoloId)
+          .then((n) => { if (n > 0) console.log(`Profili allineati: ${n}`); })
+          .catch(() => {});
         return;
       }
       const sessione = await leggiSessioneCollaboratore(user.uid);

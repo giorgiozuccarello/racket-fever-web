@@ -13,9 +13,10 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
   const [ricaricaAperta, setRicaricaAperta] = useState(false);
   const [importo, setImporto] = useState('');
   const [inviando, setInviando] = useState(false);
+  const [limitePersonale, setLimitePersonale] = useState(socio?.limitePrenotazioniPersonale ?? 0);
   const [salvandoLimite, setSalvandoLimite] = useState(false);
-  const [ripristinando, setRipristinando] = useState(false);
   const [confermaRipristinoAperta, setConfermaRipristinoAperta] = useState(false);
+  const [ripristinando, setRipristinando] = useState(false);
   const [confermaAzzeraAperta, setConfermaAzzeraAperta] = useState(false);
   const [azzerando, setAzzerando] = useState(false);
 
@@ -221,6 +222,8 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
           </button>
         </div>
       </Modal>
+
+
     </>
   );
 }

@@ -371,6 +371,8 @@ export async function prenotaConCompagno(params: {
   nascondiInfo?: boolean;
   sfidaId?: string | null;
   gruppoId?: string;
+  // Scelta dell'utente: partita distinta o prolungamento di una attiva.
+  nuovaPrenotazione?: boolean;
 }): Promise<{ id: string; sosUsatoUtente: boolean; sosUsatoCompagno: boolean }> {
   const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
   const compagnoRef = doc(db, 'tessere', idTessera(params.compagnoId, params.circoloId));
@@ -409,6 +411,7 @@ export async function prenotaConCompagno(params: {
       circoloId: params.circoloId, uid: params.uid,
       socioNome: `${params.utenteNome} ${params.utenteCognome}`,
       tipo: 'addebito', gruppoId: params.gruppoId ?? null,
+      nuovaPrenotazione: !!params.nuovaPrenotazione,
       dataISO: params.data, campoId: params.campoId,
       campoNome: params.campoNome, dataLabel: params.dataLabel,
       orario: params.orario, orarioFine: orarioFineSlot(params.orario),
@@ -427,6 +430,7 @@ export async function prenotaConCompagno(params: {
       circoloId: params.circoloId, uid: params.compagnoId,
       socioNome: `${params.compagnoNome} ${params.compagnoCognome}`,
       tipo: 'addebito', gruppoId: params.gruppoId ?? null,
+      nuovaPrenotazione: !!params.nuovaPrenotazione,
       dataISO: params.data, campoId: params.campoId,
       campoNome: params.campoNome, dataLabel: params.dataLabel,
       orario: params.orario, orarioFine: orarioFineSlot(params.orario),
