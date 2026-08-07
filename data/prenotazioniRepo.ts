@@ -69,6 +69,7 @@ export async function prenotaConCredito(params: {
       socioRuolo: params.tipoUtente === 'ospite' ? 'ospite' : 'socio_tesserato',
       tipo: 'addebito',
       gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
       nuovaPrenotazione: !!params.nuovaPrenotazione,
       dataISO: params.data,
       campoId: params.campoId,
@@ -174,6 +175,7 @@ export async function prenotaPerSocioDaAdmin(params: {
       socioRuolo: params.tipoUtente === 'ospite' ? 'ospite' : 'socio_tesserato',
       tipo: 'addebito',
       gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
       nuovaPrenotazione: !!params.nuovaPrenotazione,
       dataISO: params.data,
       campoId: params.campoId,
@@ -276,6 +278,7 @@ export async function prenotaEsternoDaAdmin(params: {
     circoloId: params.circoloId, uid: '',
     socioNome: params.nomeEsterno,
     tipo: 'addebito', gruppoId: params.gruppoId ?? null,
+    cardId: params.cardId ?? null,
     dataISO: params.data, campoId: params.campoId,
     campoNome: params.campoNome, dataLabel: params.dataLabel,
     orario: params.orario, orarioFine: orarioFineSlot(params.orario),
@@ -422,6 +425,7 @@ export async function prenotaConCompagno(params: {
       circoloId: params.circoloId, uid: params.uid,
       socioNome: `${params.utenteNome} ${params.utenteCognome}`,
       tipo: 'addebito', gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
       nuovaPrenotazione: !!params.nuovaPrenotazione,
       dataISO: params.data, campoId: params.campoId,
       campoNome: params.campoNome, dataLabel: params.dataLabel,
@@ -441,6 +445,7 @@ export async function prenotaConCompagno(params: {
       circoloId: params.circoloId, uid: params.compagnoId,
       socioNome: `${params.compagnoNome} ${params.compagnoCognome}`,
       tipo: 'addebito', gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
       nuovaPrenotazione: !!params.nuovaPrenotazione,
       dataISO: params.data, campoId: params.campoId,
       campoNome: params.campoNome, dataLabel: params.dataLabel,
@@ -545,6 +550,7 @@ export async function prenotaLezione(params: {
       circoloId: params.circoloId, uid: params.uid,
       socioNome: `${params.utenteNome} ${params.utenteCognome}`,
       tipo: 'addebito', gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
       nuovaPrenotazione: !!params.nuovaPrenotazione,
       dataISO: params.data, campoId: params.campoId,
       campoNome: params.campoNome, dataLabel: params.dataLabel,
@@ -645,6 +651,7 @@ export async function prenotaLezioneEsterno(params: {
     circoloId: params.circoloId, uid: '',
     socioNome: params.nomeEsterno,
     tipo: 'addebito', gruppoId: params.gruppoId ?? null,
+    cardId: params.cardId ?? null,
     dataISO: params.data, campoId: params.campoId,
     campoNome: params.campoNome, dataLabel: params.dataLabel,
     orario: params.orario, orarioFine: orarioFineSlot(params.orario),
@@ -658,6 +665,25 @@ export async function prenotaLezioneEsterno(params: {
   });
 
   await rimuoviDisponibilitaPerSlot(params.circoloId, params.campoId, params.data, params.orario);
+}
+
+// Quanto va restituito annullando questa prenotazione.
+//
+// Una LEZIONE non si paga nell'app: il Maestro chiede un importo unico
+// che comprende lezione e campo, e regola il campo con la segreteria
+// per conto suo. Il prezzo resta scritto sul documento come
+// riferimento di quanto vale l'ora di campo, ma dal portafoglio non e'
+// mai uscito nulla — quindi annullandola non deve rientrare nulla.
+// Rimborsare il prezzo scritto sarebbe regalare credito mai versato.
+//
+// Passa da qui OGNI cancellazione, in app e sul web: e' l'unico posto
+// dove la regola "le lezioni sono a costo zero" viene applicata.
+export function importoDaRimborsare(
+  p: { tipo?: 'campo' | 'lezione'; prezzo?: number } | null | undefined
+): number {
+  if (!p) return 0;
+  if (p.tipo === 'lezione') return 0;
+  return p.prezzo ?? 0;
 }
 
 // Usata quando il socio annulla la propria prenotazione, quando
@@ -680,6 +706,10 @@ export async function cancellaConRimborso(params: {
   socioNome?: string;
   compagnoNome?: string;
   gruppoId?: string;
+  // Identificativo della prenotazione cancellata: il rimborso deve
+  // finire sulla SUA card, non su quella che risulta aperta in quel
+  // momento nel registro.
+  cardId?: string;
   // Dati della prenotazione cancellata, per rendere il rimborso
   // riconoscibile nel registro anche a distanza di mesi.
   campoNome?: string;
@@ -706,6 +736,7 @@ export async function cancellaConRimborso(params: {
       socioNome: params.socioNome ?? null,
       tipo: 'rimborso',
       gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
       dataISO: params.dataISO ?? null,
       campoId: params.campoId ?? null,
       campoNome: params.campoNome ?? null,
@@ -748,6 +779,10 @@ export async function cancellaConRimborsoDiviso(params: {
   socioNome?: string;
   compagnoNome?: string;
   gruppoId?: string;
+  // Identificativo della prenotazione cancellata: il rimborso deve
+  // finire sulla SUA card, non su quella che risulta aperta in quel
+  // momento nel registro.
+  cardId?: string;
   // Dati della prenotazione cancellata, per rendere il rimborso
   // riconoscibile nel registro anche a distanza di mesi.
   campoNome?: string;
@@ -785,6 +820,7 @@ export async function cancellaConRimborsoDiviso(params: {
       socioNome: params.socioNome ?? null,
       tipo: 'rimborso',
       gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
       dataISO: params.dataISO ?? null,
       campoId: params.campoId ?? null,
       campoNome: params.campoNome ?? null,
@@ -809,6 +845,7 @@ export async function cancellaConRimborsoDiviso(params: {
       socioNome: params.compagnoNome ?? null,
       tipo: 'rimborso',
       gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
       dataISO: params.dataISO ?? null,
       campoId: params.campoId ?? null,
       campoNome: params.campoNome ?? null,

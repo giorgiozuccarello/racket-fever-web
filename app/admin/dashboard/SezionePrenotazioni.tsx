@@ -7,10 +7,11 @@ import { calcolaPrezzo } from '../../../data/prezzi';
 import { aggiungiBlocco } from '../../../data/circoliRepo';
 import { prenotaPerSocioDaAdmin, prenotaEsternoDaAdmin } from '../../../data/prenotazioniRepo';
 import { nuovoGruppoId } from '../../../data/movimenti';
+import { stessaCard } from '../../../data/raggruppamento';
 
 const GIORNI_IT_ESTESO = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 const MESI_IT = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
-import { PrenotazioneAdmin, cancellaConRimborso, cancellaConRimborsoDiviso, cancellaSenzaRimborso } from '../../../data/prenotazioniRepo';
+import { PrenotazioneAdmin, cancellaConRimborso, cancellaConRimborsoDiviso, cancellaSenzaRimborso, importoDaRimborsare } from '../../../data/prenotazioniRepo';
 import { Sfida } from '../../../data/sfide';
 import { creaNotifica } from '../../../data/notifiche';
 import { creaNotificaMaestro } from '../../../data/notificheMaestro';
@@ -96,16 +97,14 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
 
   // Una mezz'ora "in mezzo" non si cancella: spezzerebbe la
   // prenotazione in due tronconi. Vale solo per le PRENOTAZIONI —
-  // sugli orari riservati non c'e' vincolo di consequenzialita'.
+  // sugli orari riservati non c'e' vincolo di consequenzialita' — e
+  // solo DENTRO una singola prenotazione: due partite consecutive
+  // dello stesso socio sono due card distinte e non si vincolano.
   const inMezzoAllaPrenotazione = (ora: string): boolean => {
     const questa = prenotazioneSlot(ora);
     if (!questa) return false;
     const idx = ORARI.indexOf(ora);
-    const stessa = (o?: string) => {
-      if (!o) return false;
-      const p = prenotazioneSlot(o);
-      return !!p && p.utenteId === questa.utenteId && p.campoId === questa.campoId;
-    };
+    const stessa = (o?: string) => stessaCard(o ? prenotazioneSlot(o) : undefined, questa);
     return stessa(ORARI[idx - 1]) && stessa(ORARI[idx + 1]);
   };
 
@@ -314,6 +313,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           campoId: daAnnullare.campoId,
           orario: daAnnullare.orario,
           gruppoId: daAnnullare.gruppoId ?? undefined,
+          cardId: daAnnullare.cardId ?? undefined,
           socioNome: `${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}`,
           compagnoNome: `${daAnnullare.compagnoNome ?? ''} ${daAnnullare.compagnoCognome ?? ''}`.trim(),
           eseguitoDaNome: nomeEsecutore,
@@ -333,7 +333,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           circoloId: circolo.id,
           uid: daAnnullare.utenteId,
           prenotazioneId: daAnnullare.id,
-          prezzo: daAnnullare.prezzo,
+          prezzo: importoDaRimborsare(daAnnullare),
           // Senza questi dati il movimento resta privo di campo e
           // orario, e la card non riconosce la mezz'ora come
           // cancellata: continuerebbe a mostrarla come attiva.
@@ -343,6 +343,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           campoId: daAnnullare.campoId,
           orario: daAnnullare.orario,
           gruppoId: daAnnullare.gruppoId ?? undefined,
+          cardId: daAnnullare.cardId ?? undefined,
           socioNome: `${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}`,
           eseguitoDaNome: nomeEsecutore,
           eseguitoDaRuolo: 'admin',
@@ -351,7 +352,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         });
         await creaNotifica(
           daAnnullare.utenteId,
-          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Credito rimborsato: € ${daAnnullare.prezzo.toFixed(2)}.`
+          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}.`
+            + (importoDaRimborsare(daAnnullare) > 0 ? ` Credito rimborsato: € ${importoDaRimborsare(daAnnullare).toFixed(2)}.` : '')
         );
       }
       if (daAnnullare.tipo === 'lezione' && daAnnullare.maestroId) {
@@ -737,11 +739,15 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             {/* Chi viene rimborsato e come: sta SOTTO la domanda perche'
                 riguarda la conseguenza della cancellazione. */}
             <p className="mov-nota-rimborso">
-              {!daAnnullare?.utenteId || daAnnullare?.prezzo === 0
-                ? 'Non è previsto rimborso per questa cancellazione.'
+              {/* L'importo passa da importoDaRimborsare: per una lezione
+                  vale sempre zero, perche' non c'e' stato addebito. */}
+              {!daAnnullare?.utenteId || importoDaRimborsare(daAnnullare) === 0
+                ? daAnnullare?.tipo === 'lezione'
+                  ? 'Nessun rimborso: le lezioni non hanno addebito.'
+                  : 'Non è previsto rimborso per questa cancellazione.'
                 : daAnnullare?.costoDiviso && daAnnullare?.compagnoNome
-                  ? `Saranno rimborsati ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome} e ${daAnnullare.compagnoNome} ${daAnnullare.compagnoCognome ?? ''}, € ${(daAnnullare.prezzo / 2).toFixed(2)} a testa.`
-                  : `Il credito sarà rimborsato a ${daAnnullare?.utenteNome} ${daAnnullare?.utenteCognome}: € ${daAnnullare?.prezzo.toFixed(2)}.`}
+                  ? `Saranno rimborsati ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome} e ${daAnnullare.compagnoNome} ${daAnnullare.compagnoCognome ?? ''}, € ${(importoDaRimborsare(daAnnullare) / 2).toFixed(2)} a testa.`
+                  : `Il credito sarà rimborsato a ${daAnnullare?.utenteNome} ${daAnnullare?.utenteCognome}: € ${importoDaRimborsare(daAnnullare).toFixed(2)}.`}
             </p>
             <div className="admin-modal-btn-row">
               <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Indietro</button>

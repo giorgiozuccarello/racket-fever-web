@@ -1,5 +1,46 @@
 import { orarioFineSlot } from './circoli';
 
+// Dati minimi per riconoscere due mezz'ore come parte della stessa
+// prenotazione. Non serve il documento intero: bastano questi.
+export interface DatiCard {
+  id: string;
+  campoId: string;
+  data: string;
+  utenteId: string;
+  maestroId?: string;
+  cardId?: string | null;
+  compagnoId?: string | null;
+}
+
+// Vero se due mezz'ore appartengono alla STESSA prenotazione logica.
+//
+// E' l'unico criterio in tutta l'app: lo usano il raggruppamento delle
+// card e il vincolo sulla mezz'ora centrale. Devono per forza dire la
+// stessa cosa — altrimenti l'app disegna due card distinte e poi
+// impedisce di cancellare l'estremita' di una perche' "sta in mezzo"
+// all'altra.
+//
+// Il confronto sul cardId ha una via di mezzo: quando NESSUNA delle due
+// lo porta si ricade sulla sola contiguita', per non perdere i dati
+// nati prima che il campo esistesse. Quando almeno una ce l'ha, invece,
+// deve corrispondere: il ripiego sull'id documento (sempre diverso)
+// tiene giustamente separate le prenotazioni distinte.
+export function stessaCard(
+  a: DatiCard | null | undefined,
+  b: DatiCard | null | undefined
+): boolean {
+  if (!a || !b) return false;
+  const stessoIdentificativo = (a.cardId == null && b.cardId == null)
+    ? true
+    : (a.cardId ?? a.id) === (b.cardId ?? b.id);
+  return a.campoId === b.campoId
+    && a.data === b.data
+    && a.utenteId === b.utenteId
+    && (a.maestroId ?? null) === (b.maestroId ?? null)
+    && (a.compagnoId ?? null) === (b.compagnoId ?? null)
+    && stessoIdentificativo;
+}
+
 // Raggruppa in "blocchi" le prenotazioni che formano mezz'ore
 // consecutive sullo stesso campo, stesso giorno, stesso titolare
 // (e stesso Maestro, per le lezioni) — così una prenotazione fatta
@@ -34,26 +75,9 @@ export function raggruppaConsecutive<T extends {
     // basta: prenotando alle 18:30 accanto a una gia' esistente delle
     // 19:00, ma scegliendo "prenotazione nuova", sono due partite
     // distinte e vanno mostrate separate — anche con compagni diversi.
-    // Quando NESSUNA delle due mezz'ore porta un cardId si torna al
-    // criterio di prima — la sola contiguita'. Serve per i dati nati
-    // prima che il cardId esistesse e per le prenotazioni scritte da
-    // percorsi che non lo valorizzano: senza questa via di mezzo il
-    // confronto ricadrebbe sull'id del documento, sempre diverso, e
-    // ogni mezz'ora diventerebbe una card a se'.
-    const stessaPrenotazione = !!precedente && (
-      (precedente.cardId == null && item.cardId == null)
-        ? true
-        : (precedente.cardId ?? precedente.id) === (item.cardId ?? item.id)
-    );
-
     const contiguo = !!precedente
-      && precedente.campoId === item.campoId
-      && precedente.data === item.data
-      && precedente.utenteId === item.utenteId
-      && (precedente.maestroId ?? null) === (item.maestroId ?? null)
-      && (precedente.compagnoId ?? null) === (item.compagnoId ?? null)
       && orarioFineSlot(precedente.orario) === item.orario
-      && stessaPrenotazione;
+      && stessaCard(precedente, item);
     if (contiguo) ultimo!.push(item);
     else gruppi.push([item]);
   }

@@ -493,7 +493,10 @@ export async function resettaSociTest(circoloId: string): Promise<{
 export async function rimuoviSocioDaCircolo(params: {
   uid: string;
   circoloId: string;
-  rimborsa: (prenotazioneId: string, prezzo: number) => Promise<void>;
+  // Riceve la prenotazione intera: al rimborso servono anche il tipo
+  // (una lezione non si rimborsa) e il cardId (il rimborso deve finire
+  // sulla card giusta del registro).
+  rimborsa: (p: { id: string; prezzo: number; tipo?: 'campo' | 'lezione'; cardId?: string | null }) => Promise<void>;
 }): Promise<{ prenotazioniCancellate: number; posizioneLiberata: number | null }> {
   const { uid, circoloId, rimborsa } = params;
   const oggi = new Date().toISOString().slice(0, 10);
@@ -515,7 +518,12 @@ export async function rimuoviSocioDaCircolo(params: {
     const dati = d.data();
     if ((dati.data as string) < oggi) continue;
     try {
-      await rimborsa(d.id, (dati.prezzo as number) ?? 0);
+      await rimborsa({
+        id: d.id,
+        prezzo: (dati.prezzo as number) ?? 0,
+        tipo: dati.tipo as 'campo' | 'lezione' | undefined,
+        cardId: (dati.cardId as string | null) ?? null,
+      });
       prenotazioniCancellate++;
     } catch (e) {
       console.warn('Prenotazione non cancellata durante la rimozione:', d.id, e);

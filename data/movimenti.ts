@@ -62,6 +62,14 @@ export interface Movimento {
   // da una cancellazione parziale si risale alla prenotazione di
   // partenza.
   gruppoId?: string | null;
+  // Identificativo della PRENOTAZIONE LOGICA a cui questo movimento si
+  // riferisce — lo stesso che sta sul documento prenotazione. E' cio'
+  // che permette al registro di riportare un rimborso sulla card
+  // giusta: senza, la card veniva dedotta dalla sola contiguita' degli
+  // orari, e un rimborso arrivato dopo che quella card era stata
+  // chiusa finiva su quella aperta in quel momento — cioe' su
+  // un'altra partita.
+  cardId?: string | null;
   // Dati della prenotazione, scritti come campi strutturati invece
   // che dentro la descrizione: leggere una stringa sarebbe fragile e
   // si romperebbe al primo cambio di formulazione. Cosi' si possono
@@ -112,6 +120,14 @@ export interface DatiMovimento {
   eseguitoDaRuolo: RuoloEsecutore;
   prenotazioneId?: string | null;
   gruppoId?: string | null;
+  // Identificativo della PRENOTAZIONE LOGICA a cui questo movimento si
+  // riferisce — lo stesso che sta sul documento prenotazione. E' cio'
+  // che permette al registro di riportare un rimborso sulla card
+  // giusta: senza, la card veniva dedotta dalla sola contiguita' degli
+  // orari, e un rimborso arrivato dopo che quella card era stata
+  // chiusa finiva su quella aperta in quel momento — cioe' su
+  // un'altra partita.
+  cardId?: string | null;
   // Dati della prenotazione, scritti come campi strutturati invece
   // che dentro la descrizione: leggere una stringa sarebbe fragile e
   // si romperebbe al primo cambio di formulazione. Cosi' si possono
@@ -163,6 +179,7 @@ export function registraMovimentoInTransazione(tx: Transaction, dati: DatiMovime
     eseguitoDaNome: dati.eseguitoDaNome ?? null,
     prenotazioneId: dati.prenotazioneId ?? null,
     gruppoId: dati.gruppoId ?? null,
+    cardId: dati.cardId ?? null,
     dataISO: dati.dataISO ?? null,
     campoId: dati.campoId ?? null,
     maestroNome: dati.maestroNome ?? null,
@@ -192,6 +209,7 @@ export async function registraMovimentoSemplice(dati: DatiMovimento): Promise<vo
       eseguitoDaNome: dati.eseguitoDaNome ?? null,
       prenotazioneId: dati.prenotazioneId ?? null,
       gruppoId: dati.gruppoId ?? null,
+      cardId: dati.cardId ?? null,
       maestroNome: dati.maestroNome ?? null,
     compagnoNome: dati.compagnoNome ?? null,
     sonoCompagno: !!dati.sonoCompagno,
@@ -230,6 +248,7 @@ function normalizza(id: string, v: Record<string, unknown>): Movimento {
     eseguitoDaRuolo: (v.eseguitoDaRuolo as RuoloEsecutore) ?? 'sistema',
     prenotazioneId: (v.prenotazioneId as string | null) ?? null,
     gruppoId: (v.gruppoId as string | null) ?? null,
+    cardId: (v.cardId as string | null) ?? null,
     dataISO: (v.dataISO as string | null) ?? null,
     campoId: (v.campoId as string | null) ?? null,
     maestroNome: (v.maestroNome as string | null) ?? null,
@@ -471,17 +490,31 @@ export function raggruppaInCard(movimenti: Movimento[]): CardMovimenti[] {
   // formare una card e restano fuori dalla Vista Card.
   const utili = movimenti.filter((m) => !!m.campoId && !!m.dataISO && !!m.orario);
 
-  const perGiorno = new Map<string, Movimento[]>();
+  // Il cardId entra nella chiave: i movimenti di due partite diverse,
+  // pur nello stesso giorno e sullo stesso campo, non si mescolano mai.
+  //
+  // Senza, la card veniva ricostruita dalla sola contiguita' degli
+  // orari, e bastava l'ordine con cui erano state prenotate per
+  // sbagliare: prenotato 19:00-20:30 con Antonio, poi 18:00-19:00 con
+  // Alessandra, cancellando quella con Antonio i tre rimborsi
+  // finivano sulla card di Alessandra — l'unica ancora aperta in quel
+  // momento — mentre la card di Antonio restava intatta e non
+  // risultava cancellata.
+  //
+  // I movimenti nati prima che il cardId esistesse hanno chiave vuota:
+  // finiscono tutti insieme e continuano a essere ricostruiti col
+  // criterio di prima, che per loro resta l'unico possibile.
+  const perCard = new Map<string, Movimento[]>();
   utili.forEach((m) => {
-    const k = `${m.uid}|${m.campoId}|${m.dataISO}`;
-    if (!perGiorno.has(k)) perGiorno.set(k, []);
-    perGiorno.get(k)!.push(m);
+    const k = `${m.uid}|${m.campoId}|${m.dataISO}|${m.cardId ?? ''}`;
+    if (!perCard.has(k)) perCard.set(k, []);
+    perCard.get(k)!.push(m);
   });
 
   const card: CardMovimenti[] = [];
   const adesso = Date.now();
 
-  perGiorno.forEach((elenco, chiaveGiorno) => {
+  perCard.forEach((elenco, chiaveGiorno) => {
     // ORDINE CRONOLOGICO, non per orario: la vita di una prenotazione
     // si segue nel tempo. Una card si chiude quando gli slot attivi
     // tornano a zero, e la prenotazione successiva — anche sugli
