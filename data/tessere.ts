@@ -417,15 +417,40 @@ export async function resettaSociTest(circoloId: string): Promise<{
 
   // Quarto passo: gli avvisi. Restando, l'utente si ritroverebbe
   // notifiche che rimandano a prenotazioni e sfide non piu' esistenti.
+  // Tre collezioni, non due: anche il Maestro ha le sue, e prima
+  // erano le uniche a sopravvivere al reset.
   let avvisiCancellati = 0;
-  for (const raccolta of ['notifiche', 'notifiche_admin']) {
+  const giaVisti = new Set<string>();
+  for (const raccolta of ['notifiche', 'notifiche_admin', 'notifiche_maestro']) {
     try {
       const snap = await getDocs(query(collection(db, raccolta), where('circoloId', '==', circoloId)));
       for (const d of snap.docs) {
-        try { await deleteDoc(d.ref); avvisiCancellati++; } catch (e) { console.warn('Avviso non cancellato:', d.id, e); }
+        try {
+          await deleteDoc(d.ref);
+          giaVisti.add(`${raccolta}/${d.id}`);
+          avvisiCancellati++;
+        } catch (e) { console.warn('Avviso non cancellato:', d.id, e); }
       }
     } catch (e) {
       console.warn('Avvisi non letti durante il reset:', raccolta, e);
+    }
+  }
+
+  // Recupero per gli avvisi nati SENZA circoloId — le vecchie notifiche
+  // delle Sfide, e tutto cio' che e' stato scritto prima che il campo
+  // esistesse. Il filtro per circolo non li trova, quindi si passa dai
+  // destinatari: le tessere di questo circolo, una per una.
+  for (const d of snapT.docs) {
+    const uid = d.data().uid as string | undefined;
+    if (!uid) continue;
+    try {
+      const snap = await getDocs(query(collection(db, 'notifiche'), where('utenteId', '==', uid)));
+      for (const n of snap.docs) {
+        if (giaVisti.has(`notifiche/${n.id}`)) continue;
+        try { await deleteDoc(n.ref); avvisiCancellati++; } catch (e) { console.warn('Avviso non cancellato:', n.id, e); }
+      }
+    } catch (e) {
+      console.warn('Avvisi del socio non letti durante il reset:', uid, e);
     }
   }
 

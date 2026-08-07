@@ -34,8 +34,17 @@ export function raggruppaConsecutive<T extends {
     // basta: prenotando alle 18:30 accanto a una gia' esistente delle
     // 19:00, ma scegliendo "prenotazione nuova", sono due partite
     // distinte e vanno mostrate separate — anche con compagni diversi.
-    const stessaPrenotazione = !!precedente
-      && (precedente.cardId ?? precedente.id) === (item.cardId ?? item.id);
+    // Quando NESSUNA delle due mezz'ore porta un cardId si torna al
+    // criterio di prima — la sola contiguita'. Serve per i dati nati
+    // prima che il cardId esistesse e per le prenotazioni scritte da
+    // percorsi che non lo valorizzano: senza questa via di mezzo il
+    // confronto ricadrebbe sull'id del documento, sempre diverso, e
+    // ogni mezz'ora diventerebbe una card a se'.
+    const stessaPrenotazione = !!precedente && (
+      (precedente.cardId == null && item.cardId == null)
+        ? true
+        : (precedente.cardId ?? precedente.id) === (item.cardId ?? item.id)
+    );
 
     const contiguo = !!precedente
       && precedente.campoId === item.campoId

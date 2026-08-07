@@ -106,6 +106,7 @@ export async function prenotaConCredito(params: {
       compagnoNome: params.compagnoNome ?? null,
       compagnoCognome: params.compagnoCognome ?? null,
       costoDiviso: false,
+      gruppoId: params.gruppoId ?? null,
       cardId: params.cardId ?? null,
       tipoUtente: params.tipoUtente ?? 'socio',
       creataIl: serverTimestamp(),
@@ -378,6 +379,9 @@ export async function prenotaConCompagno(params: {
   sfidaId?: string | null;
   gruppoId?: string;
   cardId?: string;
+  // Socio tesserato qui oppure Ospite: come per prenotaConCredito,
+  // serve agli elenchi lato Admin per distinguere i due casi.
+  tipoUtente?: 'socio' | 'ospite';
   // Scelta dell'utente: partita distinta o prolungamento di una attiva.
   nuovaPrenotazione?: boolean;
 }): Promise<{ id: string; sosUsatoUtente: boolean; sosUsatoCompagno: boolean }> {
@@ -472,7 +476,9 @@ export async function prenotaConCompagno(params: {
       compagnoNome: params.compagnoNome,
       compagnoCognome: params.compagnoCognome,
       costoDiviso: true,
+      gruppoId: params.gruppoId ?? null,
       cardId: params.cardId ?? null,
+      tipoUtente: params.tipoUtente ?? 'socio',
       sfidaId: params.sfidaId ?? null,
       creataIl: serverTimestamp(),
     });
@@ -504,6 +510,12 @@ export async function prenotaLezione(params: {
   maestroCognome: string;
   nascondiInfo?: boolean;
   gruppoId?: string;
+  // Identificativo della prenotazione logica: senza, ogni mezz'ora di
+  // lezione diventerebbe una card a se' in Home e nella dashboard
+  // Maestro, perche' il raggruppamento ricadrebbe sull'id documento.
+  cardId?: string;
+  // Scelta nel pop-up: partita distinta o prolungamento di una attiva.
+  nuovaPrenotazione?: boolean;
   prenotataDa: 'socio' | 'maestro';
 }): Promise<void> {
   const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
@@ -533,6 +545,7 @@ export async function prenotaLezione(params: {
       circoloId: params.circoloId, uid: params.uid,
       socioNome: `${params.utenteNome} ${params.utenteCognome}`,
       tipo: 'addebito', gruppoId: params.gruppoId ?? null,
+      nuovaPrenotazione: !!params.nuovaPrenotazione,
       dataISO: params.data, campoId: params.campoId,
       campoNome: params.campoNome, dataLabel: params.dataLabel,
       orario: params.orario, orarioFine: orarioFineSlot(params.orario),
@@ -567,6 +580,8 @@ export async function prenotaLezione(params: {
       maestroCognome: params.maestroCognome,
       nascondiInfo: !!params.nascondiInfo,
       prenotataDa: params.prenotataDa,
+      gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
       creataIl: serverTimestamp(),
     });
   });
@@ -597,6 +612,8 @@ export async function prenotaLezioneEsterno(params: {
   maestroNome: string;
   maestroCognome: string;
   nascondiInfo?: boolean;
+  gruppoId?: string;
+  cardId?: string;
 }): Promise<void> {
   await addDoc(collection(db, 'prenotazioni'), {
     utenteId: '',
@@ -617,6 +634,8 @@ export async function prenotaLezioneEsterno(params: {
     maestroCognome: params.maestroCognome,
     prenotataDa: 'maestro',
     nascondiInfo: !!params.nascondiInfo,
+    gruppoId: params.gruppoId ?? null,
+    cardId: params.cardId ?? null,
     creataIl: serverTimestamp(),
   });
 
@@ -625,7 +644,7 @@ export async function prenotaLezioneEsterno(params: {
   await registraMovimentoSemplice({
     circoloId: params.circoloId, uid: '',
     socioNome: params.nomeEsterno,
-    tipo: 'addebito',
+    tipo: 'addebito', gruppoId: params.gruppoId ?? null,
     dataISO: params.data, campoId: params.campoId,
     campoNome: params.campoNome, dataLabel: params.dataLabel,
     orario: params.orario, orarioFine: orarioFineSlot(params.orario),

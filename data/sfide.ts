@@ -23,13 +23,15 @@ import { creaNotifica } from './notifiche';
 // primo tentativo fallisce (rete instabile, momento di contesa su
 // Firestore, ecc.): qui si riprova fino a 3 volte con una breve
 // pausa, prima di arrendersi davvero.
-export async function notificaSfidaConRitentativi(uid: string, testo: string): Promise<void> {
+// circoloId: da quale circolo parte l'avviso. Senza, la notifica
+// resta priva del campo e il "Reset Completo Soci" non la trova.
+export async function notificaSfidaConRitentativi(uid: string, testo: string, circoloId?: string): Promise<void> {
   const TENTATIVI = 3;
   const ATTESA_MS = 900;
   let ultimoErrore: any;
   for (let i = 0; i < TENTATIVI; i++) {
     try {
-      await creaNotifica(uid, testo);
+      await creaNotifica(uid, testo, undefined, circoloId);
       return;
     } catch (e) {
       ultimoErrore = e;
@@ -196,7 +198,8 @@ export async function lanciaSfidaV2(params: {
   });
   await notificaSfidaConRitentativi(
     params.sfidatoId,
-    `${params.sfidanteNome} ${params.sfidanteCognome} ti ha lanciato una sfida! Apri la chat per organizzarvi — avete 24 ore per dirvi se avete trovato un accordo di massima.`
+    `${params.sfidanteNome} ${params.sfidanteCognome} ti ha lanciato una sfida! Apri la chat per organizzarvi — avete 24 ore per dirvi se avete trovato un accordo di massima.`,
+    params.circoloId,
   );
   return ref.id;
 }
@@ -217,7 +220,7 @@ export async function inviaMessaggioTesto(sfida: Sfida, mittenteId: string, mitt
     await updateDoc(doc(db, 'sfide', sfida.id), { ultimaAzioneDi: chi });
   }
   const destinatarioId = mittenteId === sfida.sfidanteId ? sfida.sfidatoId : sfida.sfidanteId;
-  await notificaSfidaConRitentativi(destinatarioId, `${mittenteNome}: ${pulito}`);
+  await notificaSfidaConRitentativi(destinatarioId, `${mittenteNome}: ${pulito}`, sfida.circoloId);
 }
 
 async function messaggioSistema(sfidaId: string, testo: string): Promise<void> {
@@ -288,11 +291,11 @@ export async function cliccaAccordoTrovato(sfida: Sfida, chi: 'sfidante' | 'sfid
       ultimaAzioneDi: chi, // l'ultimo dei due a confermare è, per definizione, l'ultima azione
     });
     await messaggioSistema(sfida.id, 'Accordo trovato da entrambi! Ora potete usare "Proponi Orario" per formalizzare, o continuare a scrivervi.');
-    await notificaSfidaConRitentativi(sfida.sfidanteId, 'Accordo trovato con lo sfidato: ora potete proporre l\'orario formale.');
-    await notificaSfidaConRitentativi(sfida.sfidatoId, 'Accordo trovato con lo sfidante: ora potete proporre l\'orario formale.');
+    await notificaSfidaConRitentativi(sfida.sfidanteId, 'Accordo trovato con lo sfidato: ora potete proporre l\'orario formale.', sfida.circoloId);
+    await notificaSfidaConRitentativi(sfida.sfidatoId, 'Accordo trovato con lo sfidante: ora potete proporre l\'orario formale.', sfida.circoloId);
   } else {
     const destinatarioId = chi === 'sfidante' ? sfida.sfidatoId : sfida.sfidanteId;
-    await notificaSfidaConRitentativi(destinatarioId, `${mittenteNome} ha cliccato "Accordo Trovato" nella vostra sfida.`);
+    await notificaSfidaConRitentativi(destinatarioId, `${mittenteNome} ha cliccato "Accordo Trovato" nella vostra sfida.`, sfida.circoloId);
   }
 }
 
@@ -346,8 +349,8 @@ async function applicaRegolaCircolo(
   // Nessun campo libero in nessuna delle due domeniche: annullata, senza penalità.
   await updateDoc(doc(db, 'sfide', sfida.id), { fase: 'annullata' });
   await messaggioSistema(sfida.id, 'Nessun campo libero la domenica: la sfida è annullata, senza penalità per nessuno.');
-  await notificaSfidaConRitentativi(sfida.sfidanteId, 'Sfida Annullata: nessun campo libero la domenica per la regola del circolo.');
-  await notificaSfidaConRitentativi(sfida.sfidatoId, 'Sfida Annullata: nessun campo libero la domenica per la regola del circolo.');
+  await notificaSfidaConRitentativi(sfida.sfidanteId, 'Sfida Annullata: nessun campo libero la domenica per la regola del circolo.', sfida.circoloId);
+  await notificaSfidaConRitentativi(sfida.sfidatoId, 'Sfida Annullata: nessun campo libero la domenica per la regola del circolo.', sfida.circoloId);
 }
 
 // Prenota davvero un campo/orario per la sfida (usato sia dalla
@@ -362,6 +365,10 @@ async function fissaMatch(
   const prenotazioneIds: string[] = [];
   let sosUsatoSfidante = false;
   let sosUsatoSfidato = false;
+  // Le mezz'ore della sfida sono una partita sola: stesso gruppo nel
+  // registro, stesso cardId in Home. L'id della sfida e' gia' unico e
+  // stabile, quindi serve da identificativo della card.
+  const gruppoId = `sfida_${sfida.id}`;
   for (const ora of orari) {
     const prezzo = calcolaPrezzo(campo, giorno, ora);
     const risultato = await prenotaConCompagno({
@@ -380,6 +387,8 @@ async function fissaMatch(
       compagnoNome: sfida.sfidatoNome,
       compagnoCognome: sfida.sfidatoCognome,
       sfidaId: sfida.id,
+      gruppoId,
+      cardId: gruppoId,
     });
     prenotazioneIds.push(risultato.id);
     if (risultato.sosUsatoUtente) sosUsatoSfidante = true;
@@ -394,8 +403,8 @@ async function fissaMatch(
   });
   await messaggioSistema(sfida.id, `Sfida fissata: ${campo.nome}, ${dataLabel} ore ${orari[0]}-${orarioFineSlot(orari[orari.length - 1])}.`);
   const testoNotifica = `Sfida in Corso: ${campo.nome}, ${dataLabel} ore ${orari[0]}.`;
-  await notificaSfidaConRitentativi(sfida.sfidanteId, testoNotifica);
-  await notificaSfidaConRitentativi(sfida.sfidatoId, testoNotifica);
+  await notificaSfidaConRitentativi(sfida.sfidanteId, testoNotifica, sfida.circoloId);
+  await notificaSfidaConRitentativi(sfida.sfidatoId, testoNotifica, sfida.circoloId);
   return { sosUsatoSfidante, sosUsatoSfidato };
 }
 
@@ -429,13 +438,13 @@ export async function risolviTimerAccordo(sfida: Sfida, soci: SocioCircolo[]): P
   if (daApplicare === 'silenzio' || daApplicare === 'sfidato_muto') {
     await applicaPerditaPosizione(sfida.sfidatoId, sfida.sfidanteId, soci, sfida.circoloId);
     await messaggioSistema(sfida.id, 'Le 24 ore sono scadute senza risposta dallo sfidato: perde la posizione in classifica.');
-    await notificaSfidaConRitentativi(sfida.sfidatoId, 'Non hai risposto in tempo alla sfida: hai perso la tua posizione in classifica.');
-    await notificaSfidaConRitentativi(sfida.sfidanteId, `${sfida.sfidatoNome} non ha risposto in tempo: hai preso la sua posizione in classifica.`);
+    await notificaSfidaConRitentativi(sfida.sfidatoId, 'Non hai risposto in tempo alla sfida: hai perso la tua posizione in classifica.', sfida.circoloId);
+    await notificaSfidaConRitentativi(sfida.sfidanteId, `${sfida.sfidatoNome} non ha risposto in tempo: hai preso la sua posizione in classifica.`, sfida.circoloId);
   } else if (daApplicare === 'sfidante_muto') {
     await applicaCongelamento(sfida.sfidanteId);
     await messaggioSistema(sfida.id, 'Le 24 ore sono scadute senza risposta dallo sfidante: è congelato dalle sfide per 7 giorni.');
-    await notificaSfidaConRitentativi(sfida.sfidanteId, 'Non hai risposto in tempo alla tua stessa sfida: sei congelato dal lanciarne altre per 7 giorni.');
-    await notificaSfidaConRitentativi(sfida.sfidatoId, `${sfida.sfidanteNome} non ha risposto in tempo: la sfida decade, nessuna penalità per te.`);
+    await notificaSfidaConRitentativi(sfida.sfidanteId, 'Non hai risposto in tempo alla tua stessa sfida: sei congelato dal lanciarne altre per 7 giorni.', sfida.circoloId);
+    await notificaSfidaConRitentativi(sfida.sfidatoId, `${sfida.sfidanteNome} non ha risposto in tempo: la sfida decade, nessuna penalità per te.`, sfida.circoloId);
   }
 }
 
@@ -480,7 +489,7 @@ export async function inviaPropostaFormale(
     proposta, creatoIl: serverTimestamp(),
   });
   const destinatarioId = chi === 'sfidante' ? sfida.sfidatoId : sfida.sfidanteId;
-  await notificaSfidaConRitentativi(destinatarioId, `${mittenteNome} ha proposto un orario formale: ${dataLabel} ore ${orari[0]}. Rispondi entro il tempo indicato in chat.`);
+  await notificaSfidaConRitentativi(destinatarioId, `${mittenteNome} ha proposto un orario formale: ${dataLabel} ore ${orari[0]}. Rispondi entro il tempo indicato in chat.`, sfida.circoloId);
 }
 
 export async function accettaPropostaFormale(sfida: Sfida, chi: 'sfidante' | 'sfidato', mittenteNome: string, circolo: Circolo | null): Promise<void> {
@@ -492,7 +501,7 @@ export async function accettaPropostaFormale(sfida: Sfida, chi: 'sfidante' | 'sf
   });
   await messaggioSistema(sfida.id, `${mittenteNome} ha accettato la proposta. Manca solo la conferma finale per prenotare davvero.`);
   const destinatarioId = chi === 'sfidante' ? sfida.sfidatoId : sfida.sfidanteId;
-  await notificaSfidaConRitentativi(destinatarioId, `${mittenteNome} ha accettato la proposta! Conferma per prenotare davvero.`);
+  await notificaSfidaConRitentativi(destinatarioId, `${mittenteNome} ha accettato la proposta! Conferma per prenotare davvero.`, sfida.circoloId);
 }
 
 // Conferma finale: gli slot "sospesi" diventano prenotazioni vere,
@@ -549,13 +558,13 @@ export async function risolviTimerPrenotazione(sfida: Sfida, soci: SocioCircolo[
   if (colpaDi === 'sfidante') {
     await applicaCongelamento(sfida.sfidanteId);
     await messaggioSistema(sfida.id, 'Tempo scaduto senza prenotazione: colpa dello sfidante, congelato dalle sfide per 7 giorni.');
-    await notificaSfidaConRitentativi(sfida.sfidanteId, 'Non hai risposto in tempo: sei congelato dal lanciare sfide per 7 giorni.');
-    await notificaSfidaConRitentativi(sfida.sfidatoId, 'Lo sfidante non ha risposto in tempo: la sfida decade, nessuna penalità per te.');
+    await notificaSfidaConRitentativi(sfida.sfidanteId, 'Non hai risposto in tempo: sei congelato dal lanciare sfide per 7 giorni.', sfida.circoloId);
+    await notificaSfidaConRitentativi(sfida.sfidatoId, 'Lo sfidante non ha risposto in tempo: la sfida decade, nessuna penalità per te.', sfida.circoloId);
   } else {
     await applicaPerditaPosizione(sfida.sfidatoId, sfida.sfidanteId, soci, sfida.circoloId);
     await messaggioSistema(sfida.id, 'Tempo scaduto senza prenotazione: colpa dello sfidato, perde la posizione in classifica.');
-    await notificaSfidaConRitentativi(sfida.sfidatoId, 'Non hai risposto in tempo: hai perso la tua posizione in classifica.');
-    await notificaSfidaConRitentativi(sfida.sfidanteId, `${sfida.sfidatoNome} non ha risposto in tempo: hai preso la sua posizione in classifica.`);
+    await notificaSfidaConRitentativi(sfida.sfidatoId, 'Non hai risposto in tempo: hai perso la tua posizione in classifica.', sfida.circoloId);
+    await notificaSfidaConRitentativi(sfida.sfidanteId, `${sfida.sfidatoNome} non ha risposto in tempo: hai preso la sua posizione in classifica.`, sfida.circoloId);
   }
 }
 
@@ -621,15 +630,15 @@ export async function concludiSfida(
 export async function nonPresentatoSfidante(sfida: Sfida): Promise<void> {
   await applicaCongelamento(sfida.sfidanteId);
   await updateDoc(doc(db, 'sfide', sfida.id), { fase: 'conclusa', nonPresentatoId: sfida.sfidanteId, vincitoreId: sfida.sfidatoId, risultatoUfficiale: 'Vinta a Tavolino', conclusaIl: serverTimestamp() });
-  await notificaSfidaConRitentativi(sfida.sfidanteId, 'Il circolo ha registrato la tua mancata presentazione: sei congelato dalle sfide per 7 giorni.');
-  await notificaSfidaConRitentativi(sfida.sfidatoId, 'Il circolo ha confermato: il tuo avversario non si è presentato.');
+  await notificaSfidaConRitentativi(sfida.sfidanteId, 'Il circolo ha registrato la tua mancata presentazione: sei congelato dalle sfide per 7 giorni.', sfida.circoloId);
+  await notificaSfidaConRitentativi(sfida.sfidatoId, 'Il circolo ha confermato: il tuo avversario non si è presentato.', sfida.circoloId);
 }
 
 export async function nonPresentatoSfidato(sfida: Sfida, soci: SocioCircolo[]): Promise<void> {
   await applicaPerditaPosizione(sfida.sfidatoId, sfida.sfidanteId, soci, sfida.circoloId);
   await updateDoc(doc(db, 'sfide', sfida.id), { fase: 'conclusa', nonPresentatoId: sfida.sfidatoId, vincitoreId: sfida.sfidanteId, risultatoUfficiale: 'Vinta a Tavolino', conclusaIl: serverTimestamp() });
-  await notificaSfidaConRitentativi(sfida.sfidatoId, 'Il circolo ha registrato la tua mancata presentazione: hai perso la tua posizione in classifica.');
-  await notificaSfidaConRitentativi(sfida.sfidanteId, 'Il circolo ha confermato: il tuo avversario non si è presentato, hai preso la sua posizione.');
+  await notificaSfidaConRitentativi(sfida.sfidatoId, 'Il circolo ha registrato la tua mancata presentazione: hai perso la tua posizione in classifica.', sfida.circoloId);
+  await notificaSfidaConRitentativi(sfida.sfidanteId, 'Il circolo ha confermato: il tuo avversario non si è presentato, hai preso la sua posizione.', sfida.circoloId);
 }
 
 // ---------------- Annullamento manuale (Admin) ----------------
@@ -662,8 +671,8 @@ export async function annullaSfida(sfida: Sfida): Promise<void> {
     try { await deleteDoc(m.ref); } catch { /* ignorabile */ }
   }
   await deleteDoc(doc(db, 'sfide', sfida.id));
-  await notificaSfidaConRitentativi(sfida.sfidanteId, `Il circolo ha annullato la sfida con ${sfida.sfidatoNome} ${sfida.sfidatoCognome}. La classifica non cambia.`);
-  await notificaSfidaConRitentativi(sfida.sfidatoId, `Il circolo ha annullato la sfida con ${sfida.sfidanteNome} ${sfida.sfidanteCognome}. La classifica non cambia.`);
+  await notificaSfidaConRitentativi(sfida.sfidanteId, `Il circolo ha annullato la sfida con ${sfida.sfidatoNome} ${sfida.sfidatoCognome}. La classifica non cambia.`, sfida.circoloId);
+  await notificaSfidaConRitentativi(sfida.sfidatoId, `Il circolo ha annullato la sfida con ${sfida.sfidanteNome} ${sfida.sfidanteCognome}. La classifica non cambia.`, sfida.circoloId);
 }
 
 // ---------------- Reset di test ----------------

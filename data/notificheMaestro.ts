@@ -11,6 +11,11 @@ import { db } from '../lib/firebase';
 export interface NotificaMaestro {
   id: string;
   maestroId: string;
+  // Circolo da cui parte l'avviso. Non serve alla lettura (un maestro
+  // appartiene a un solo circolo), ma senza di esso l'Admin non ha modo
+  // di ritrovare questi avvisi e il "Reset Completo Soci" li lascia
+  // indietro — erano gli unici a sopravvivere al reset.
+  circoloId?: string;
   testo: string;
   letta: boolean;
   creataIl?: { seconds: number };
@@ -29,9 +34,11 @@ export function ascoltaNotificheMaestro(maestroId: string, callback: (n: Notific
   );
 }
 
-export async function creaNotificaMaestro(maestroId: string, testo: string) {
+export async function creaNotificaMaestro(maestroId: string, testo: string, circoloId?: string) {
   await addDoc(collection(db, 'notifiche_maestro'), {
-    maestroId, testo, letta: false, creataIl: serverTimestamp(),
+    maestroId, testo, letta: false,
+    ...(circoloId ? { circoloId } : {}),
+    creataIl: serverTimestamp(),
   });
 }
 

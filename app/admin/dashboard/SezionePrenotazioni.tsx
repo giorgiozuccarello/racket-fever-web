@@ -218,6 +218,9 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     try {
       // Uno scritto per mezz'ora, in sequenza: stesso principio del
       // mobile. Le card si ricompongono poi in un blocco unico.
+      // Un solo codice per l'intera operazione: lega le mezz'ore nel
+      // registro movimenti.
+      const gruppoId = nuovoGruppoId();
       for (const ora of oreDaPrenotare) {
         const prezzo = senzaAddebito && !modalitaEsterno
           ? 0
@@ -226,12 +229,20 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           circoloId: circolo.id, campoId: campoSel.id, campoNome: campoSel.nome,
           data: dataSelIso, dataLabel: dataLeggibile, orario: ora, prezzo,
         };
+        // Il flag "prenotazione nuova" apre una card nel registro: va
+        // scritto SOLO sulla prima mezz'ora dell'operazione, o ognuna
+        // ne aprirebbe una per conto suo.
+        const apreCard = nuovaPrenotazione && ora === oreDaPrenotare[0];
+
         if (modalitaEsterno) {
-          await prenotaEsternoDaAdmin({ ...base, nomeEsterno: nomeEsterno.trim() });
+          await prenotaEsternoDaAdmin({
+            ...base, nomeEsterno: nomeEsterno.trim(),
+            gruppoId, cardId: cardId ?? undefined,
+          });
         } else if (socioScelto) {
           await prenotaPerSocioDaAdmin({
-            ...base, uid: socioScelto.uid, nuovaPrenotazione,
-            cardId: cardId ?? undefined,
+            ...base, uid: socioScelto.uid, nuovaPrenotazione: apreCard,
+            gruppoId, cardId: cardId ?? undefined,
             utenteNome: socioScelto.nome, utenteCognome: socioScelto.cognome,
             tipoUtente: socioScelto.ruoloTessera === 'ospite' ? 'ospite' : 'socio',
           });
@@ -346,7 +357,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       if (daAnnullare.tipo === 'lezione' && daAnnullare.maestroId) {
         await creaNotificaMaestro(
           daAnnullare.maestroId,
-          `Il circolo ha annullato la lezione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}.`
+          `Il circolo ha annullato la lezione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}.`,
+          circolo.id,
         );
       }
       setDaAnnullare(null);

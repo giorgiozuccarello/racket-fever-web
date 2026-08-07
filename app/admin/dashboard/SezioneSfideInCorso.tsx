@@ -118,13 +118,15 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo }: { sfide: S
           daConcludere.sfidanteId,
           vinceSfidante
             ? 'Il circolo ha confermato: hai vinto la sfida! La tua posizione in classifica è stata aggiornata.'
-            : `Il circolo ha confermato: ${nomeVincitore} ha vinto la sfida. La classifica è stata aggiornata di conseguenza.`
+            : `Il circolo ha confermato: ${nomeVincitore} ha vinto la sfida. La classifica è stata aggiornata di conseguenza.`,
+          circolo.id,
         );
         await notificaSfidaConRitentativi(
           daConcludere.sfidatoId,
           !vinceSfidante
             ? 'Il circolo ha confermato: hai vinto la sfida! La classifica resta invariata (eri già nella posizione migliore).'
-            : `Il circolo ha confermato: ${nomeVincitore} ha vinto la sfida. La tua posizione in classifica è stata aggiornata.`
+            : `Il circolo ha confermato: ${nomeVincitore} ha vinto la sfida. La tua posizione in classifica è stata aggiornata.`,
+          circolo.id,
         );
         alert('Sfida conclusa e classifica aggiornata ✓');
         setConfermaInvioAperta(false);
