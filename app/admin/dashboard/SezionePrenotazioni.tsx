@@ -6,6 +6,7 @@ import { SocioCircolo } from '../../../data/users';
 import { calcolaPrezzo } from '../../../data/prezzi';
 import { aggiungiBlocco } from '../../../data/circoliRepo';
 import { prenotaPerSocioDaAdmin, prenotaEsternoDaAdmin } from '../../../data/prenotazioniRepo';
+import { nuovoGruppoId } from '../../../data/movimenti';
 
 const GIORNI_IT_ESTESO = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 const MESI_IT = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
@@ -46,6 +47,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   // Scelta fra prolungare una prenotazione adiacente e aprirne una nuova.
   const [sceltaProlunga, setSceltaProlunga] = useState<{ ore: string[]; vicine: PrenotazioneAdmin[] } | null>(null);
   const [nuovaPrenotazione, setNuovaPrenotazione] = useState(false);
+  const [cardId, setCardId] = useState<string | null>(null);
   const [bloccoInfo, setBloccoInfo] = useState<Blocco | null>(null);
   const [sfidaInfo, setSfidaInfo] = useState<Sfida | null>(null);
   const [elaborando, setElaborando] = useState(false);
@@ -174,6 +176,9 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   const vaiAPrenotazione = (ore: string[], daProlungare: PrenotazioneAdmin | null) => {
     setSceltaProlunga(null);
     setNuovaPrenotazione(daProlungare === null);
+    // Prolungando si eredita l'identificativo: in Home resta una sola
+    // card. Altrimenti se ne genera uno nuovo.
+    setCardId(daProlungare ? (daProlungare.cardId ?? daProlungare.id) : nuovoGruppoId());
     if (daProlungare) {
       if (!daProlungare.utenteId) {
         setModalitaEsterno(true);
@@ -226,6 +231,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         } else if (socioScelto) {
           await prenotaPerSocioDaAdmin({
             ...base, uid: socioScelto.uid, nuovaPrenotazione,
+            cardId: cardId ?? undefined,
             utenteNome: socioScelto.nome, utenteCognome: socioScelto.cognome,
             tipoUtente: socioScelto.ruoloTessera === 'ospite' ? 'ospite' : 'socio',
           });

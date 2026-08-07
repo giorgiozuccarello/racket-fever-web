@@ -26,6 +26,7 @@ export async function prenotaConCredito(params: {
   // la griglia e gli elenchi lo mostrano senza doverlo ricavare.
   tipoUtente?: 'socio' | 'ospite';
   gruppoId?: string;
+  cardId?: string;
   // Scelta dell'utente nel pop-up: partita distinta o prolungamento.
   nuovaPrenotazione?: boolean;
   campoId: string;
@@ -105,6 +106,7 @@ export async function prenotaConCredito(params: {
       compagnoNome: params.compagnoNome ?? null,
       compagnoCognome: params.compagnoCognome ?? null,
       costoDiviso: false,
+      cardId: params.cardId ?? null,
       tipoUtente: params.tipoUtente ?? 'socio',
       creataIl: serverTimestamp(),
     });
@@ -128,6 +130,7 @@ export async function prenotaPerSocioDaAdmin(params: {
   tipoUtente?: 'socio' | 'ospite';
   // Lega le mezz'ore prenotate insieme, nel documento e nel registro.
   gruppoId?: string;
+  cardId?: string;
   // Scelta dell'admin: partita distinta o prolungamento di una attiva.
   nuovaPrenotazione?: boolean;
   // Chi ha materialmente eseguito: finisce nel registro movimenti,
@@ -212,6 +215,7 @@ export async function prenotaPerSocioDaAdmin(params: {
       tipo: 'campo',
       tipoUtente: params.tipoUtente ?? 'socio',
       gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
       prenotataDa: 'admin',
       creataIl: serverTimestamp(),
     });
@@ -234,6 +238,7 @@ export async function prenotaEsternoDaAdmin(params: {
   nomeEsterno: string;
   note?: string;
   gruppoId?: string;
+  cardId?: string;
   eseguitoDaUid?: string | null;
   eseguitoDaNome?: string | null;
 }): Promise<void> {
@@ -259,6 +264,7 @@ export async function prenotaEsternoDaAdmin(params: {
     tipoUtente: 'esterno',
     prenotataDa: 'admin',
     gruppoId: params.gruppoId ?? null,
+    cardId: params.cardId ?? null,
     creataIl: serverTimestamp(),
   });
 
@@ -371,6 +377,7 @@ export async function prenotaConCompagno(params: {
   nascondiInfo?: boolean;
   sfidaId?: string | null;
   gruppoId?: string;
+  cardId?: string;
   // Scelta dell'utente: partita distinta o prolungamento di una attiva.
   nuovaPrenotazione?: boolean;
 }): Promise<{ id: string; sosUsatoUtente: boolean; sosUsatoCompagno: boolean }> {
@@ -465,6 +472,7 @@ export async function prenotaConCompagno(params: {
       compagnoNome: params.compagnoNome,
       compagnoCognome: params.compagnoCognome,
       costoDiviso: true,
+      cardId: params.cardId ?? null,
       sfidaId: params.sfidaId ?? null,
       creataIl: serverTimestamp(),
     });
@@ -928,6 +936,9 @@ export interface PrenotazioneAdmin {
   // Lega le mezz'ore di una stessa prenotazione: serve a far ereditare
   // il gruppo anche al movimento di rimborso.
   gruppoId?: string | null;
+  // Identificativo della prenotazione logica: separa le card in Home
+  // anche quando gli orari sono adiacenti.
+  cardId?: string | null;
   maestroId?: string;
   maestroNome?: string;
   maestroCognome?: string;
@@ -966,6 +977,7 @@ export function ascoltaPrenotazioniCircolo(
           sfidaId: v.sfidaId ?? null,
           tipoUtente: v.tipoUtente ?? 'socio',
           gruppoId: v.gruppoId ?? null,
+          cardId: v.cardId ?? null,
           maestroId: v.maestroId,
           maestroNome: v.maestroNome,
           maestroCognome: v.maestroCognome,
