@@ -356,7 +356,7 @@ async function applicaRegolaCircolo(
 // Prenota davvero un campo/orario per la sfida (usato sia dalla
 // regola del circolo sia dalla conferma finale della proposta
 // formale) — riusa prenotaConCompagno: stesso meccanismo di costo
-// diviso 50/50 con fallback S.O.S. automatico già in uso ovunque.
+// diviso 50/50 con ricorso automatico al Fido, già in uso ovunque.
 async function fissaMatch(
   sfida: Sfida, campo: Campo, dataIso: string, orari: string[], viaRegolaCircolo: boolean
 ): Promise<{ sosUsatoSfidante: boolean; sosUsatoSfidato: boolean }> {
@@ -548,7 +548,7 @@ export async function accettaPropostaFormale(sfida: Sfida, chi: 'sfidante' | 'sf
 }
 
 // Conferma finale: gli slot "sospesi" diventano prenotazioni vere,
-// col vero addebito (S.O.S. incluso se serve). Chiunque dei due può
+// col vero addebito (Fido incluso se serve). Chiunque dei due può
 // premere questo bottone finale, non solo chi ha proposto in
 // origine — chi arriva per ultimo chiude la trattativa.
 // Richiede l'elenco reale dei campi: il Campo salvato nella proposta

@@ -119,7 +119,7 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
 
             <div className="socio-credito-row">
               <div>
-                <div className="socio-credito-label">Credito S.O.S.</div>
+                <div className="socio-credito-label">Fido</div>
                 <div className="socio-credito-valore">
                   <span style={{ color: (socio.sosUtilizzato ?? 0) > 0 ? '#B3261E' : 'var(--inchiostro)' }}>
                     € {socio.sosUtilizzato ?? 0}
@@ -134,12 +134,12 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
                 disabled={!socio.sosUtilizzato || ripristinando}
                 style={!socio.sosUtilizzato ? { opacity: 0.4 } : undefined}
               >
-                Ripristina S.O.S.
+                Ripristino del Fido
               </button>
             </div>
 
             <div className="socio-sos-box">
-              <label className="admin-label">Credito S.O.S.</label>
+              <label className="admin-label">Fido</label>
               <p className="admin-card-hint" style={{ marginBottom: '.6rem' }}>
                 Sempre attivo e senza limite: interviene da solo in qualunque prenotazione
                 condivisa (compagno di gioco, Sfida) quando manca credito normale a uno dei

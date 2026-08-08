@@ -125,7 +125,7 @@ export async function prenotaConCredito(params: {
 
 // Admin prenota PER UN SOCIO: il costo viene scalato dal portafoglio
 // del socio con lo stesso identico meccanismo di una prenotazione
-// normale (credito + copertura S.O.S., tutto in una transazione).
+// normale (credito + copertura col Fido, tutto in una transazione).
 export async function prenotaPerSocioDaAdmin(params: {
   uid: string;
   circoloId: string;
@@ -298,7 +298,7 @@ export async function prenotaEsternoDaAdmin(params: {
 // sufficiente per la sua metà; qui rifacciamo comunque il controllo
 // server-side, per sicurezza, prima di scrivere qualunque cosa.
 // Calcola come coprire un importo: prima il credito normale, poi —
-// per la parte che eventualmente resta scoperta — il Credito S.O.S.,
+// per la parte che eventualmente resta scoperta — il Fido,
 // che è SEMPRE disponibile e senza limite (da saldare in segreteria).
 // Nessun socio deve mai restare bloccato da un blocco di credito
 // insufficiente in una prenotazione condivisa (con compagno, o Sfida).
@@ -335,7 +335,7 @@ export function limiteEffettivoDi(
 
 // Un rimborso ESTINGUE PRIMA IL DEBITO, e solo l'eccedenza torna sul
 // credito. Senza questa regola un socio che aveva pagato col credito
-// S.O.S. si ritrovava, dopo la cancellazione, con credito e debito
+// Fido si ritrovava, dopo la cancellazione, con credito e debito
 // accesi per lo stesso importo: matematicamente pari, ma illeggibile
 // per chi guarda il proprio portafoglio e vede due numeri rossi e
 // verdi invece di zero.
@@ -935,8 +935,8 @@ export async function azzeraCredito(
   });
 }
 
-// Ricarica S.O.S. self-service del socio: aggiorna credito E il
-// contatore di quanto plafond S.O.S. è stato consumato, in un'unica
+// Ricarica col Fido, self-service del socio: aggiorna credito E il
+// contatore di quanto Fido è stato consumato, in un'unica
 // transazione atomica (le due cose devono sempre restare coerenti).
 export async function ricaricaSOS(uid: string, circoloId: string, importo: number, socioNome?: string): Promise<void> {
   const utenteRef = doc(db, 'tessere', idTessera(uid, circoloId));
@@ -958,7 +958,7 @@ export async function ricaricaSOS(uid: string, circoloId: string, importo: numbe
       eseguitoDaUid: uid,
       eseguitoDaNome: null,
       eseguitoDaRuolo: 'socio',
-      descrizione: 'Ricarica S.O.S. — da saldare in segreteria',
+      descrizione: 'Ricarica con il Fido — da saldare in segreteria',
     });
   });
 }

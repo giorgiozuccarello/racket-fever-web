@@ -17,7 +17,7 @@ export default function SezioneSoci({ soci, onSelezionaSocio }: {
       <div className="admin-card-title">Soci/Tesserati e Ospiti</div>
       <p className="admin-card-hint">
         Cerca un Socio/Tesserato o un Ospite per vedere il suo profilo, ricaricare il credito o
-        impostare il limite di ricarica S.O.S.
+        impostare il Fido
       </p>
 
       <input

@@ -26,8 +26,8 @@ export interface ProfiloUtente {
   circoloId: string | null;
   credito: number;
   fotoUrl?: string | null; // se assente, si mostrano le iniziali nel cerchio
-  limiteRicaricaSOS?: number; // 0/assente = S.O.S. non ancora attivato per questo socio
-  sosUtilizzato?: number; // quanto del plafond S.O.S. è già stato usato dall'ultimo Ripristina
+  limiteRicaricaSOS?: number; // 0/assente = Fido non ancora concesso a questo socio
+  sosUtilizzato?: number; // quanto del Fido è già stato usato dall'ultimo Ripristino
   limitePrenotazioniPersonale?: number; // 0/assente = usa il limite generale del circolo
   classificaFitp?: string | null; // dichiarata dal socio stesso, es. "3.4" o "NC" — non verificata
   posizioneClassificaSociale?: number | null; // assente = il socio non è (ancora) in classifica
@@ -200,7 +200,7 @@ export function ascoltaSociCircolo(circoloId: string, callback: (soci: SocioCirc
   return () => { unsubT(); unsubP(); };
 }
 
-// Imposta il limite di ricarica S.O.S. che il socio può applicarsi da
+// Imposta il Fido che il socio può applicarsi da
 // solo in caso di emergenza. 0 = funzione disattivata per quel socio.
 export async function aggiornaLimiteSOS(uid: string, circoloId: string, limite: number) {
   await updateDoc(doc(db, 'tessere', `${uid}_${circoloId}`), { limiteRicaricaSOS: limite });
@@ -214,7 +214,7 @@ export async function aggiornaLimitePersonale(uid: string, circoloId: string, li
 }
 
 // L'Admin usa questo quando il socio è passato fisicamente in
-// segreteria a saldare quanto usato in S.O.S.: azzera il contatore,
+// segreteria a saldare quanto usato di Fido: azzera il contatore,
 // restituendogli tutto il plafond da usare di nuovo in emergenza.
 export async function ripristinaSOS(
   uid: string, circoloId: string, eseguitoDa?: { uid: string; nome: string }, socioNome?: string
@@ -235,7 +235,7 @@ export async function ripristinaSOS(
       eseguitoDaUid: eseguitoDa?.uid ?? null,
       eseguitoDaNome: eseguitoDa?.nome ?? null,
       eseguitoDaRuolo: 'admin',
-      descrizione: 'Debito S.O.S. saldato in segreteria',
+      descrizione: 'Fido saldato in segreteria',
     });
   });
 }

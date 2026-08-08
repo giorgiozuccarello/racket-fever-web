@@ -190,7 +190,7 @@ export default function AdminDashboard() {
         <SezioneCollassabile id="soci" titolo="Soci/Tesserati e Ospiti" descrizione="Anagrafica e credito di Soci/Tesserati e Ospiti">
           <SezioneSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="debiti" titolo="Debiti dei Soci/Tesserati e Ospiti" descrizione="Soci/Tesserati e Ospiti con credito negativo o S.O.S. da saldare">
+        <SezioneCollassabile id="debiti" titolo="Debiti dei Soci/Tesserati e Ospiti" descrizione="Soci/Tesserati e Ospiti con credito negativo o Fido da saldare">
           <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
         </SezioneCollassabile>
         <SezioneCollassabile id="maestri" titolo="Maestri" descrizione="Account e accesso dei maestri del circolo">

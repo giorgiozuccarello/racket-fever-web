@@ -38,7 +38,7 @@ const TIPI: { chiave: TipoMovimento | 'tutti'; label: string }[] = [
   { chiave: 'ricarica', label: 'Ricariche' },
   { chiave: 'addebito', label: 'Addebiti' },
   { chiave: 'rimborso', label: 'Rimborsi' },
-  { chiave: 'sos', label: 'S.O.S.' },
+  { chiave: 'sos', label: 'Fido' },
   { chiave: 'ripristino_sos', label: 'Ripristini' },
 ];
 
@@ -149,7 +149,7 @@ function BloccoElenco({ elenco, onScegliSocio, dataOra, onApriStoria }: {
         <TabellaMovimenti elenco={elenco} onScegliSocio={onScegliSocio} dataOra={dataOra} />
       ) : card.length === 0 ? (
         <p className="admin-empty-text">
-          Nessuna prenotazione con questi filtri. Ricariche e movimenti S.O.S.
+          Nessuna prenotazione con questi filtri. Ricariche e movimenti di Fido
           si vedono nella Vista Completa.
         </p>
       ) : (

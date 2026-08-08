@@ -11,7 +11,7 @@ export default function SezioneDebitiSoci({ soci, onSelezionaSocio }: {
     <div className="admin-card">
       <div className="admin-card-title">Debiti dei Soci/Tesserati e Ospiti</div>
       <p className="admin-card-hint">
-        Soci/Tesserati e Ospiti con un credito S.O.S. ancora da saldare in segreteria. Escono da
+        Soci/Tesserati e Ospiti con un Fido ancora da saldare in segreteria. Escono da
         qui automaticamente non appena ripristini il loro credito.
       </p>
 

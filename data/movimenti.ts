@@ -311,8 +311,8 @@ export const ETICHETTA_TIPO: Record<TipoMovimento, string> = {
   ricarica: 'Ricarica',
   addebito: 'Addebito',
   rimborso: 'Rimborso',
-  sos: 'Ricarica S.O.S.',
-  ripristino_sos: 'Ripristino S.O.S.',
+  sos: 'Ricarica con il Fido',
+  ripristino_sos: 'Ripristino del Fido',
   azzeramento: 'Azzeramento credito',
   saldo_chiusura: 'Saldo alla chiusura',
 };
@@ -485,7 +485,7 @@ function intervalloAttivo(attive: Set<string>): { inizio: string; fine: string }
 }
 
 export function raggruppaInCard(movimenti: Movimento[]): CardMovimenti[] {
-  // Solo i movimenti legati a una prenotazione: ricariche, S.O.S. e
+  // Solo i movimenti legati a una prenotazione: ricariche, Fido e
   // azzeramenti non hanno un campo o un orario, quindi non possono
   // formare una card e restano fuori dalla Vista Card.
   const utili = movimenti.filter((m) => !!m.campoId && !!m.dataISO && !!m.orario);
