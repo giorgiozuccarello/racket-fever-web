@@ -39,10 +39,10 @@ nav{
 }
 .logo{display:flex;align-items:center;gap:.6rem}
 .logo-mark{
-  width:30px;height:30px;border:2.5px solid var(--riga);border-radius:50%;
-  position:relative;flex-shrink:0;
+  width:34px;height:34px;flex-shrink:0;
+  background-image:url('/logo-rf.png');
+  background-size:contain;background-position:center;background-repeat:no-repeat;
 }
-.logo-mark::before{content:'';position:absolute;left:50%;top:-2px;bottom:-2px;width:2.5px;background:var(--riga);transform:translateX(-50%)}
 .logo span{font-variation-settings:'wdth' 118,'wght' 850;text-transform:uppercase;font-size:1.05rem;letter-spacing:.02em}
 .nav-links{display:flex;gap:2rem;align-items:center}
 .nav-links a{font-size:.85rem;font-weight:500;opacity:.85;transition:opacity .15s}
@@ -208,20 +208,21 @@ footer li a:hover{opacity:1;text-decoration:underline}
 
 .admin-splash{
   min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  background:var(--pino);color:var(--riga);
+  background:#000000;color:var(--riga);
 }
 
 .admin-login-root{
   min-height:100vh;display:flex;align-items:center;justify-content:center;
-  background:var(--pino);padding:2rem 1.2rem;
+  background:#000000;color:var(--riga);padding:2rem 1.2rem;
 }
 .admin-login-card{
-  width:100%;max-width:380px;background:rgba(0,0,0,0.12);
+  width:100%;max-width:380px;background:rgba(255,255,255,0.05);
   border:1.5px solid rgba(245,241,230,.2);border-radius:16px;
   padding:2.4rem 2rem;
+  color:var(--riga);
 }
 .admin-login-brand{text-align:center;margin-bottom:1.6rem}
-.admin-login-brand .logo-mark{margin:0 auto;width:44px;height:44px}
+.admin-login-brand .logo-mark{margin:0 auto;width:72px;height:72px}
 .admin-login-card label{
   display:block;font-family:var(--font-spline-mono),monospace;font-size:.7rem;
   letter-spacing:.1em;text-transform:uppercase;color:var(--riga);opacity:.85;
@@ -293,16 +294,36 @@ footer li a:hover{opacity:1;text-decoration:underline}
   padding:1rem 1.2rem; cursor:pointer; text-align:left; font:inherit;
   box-shadow:0 1px 2px rgba(20,31,27,.04), 0 4px 14px rgba(20,31,27,.045);
 }
-.admin-collassa-testo{flex:1}
+/* Sezione aperta: il titolo diventa avorio e si "salda" al contenuto,
+   che resta esattamente della stessa larghezza dell'intestazione. */
+.admin-collassa-header.aperta{
+  background:var(--riga);
+  border-bottom-color:transparent;
+  border-bottom-left-radius:0; border-bottom-right-radius:0;
+  box-shadow:0 1px 2px rgba(20,31,27,.04);
+}
+.admin-collassa-testo{flex:1; min-width:0}
 .admin-collassa-titolo{font-family:var(--font-archivo),sans-serif; font-weight:800; font-size:.98rem; color:var(--inchiostro)}
 .admin-collassa-descrizione{font-size:.8rem; color:var(--grigio); margin-top:.2rem; line-height:1.35}
 .admin-collassa-pin{
   display:flex; align-items:center; cursor:pointer; padding:.2rem; border-radius:6px; flex-shrink:0;
+  color:#6B7570; opacity:.85;
 }
-.admin-collassa-pin:hover{background:#F0ECE0}
+.admin-collassa-pin.attivo{color:var(--terra); opacity:1}
+.admin-collassa-pin:hover{background:#F0ECE0; opacity:1}
+.admin-collassa-pin:focus-visible{outline:2px solid var(--terra-chiara); outline-offset:1px}
 .admin-collassa-chevron{color:var(--grigio); font-size:.75rem; flex-shrink:0}
-.admin-collassa-contenuto{margin-top:.5rem}
-.admin-collassa-contenuto .admin-card{margin-bottom:0}
+.admin-collassa-contenuto{
+  width:100%; max-width:100%; margin-top:0;
+  border:1.5px solid #E9E5D9; border-top:none;
+  border-bottom-left-radius:14px; border-bottom-right-radius:14px;
+  background:#fff; overflow-x:auto;
+  box-shadow:0 4px 14px rgba(20,31,27,.045);
+}
+.admin-collassa-contenuto > .admin-card{
+  margin-bottom:0; border:none; border-radius:0; box-shadow:none; background:transparent;
+  max-width:100%; padding:1.1rem 1.2rem 1.3rem;
+}
 
 .admin-card{
   background:#fff; border:1.5px solid #E9E5D9; border-radius:14px;
@@ -367,6 +388,11 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-list-row{
   display:flex;align-items:center;gap:.8rem;padding:.75rem 0;
   border-bottom:1.5px solid #EFEBE0;
+  /* Colore esplicito: queste righe compaiono anche dentro la card di
+     accesso Collaboratore, che ora sta su fondo nero e porta il testo
+     avorio. Senza questa riga il nome del circolo — che sta su una
+     riga a fondo bianco — resterebbe avorio su bianco, illeggibile. */
+  color:var(--inchiostro);
 }
 .admin-list-row:last-child{border-bottom:none}
 .admin-list-main{font-size:.92rem;font-weight:700;color:var(--inchiostro)}
