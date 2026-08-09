@@ -13,6 +13,10 @@ export interface Circolo {
   temaApp: string; // chiave di uno degli 8 TEMI_APP — scelto dall'Admin, vale anche per i Maestri
   limiteOreSettimanali: number; // 0 = nessun limite
   logoUrl?: string | null; // se assente, si mostra la sigla nel cerchio
+  // Immagine dello sponsor mostrata in cima alla Classifica Sfide.
+  // Sempre 3:1 — il ritaglio e' imposto in fase di caricamento, cosi'
+  // la fascia in cima alla classifica non cambia mai altezza.
+  sponsorSfideUrl?: string | null;
   limiteSfidaPosizioni?: number; // 0/assente = usa il default (5): quante posizioni sopra si può sfidare
   // Solo web: sfumatura scelta dall'admin per la classifica sociale.
   // Non esiste nel mobile, va conservata quando si allineano i file.

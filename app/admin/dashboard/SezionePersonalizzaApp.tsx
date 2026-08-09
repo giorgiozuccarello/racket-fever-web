@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { Circolo } from '../../../data/circoli';
 import { aggiornaCircolo } from '../../../data/circoliRepo';
-import { caricaLogoCircolo } from '../../../data/storage';
+import { caricaLogoCircolo, caricaSponsorSfide } from '../../../data/storage';
 
 export default function SezionePersonalizzaApp({ circolo }: { circolo: Circolo }) {
   return (
@@ -17,6 +17,75 @@ export default function SezionePersonalizzaApp({ circolo }: { circolo: Circolo }
 
       <div className="superadmin-subtitolo" style={{ marginTop: '.5rem' }}>Logo dell&apos;App</div>
       <SezioneLogoInterna circolo={circolo} />
+
+      <div className="superadmin-subtitolo" style={{ marginTop: '1.6rem' }}>Sponsor Sfide</div>
+      <SezioneSponsorInterna circolo={circolo} />
+    </div>
+  );
+}
+
+// Immagine dello sponsor mostrata in cima alla Classifica Sfide
+// dell'app. Nel browser non c'e' un selettore con ritaglio: come per
+// il logo, il taglio lo fa il codice prendendo il rettangolo 3:1 piu'
+// grande centrato nell'immagine scelta.
+function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
+  const [caricando, setCaricando] = useState(false);
+  const [errore, setErrore] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const gestisciFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setErrore('');
+    setCaricando(true);
+    try {
+      await caricaSponsorSfide(circolo.id, file);
+    } catch {
+      setErrore('Errore durante il caricamento. Riprova.');
+    } finally {
+      setCaricando(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  };
+
+  return (
+    <div>
+      <p className="admin-card-hint">
+        Compare in cima alla Classifica Sfide, sopra il titolo. Serve un&apos;immagine
+        larga tre volte la sua altezza — l&apos;ideale e&apos; 1200x400 pixel. Se le
+        proporzioni sono diverse viene ritagliata dal centro.
+      </p>
+
+      <div style={{ margin: '.8rem 0' }}>
+        {circolo.sponsorSfideUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={circolo.sponsorSfideUrl} alt="Sponsor delle Sfide"
+            style={{ width: '100%', aspectRatio: '3 / 1', objectFit: 'cover', borderRadius: '.9rem' }}
+          />
+        ) : (
+          <div
+            style={{
+              width: '100%', aspectRatio: '3 / 1', borderRadius: '.9rem',
+              border: '1.5px dashed #E4E0D5', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              color: '#5E6E67', fontWeight: 800, fontSize: '.9rem',
+            }}
+          >
+            Nessuno sponsor
+          </div>
+        )}
+      </div>
+
+      {errore && <div className="admin-error-text">{errore}</div>}
+
+      <input
+        ref={inputRef} type="file" accept="image/*"
+        onChange={gestisciFile} style={{ display: 'none' }}
+      />
+      <button className="admin-btn-full" onClick={() => inputRef.current?.click()} disabled={caricando}>
+        {caricando ? 'Caricamento…' : circolo.sponsorSfideUrl ? 'Cambia sponsor' : 'Carica sponsor'}
+      </button>
     </div>
   );
 }
