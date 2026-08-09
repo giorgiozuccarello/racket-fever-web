@@ -291,9 +291,17 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-collassa-header{
   width:100%; display:flex; align-items:center; gap:.6rem;
   background:#fff; border:1.5px solid #E9E5D9; border-radius:14px;
-  padding:1rem 1.2rem; cursor:pointer; text-align:left; font:inherit;
+  padding:1rem 1.2rem; text-align:left; font:inherit;
   box-shadow:0 1px 2px rgba(20,31,27,.04), 0 4px 14px rgba(20,31,27,.045);
 }
+/* Area cliccabile che apre e chiude: prende tutto lo spazio a sinistra
+   dello spillo, cosi' il tocco resta comodo come prima. */
+.admin-collassa-tocca{
+  flex:1; min-width:0; display:flex; align-items:center;
+  background:none; border:none; padding:0; margin:0;
+  font:inherit; color:inherit; text-align:left; cursor:pointer;
+}
+.admin-collassa-tocca:focus-visible{outline:2px solid var(--terra-chiara); outline-offset:3px; border-radius:8px}
 /* Sezione aperta: il titolo diventa avorio e si "salda" al contenuto,
    che resta esattamente della stessa larghezza dell'intestazione. */
 .admin-collassa-header.aperta{
@@ -305,19 +313,24 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-collassa-testo{flex:1; min-width:0}
 .admin-collassa-titolo{font-family:var(--font-archivo),sans-serif; font-weight:800; font-size:.98rem; color:var(--inchiostro)}
 .admin-collassa-descrizione{font-size:.8rem; color:var(--grigio); margin-top:.2rem; line-height:1.35}
+/* Lo spillo dice come si trovera' la sezione alla PROSSIMA apertura
+   della Dashboard: verde = aperta, rosso = chiusa. */
 .admin-collassa-pin{
   display:flex; align-items:center; cursor:pointer; padding:.2rem; border-radius:6px; flex-shrink:0;
-  color:#6B7570; opacity:.85;
+  background:none; border:none; color:#B3261E;
 }
-.admin-collassa-pin.attivo{color:var(--terra); opacity:1}
-.admin-collassa-pin:hover{background:#F0ECE0; opacity:1}
+.admin-collassa-pin.attivo{color:#1F7A45}
+.admin-collassa-pin:hover{background:rgba(20,31,27,.08)}
 .admin-collassa-pin:focus-visible{outline:2px solid var(--terra-chiara); outline-offset:1px}
-.admin-collassa-chevron{color:var(--grigio); font-size:.75rem; flex-shrink:0}
+.admin-collassa-chevron{
+  color:var(--grigio); font-size:.75rem; flex-shrink:0;
+  background:none; border:none; padding:0 .1rem; cursor:pointer; font-family:inherit;
+}
 .admin-collassa-contenuto{
   width:100%; max-width:100%; margin-top:0;
   border:1.5px solid #E9E5D9; border-top:none;
   border-bottom-left-radius:14px; border-bottom-right-radius:14px;
-  background:#fff; overflow-x:auto;
+  background:#fff;
   box-shadow:0 4px 14px rgba(20,31,27,.045);
 }
 .admin-collassa-contenuto > .admin-card{
@@ -388,11 +401,6 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-list-row{
   display:flex;align-items:center;gap:.8rem;padding:.75rem 0;
   border-bottom:1.5px solid #EFEBE0;
-  /* Colore esplicito: queste righe compaiono anche dentro la card di
-     accesso Collaboratore, che ora sta su fondo nero e porta il testo
-     avorio. Senza questa riga il nome del circolo — che sta su una
-     riga a fondo bianco — resterebbe avorio su bianco, illeggibile. */
-  color:var(--inchiostro);
 }
 .admin-list-row:last-child{border-bottom:none}
 .admin-list-main{font-size:.92rem;font-weight:700;color:var(--inchiostro)}
@@ -496,6 +504,10 @@ footer li a:hover{opacity:1;text-decoration:underline}
 }
 .admin-checkbox-row input[type="checkbox"]{width:16px;height:16px;accent-color:var(--pino);cursor:pointer}
 .admin-list-row-clickable:hover{background:#F7F4EA;margin:0 -.5rem;padding-left:.5rem;padding-right:.5rem;border-radius:8px}
+/* Le stesse righe compaiono anche nella card di accesso Collaboratore,
+   che ora sta su fondo nero: li' l'evidenziazione chiara cancellerebbe
+   il testo avorio, quindi si evidenzia in chiaro sul nero. */
+.admin-login-card .admin-list-row-clickable:hover{background:rgba(255,255,255,0.14)}
 .socio-detail-head{display:flex;flex-direction:column;align-items:center;text-align:center}
 .socio-detail-avatar{width:84px;height:84px;border-radius:42px;object-fit:cover}
 .socio-stats-row{display:flex;gap:.7rem;margin-top:1.2rem}

@@ -45,35 +45,50 @@ export default function SezioneCollassabile({
 
   return (
     <div className="admin-collassa-wrapper">
-      <button
-        type="button"
-        className={`admin-collassa-header${aperta ? ' aperta' : ''}`}
-        onClick={() => setAperta((v) => !v)}
-        aria-expanded={aperta}
-      >
-        <div className="admin-collassa-testo">
-          <div className="admin-collassa-titolo">{titolo}</div>
-          <div className="admin-collassa-descrizione">{descrizione}</div>
-        </div>
-        <span
+      {/* L'intestazione non e' piu' un <button> unico: lo spillo e'
+          un pulsante a se', e un pulsante dentro un altro pulsante non
+          e' HTML valido — da tastiera lo spillo era irraggiungibile e
+          lo screen reader leggeva tutto come un'unica etichetta. */}
+      <div className={`admin-collassa-header${aperta ? ' aperta' : ''}`}>
+        <button
+          type="button"
+          className="admin-collassa-tocca"
+          onClick={() => setAperta((v) => !v)}
+          aria-expanded={aperta}
+        >
+          <div className="admin-collassa-testo">
+            <div className="admin-collassa-titolo">{titolo}</div>
+            <div className="admin-collassa-descrizione">{descrizione}</div>
+          </div>
+        </button>
+        <button
+          type="button"
           className={`admin-collassa-pin${fissata ? ' attivo' : ''}`}
-          onClick={(e) => { e.stopPropagation(); toggleFissa(); }}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); toggleFissa(); }
-          }}
-          tabIndex={0}
+          onClick={toggleFissa}
           title={fissata
             ? 'Alla prossima apertura della Dashboard questa sezione sarà già aperta — clicca per togliere'
             : 'Clicca per trovarla già aperta alla prossima apertura della Dashboard'}
-          role="button"
           aria-pressed={fissata}
+          aria-label={fissata
+            ? `${titolo}: alla prossima apertura della Dashboard sarà già aperta`
+            : `${titolo}: alla prossima apertura della Dashboard sarà chiusa`}
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" />
           </svg>
-        </span>
-        <span className="admin-collassa-chevron">{aperta ? '▲' : '▼'}</span>
-      </button>
+        </button>
+        {/* Freccia: stesso comando dell'intestazione, fuori dal giro di
+            tabulazione per non annunciare due volte la stessa cosa. */}
+        <button
+          type="button"
+          className="admin-collassa-chevron"
+          onClick={() => setAperta((v) => !v)}
+          tabIndex={-1}
+          aria-hidden="true"
+        >
+          {aperta ? '▲' : '▼'}
+        </button>
+      </div>
       {aperta && <div className="admin-collassa-contenuto">{children}</div>}
     </div>
   );

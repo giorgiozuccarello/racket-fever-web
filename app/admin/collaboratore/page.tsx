@@ -70,7 +70,7 @@ export default function CollaboratoreLogin() {
           <>
             <label>Circolo</label>
             {circoloScelto ? (
-              <div className="admin-list-row" style={{ background: '#fff', borderRadius: 10, border: '1.5px solid var(--bordo)', padding: '.7rem 1rem' }}>
+              <div className="admin-list-row" style={{ background: '#fff', color: 'var(--inchiostro)', borderRadius: 10, border: '1.5px solid var(--bordo)', padding: '.7rem 1rem' }}>
                 <span style={{ flex: 1, fontWeight: 700 }}>{circoloScelto.nome} · {circoloScelto.citta}</span>
                 <button type="button" className="admin-btn-small" onClick={() => { setCircoloScelto(null); setFiltro(''); }}>
                   Cambia
