@@ -12,8 +12,11 @@ export default function manifest(): MetadataRoute.Manifest {
     start_url: '/admin',
     scope: '/admin',
     display: 'standalone',
-    background_color: '#0E3B2E',
-    theme_color: '#0E3B2E',
+    // Nero come la schermata di avvio dell'app e le pagine di
+    // accesso: e' il colore del marchio da quando il logo e' la palla
+    // su fondo scuro.
+    background_color: '#000000',
+    theme_color: '#000000',
     icons: [
       { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
       { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
