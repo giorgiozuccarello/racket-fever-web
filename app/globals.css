@@ -638,8 +638,17 @@ footer li a:hover{opacity:1;text-decoration:underline}
    ============================================================ */
 /* Slot selezionati e slot estendibili: il tratteggio indica dove si
    puo' allargare la selezione, l'attenuazione cosa e' fuori gioco. */
-.pc-slot.selezionato{background:#B0451F;border-color:#141F1B;border-width:3px;color:#fff}
-.pc-slot.estendibile{border:2px dashed #B0451F}
+/* Selezione multipla: stessi colori della griglia dell'app.
+   Verde della prenotazione con il bordo giallo pallina attorno. */
+.pc-slot.selezionato{background:#1C5F06;border-color:#D4EC0A;border-width:3px}
+/* I due testi hanno un colore proprio e vincono su quello del
+   contenitore: vanno portati al bianco uno per uno, come per .lezione.
+   Senza, sul verde restavano scuri. */
+.pc-slot.selezionato .pc-slot-ora,.pc-slot.selezionato .pc-slot-sotto{color:#fff}
+/* Fondo giallo tenue sotto il tratteggio: il giallo pallina su bianco
+   da' 1,3 di contrasto, cioe' il bordo non si vedrebbe e con lui
+   sparirebbe l'unico segnale di dove si puo' estendere la selezione. */
+.pc-slot.estendibile{border:2px dashed #D4EC0A;background:#F4FBC2}
 .pc-slot.attenuato{opacity:.35}
 .pc-barra-selezione{display:flex;align-items:center;gap:.6rem;background:#0E3B2E;border:2px solid #B0451F;border-radius:12px;padding:.8rem;margin-bottom:.6rem;color:#fff}
 .pc-barra-selezione strong{font-size:.85rem}
