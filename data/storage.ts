@@ -9,9 +9,12 @@
 // senza bisogno di un'interfaccia di ritaglio manuale.
 // ============================================================
 
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, updateDoc } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { doc, updateDoc, getDoc } from 'firebase/firestore';
 import { storage, db } from '../lib/firebase';
+import {
+  Circolo, immaginiSponsor, MAX_IMMAGINI_SPONSOR, INTERVALLO_SPONSOR_MINIMO,
+} from './circoli';
 
 const LATO = 512;
 // Lo sponsor delle Sfide e' una fascia 3:1: nel browser non c'e' un
@@ -62,7 +65,7 @@ export async function caricaLogoCircolo(circoloId: string, file: File): Promise<
 }
 
 // Sponsor mostrato in cima alla Classifica Sfide, lato pannello web.
-export async function caricaSponsorSfide(circoloId: string, file: File): Promise<string> {
+export async function caricaSponsorSfide(circoloId: string, file: File, indice: number): Promise<string> {
   const img = await caricaImmagine(file);
   // Rettangolo 3:1 piu' grande che ci sta dentro, centrato.
   const proporzione = SPONSOR_LARGHEZZA / SPONSOR_ALTEZZA;
@@ -90,9 +93,68 @@ export async function caricaSponsorSfide(circoloId: string, file: File): Promise
     );
   });
 
-  const riferimento = ref(storage, `sponsor_sfide/${circoloId}/sponsor.jpg`);
+  // Nome UNICO, non legato alla posizione. Numerandolo per posizione,
+  // togliendo lo sponsor 1 le immagini scalano di uno ma i file no: il
+  // caricamento successivo riscriverebbe un file ancora in uso da
+  // un'altra posizione, e quell'altra si ritroverebbe l'indirizzo
+  // morto — Storage rigenera il token a ogni scrittura.
+  const riferimento = ref(storage, `sponsor_sfide/${circoloId}/sponsor_${Date.now()}.jpg`);
   await uploadBytes(riferimento, blob);
   const url = await getDownloadURL(riferimento);
-  await updateDoc(doc(db, 'circoli', circoloId), { sponsorSfideUrl: url });
+
+  // La lista si rilegge dal documento vero, non da quella che aveva in
+  // mano la schermata: due caricamenti ravvicinati da due postazioni si
+  // sovrascriverebbero a vicenda.
+  const riferimentoCircolo = doc(db, 'circoli', circoloId);
+  const istantanea = await getDoc(riferimentoCircolo);
+  const dati = istantanea.data() as Circolo | undefined;
+  const elenco = immaginiSponsor(dati);
+  const nuovo = [...elenco];
+  if (indice >= nuovo.length) nuovo.push(url);
+  else nuovo[indice] = url;
+  const sostituito = indice < elenco.length ? elenco[indice] : null;
+
+  const modifiche: Record<string, unknown> = {
+    sponsorSfideUrls: nuovo.slice(0, MAX_IMMAGINI_SPONSOR),
+    // Il campo a immagine singola si svuota qui: da adesso quel circolo
+    // e' passato alla lista, e leggerli entrambi darebbe un doppione.
+    sponsorSfideUrl: null,
+  };
+  // Con piu' di un'immagine il cambio non puo' restare su "fisso", o il
+  // secondo sponsor non comparirebbe mai. Si alza al minimo, e l'Admin
+  // se lo vede spostare sotto gli occhi.
+  const intervalloAttuale = dati?.sponsorSfideIntervallo ?? 0;
+  if (nuovo.length > 1 && intervalloAttuale <= 0) {
+    modifiche.sponsorSfideIntervallo = INTERVALLO_SPONSOR_MINIMO;
+  }
+  await updateDoc(riferimentoCircolo, modifiche);
+
+  // Il file sostituito non serve piu' a nessuno. Si cancella DOPO aver
+  // salvato, e senza far fallire niente se non ci si riesce: un file
+  // dimenticato non si vede, una lista salvata a meta' si.
+  if (sostituito && sostituito !== url) {
+    try {
+      await deleteObject(ref(storage, sostituito));
+    } catch {
+      // gia' cancellato, o e' il file del campo vecchio: non blocca.
+    }
+  }
   return url;
+}
+
+// Toglie l'immagine in una posizione. Le successive scalano di uno: la
+// lista non deve avere buchi, o la rotazione mostrerebbe il vuoto.
+export async function rimuoviImmagineSponsor(circoloId: string, indice: number): Promise<void> {
+  const riferimentoCircolo = doc(db, 'circoli', circoloId);
+  const istantanea = await getDoc(riferimentoCircolo);
+  const dati = istantanea.data() as Circolo | undefined;
+  const elenco = immaginiSponsor(dati);
+  if (indice < 0 || indice >= elenco.length) return;
+  const nuovo = elenco.filter((_, i) => i !== indice);
+  await updateDoc(riferimentoCircolo, { sponsorSfideUrls: nuovo, sponsorSfideUrl: null });
+}
+
+// Tempo di cambio fra uno sponsor e l'altro, in secondi. Zero = fisso.
+export async function impostaIntervalloSponsor(circoloId: string, secondi: number): Promise<void> {
+  await updateDoc(doc(db, 'circoli', circoloId), { sponsorSfideIntervallo: secondi });
 }

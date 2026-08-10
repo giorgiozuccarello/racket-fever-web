@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SocioCircolo, aggiornaLimitePersonale, ripristinaSOS } from '../../../data/users';
+import { SocioCircolo, aggiornaLimitePersonale, ripristinaSOS, etaDaAnno } from '../../../data/users';
 import { creaNotifica } from '../../../data/notifiche';
 import { ricaricaCredito, azzeraCredito, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
 import { CONTENUTI_DEMO } from '../../../data/contenutiDemo';
@@ -90,6 +90,18 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
                   : 'Socio tesserato'}
               </div>
             </div>
+
+            {/* Eta' e racchetta le scrive il socio dall'app: qui si
+                leggono e basta. La riga compare solo se ne ha compilata
+                almeno una, per non lasciare due trattini nel vuoto. */}
+            {(etaDaAnno(socio.annoNascita) != null || socio.racchetta) && (
+              <div className="socio-scheda-riga">
+                {etaDaAnno(socio.annoNascita) != null && (
+                  <span><b>Età:</b> {etaDaAnno(socio.annoNascita)} anni</span>
+                )}
+                {socio.racchetta && <span><b>Racchetta:</b> {socio.racchetta}</span>}
+              </div>
+            )}
 
             <div className="socio-stats-row">
               <div className="socio-stat-box">

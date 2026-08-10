@@ -37,6 +37,19 @@ export interface ProfiloUtente {
   vetroBordoAttivo?: boolean; // true/assente = card con bordo sottile, false = senza bordo
   mostraIconaTennis?: boolean; // true/assente = mostra la pallina Tennis nell'header
   mostraIconaPadel?: boolean; // true/assente = mostra la pallina Padel nell'header
+  // I due campi della scheda che il socio compila da se' nell'app,
+  // sezione Impostazioni. Qui si leggono e basta: sono suoi.
+  annoNascita?: number | null;
+  racchetta?: string | null; // testo libero, es. "Babolat Pure Aero"
+}
+
+// Eta' ricavata dall'anno di nascita. Si tiene l'ANNO e non l'eta'
+// perche' un numero scritto a mano sarebbe sbagliato dal compleanno
+// successivo e nessuno tornerebbe a correggerlo.
+export function etaDaAnno(anno?: number | null): number | null {
+  if (!anno || anno < 1900) return null;
+  const eta = new Date().getFullYear() - anno;
+  return eta >= 0 && eta < 120 ? eta : null;
 }
 
 export interface SocioCircolo extends ProfiloUtente {

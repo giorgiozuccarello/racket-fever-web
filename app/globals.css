@@ -420,6 +420,43 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-saving{font-size:.75rem;color:var(--grigio);margin-top:.4rem}
 .admin-error-text{color:#B3261E;font-size:.82rem;margin-top:.6rem}
 
+/* ---------- Sponsor: una riga per immagine, fino a cinque ---------- */
+.sponsor-riga{margin-top:.6rem}
+/* La linea sta FRA due righe, non sulla prima: cosi' non dipende da
+   cosa c'e' sopra nel contenitore. */
+.sponsor-riga + .sponsor-riga{margin-top:.9rem;padding-top:.9rem;border-top:1.5px solid #EFEBE0}
+.sponsor-riga-testata{
+  display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem;
+}
+.sponsor-riga-numero{
+  font-family:var(--font-spline-mono),monospace;font-size:.7rem;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--grigio);font-weight:700;
+}
+.sponsor-riga-togli{
+  background:none;border:none;cursor:pointer;padding:.1rem .2rem;
+  font-family:inherit;font-size:.78rem;font-weight:700;color:#B3261E;
+}
+.sponsor-riga-togli:hover{text-decoration:underline}
+.sponsor-anteprima{
+  width:100%;aspect-ratio:3 / 1;object-fit:cover;border-radius:.9rem;display:block;
+}
+.sponsor-anteprima-vuota{
+  border:1.5px dashed #E4E0D5;display:flex;align-items:center;justify-content:center;
+  color:var(--grigio);font-weight:800;font-size:.9rem;
+}
+.sponsor-aggiungi{
+  width:100%;margin-top:.9rem;padding:.7rem;cursor:pointer;
+  background:none;border:1.5px dashed #E4E0D5;border-radius:.9rem;
+  font-family:inherit;font-size:.85rem;font-weight:800;color:var(--pino);
+}
+.sponsor-aggiungi:hover{background:#F7F4EA}
+.sponsor-timer{display:flex;align-items:center;gap:.9rem}
+.sponsor-timer input[type=range]{flex:1;accent-color:var(--pino)}
+.sponsor-timer input[type=range]:disabled{opacity:.45}
+.sponsor-timer-valore{
+  min-width:5.5rem;text-align:right;font-size:.9rem;font-weight:800;color:var(--inchiostro);
+}
+
 .admin-modal-backdrop{
   position:fixed;inset:0;background:rgba(20,31,27,.55);
   display:flex;align-items:center;justify-content:center;padding:1.5rem;z-index:100;
@@ -508,6 +545,12 @@ footer li a:hover{opacity:1;text-decoration:underline}
    che ora sta su fondo nero: li' l'evidenziazione chiara cancellerebbe
    il testo avorio, quindi si evidenzia in chiaro sul nero. */
 .admin-login-card .admin-list-row-clickable:hover{background:rgba(255,255,255,0.14)}
+/* Eta' e racchetta nella scheda del socio: le scrive lui dall'app. */
+.socio-scheda-riga{
+  display:flex;flex-wrap:wrap;gap:.3rem 1.4rem;justify-content:center;
+  margin-top:.9rem;font-size:.88rem;color:var(--grigio);
+}
+.socio-scheda-riga b{color:var(--inchiostro)}
 .socio-detail-head{display:flex;flex-direction:column;align-items:center;text-align:center}
 .socio-detail-avatar{width:84px;height:84px;border-radius:42px;object-fit:cover}
 .socio-stats-row{display:flex;gap:.7rem;margin-top:1.2rem}

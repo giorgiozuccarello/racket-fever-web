@@ -13,10 +13,22 @@ export interface Circolo {
   temaApp: string; // chiave di uno degli 8 TEMI_APP — scelto dall'Admin, vale anche per i Maestri
   limiteOreSettimanali: number; // 0 = nessun limite
   logoUrl?: string | null; // se assente, si mostra la sigla nel cerchio
-  // Immagine dello sponsor mostrata in cima alla Classifica Sfide.
-  // Sempre 3:1 — il ritaglio e' imposto in fase di caricamento, cosi'
-  // la fascia in cima alla classifica non cambia mai altezza.
+  // Immagine dello sponsor, in cima alla Classifica Sfide e in Home
+  // sotto le tre caselle. Sempre 3:1 — il ritaglio e' imposto in fase
+  // di caricamento, cosi' la fascia non cambia mai altezza.
+  //
+  // ⚠️ Campo VECCHIO, da quando gli sponsor possono essere piu' d'uno.
+  // Resta solo per i circoli che avevano gia' caricato la loro
+  // immagine: si legge, non si scrive piu', e alla prima modifica
+  // dall'Admin il valore passa da solo in sponsorSfideUrls. Per
+  // leggere usare sempre immaginiSponsor(), mai questo campo.
   sponsorSfideUrl?: string | null;
+  // Da 1 a MAX_IMMAGINI_SPONSOR immagini, mostrate a rotazione con una
+  // dissolvenza nell'app. L'ordine e' quello in cui compaiono.
+  sponsorSfideUrls?: string[] | null;
+  // Secondi fra un cambio e l'altro: 0 = fisso, si vede la prima e
+  // basta. Vedi INTERVALLI_SPONSOR per i valori ammessi.
+  sponsorSfideIntervallo?: number | null;
   limiteSfidaPosizioni?: number; // 0/assente = usa il default (5): quante posizioni sopra si può sfidare
   // Solo web: sfumatura scelta dall'admin per la classifica sociale.
   // Non esiste nel mobile, va conservata quando si allineano i file.
@@ -69,6 +81,43 @@ export const FONDO_BOX_SOCIO_CHIARI: Record<string, string> = {
 };
 
 
+
+// ---- Sponsor ----
+// Quante immagini puo' caricare un circolo, e i tempi di cambio
+// ammessi. Lo zero e' "fisso": si vede solo la prima.
+export const MAX_IMMAGINI_SPONSOR = 5;
+export const INTERVALLI_SPONSOR = [0, 5, 10, 15, 20, 25, 30];
+// Tempo che si applica da solo quando l'Admin carica la seconda
+// immagine avendo lasciato il cambio su "fisso": senza, il secondo
+// sponsor — che magari ha pagato — non comparirebbe mai.
+export const INTERVALLO_SPONSOR_MINIMO = 5;
+
+// L'elenco vero delle immagini sponsor di un circolo. Unico punto in
+// cui si guarda il campo vecchio a immagine singola: tutto il resto
+// dell'app passa da qui e non deve sapere che esiste.
+export function immaginiSponsor(circolo?: {
+  sponsorSfideUrls?: string[] | null;
+  sponsorSfideUrl?: string | null;
+} | null): string[] {
+  if (!circolo) return [];
+  const elenco = circolo.sponsorSfideUrls;
+  if (Array.isArray(elenco) && elenco.length > 0) {
+    return elenco.filter((u) => typeof u === 'string' && u.length > 0).slice(0, MAX_IMMAGINI_SPONSOR);
+  }
+  return circolo.sponsorSfideUrl ? [circolo.sponsorSfideUrl] : [];
+}
+
+// Il tempo di cambio da usare davvero. Con una sola immagine non c'e'
+// nulla da alternare, quindi vale zero qualunque cosa dica il campo.
+export function intervalloSponsor(circolo?: {
+  sponsorSfideUrls?: string[] | null;
+  sponsorSfideUrl?: string | null;
+  sponsorSfideIntervallo?: number | null;
+} | null): number {
+  if (immaginiSponsor(circolo).length < 2) return 0;
+  const valore = circolo?.sponsorSfideIntervallo;
+  return typeof valore === 'number' && valore > 0 ? valore : 0;
+}
 
 export const TEMI_APP: Record<string, TemaApp> = {
   nero: { nome: 'Full Black', scuro: true, sfondoDa: '#1A1A1A', sfondoA: '#000000', primario: '#1A1A1A', accento: '#D98A2B' },
