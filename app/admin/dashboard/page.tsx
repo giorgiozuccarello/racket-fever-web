@@ -140,7 +140,16 @@ export default function AdminDashboard() {
             <h1 className="display" style={{ fontSize: '1.7rem', marginTop: '.2rem' }}>{circolo.nome}</h1>
           </div>
         </div>
-        <button className="btn btn-outline admin-logout-btn" onClick={logout}>Esci</button>
+        {/* Lato destro: il marchio Racket Fever e il tasto di uscita.
+            Il marchio sta PRIMA del tasto, non all'estremita', perche'
+            "Esci" e' sempre stato l'ultimo elemento in alto a destra:
+            spostarlo per far posto al logo avrebbe cambiato un gesto
+            che l'admin fa a memoria. */}
+        <div className="admin-header-fine">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo-rf-completo.png" alt="Racket Fever" width={453} height={96} className="admin-header-marchio" />
+          <button className="btn btn-outline admin-logout-btn" onClick={logout}>Esci</button>
+        </div>
       </header>
 
       <main className="admin-main">

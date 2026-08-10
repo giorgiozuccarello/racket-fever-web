@@ -245,7 +245,17 @@ footer li a:hover{opacity:1;text-decoration:underline}
   padding:1.4rem clamp(1rem,4vw,2.5rem);
 }
 .admin-logout-btn{padding:.6rem 1.2rem;font-size:.8rem;border-radius:8px}
-.admin-header-brand{display:flex;align-items:center;gap:.9rem}
+/* Lato destro della testata Admin: marchio Racket Fever + "Esci". */
+.admin-header-fine{display:flex;align-items:center;gap:1.1rem;flex-shrink:0}
+/* Il file e' 453x96 (rapporto 4.72): si fissa l'altezza e la
+   larghezza si adegua da sola, cosi' il marchio non si schiaccia mai.
+   E' la versione bianca, pensata per il verde scuro della testata. */
+.admin-header-marchio{height:34px;width:auto;display:block}
+/* min-width:0 e la spezzatura del nome: il gruppo di destra non cede
+   spazio, quindi senza queste due righe un nome di circolo lunghissimo
+   e senza spazi manderebbe la pagina in scorrimento orizzontale. */
+.admin-header-brand{display:flex;align-items:center;gap:.9rem;min-width:0}
+.admin-header-brand h1{overflow-wrap:anywhere}
 .admin-header-logo{
   width:42px;height:42px;border-radius:21px;object-fit:cover;flex-shrink:0;
   border:2px solid rgba(245,241,230,.35);
@@ -480,8 +490,21 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-modal-btn-confirm.danger{background:#B3261E}
 .admin-modal-btn-confirm:disabled{opacity:.5;cursor:default}
 
+/* Fra i 640 e i 900 px il titolo del circolo e il marchio si
+   contendono la riga: il marchio cede per primo. */
+@media (max-width:900px){
+  .admin-header-marchio{height:26px}
+}
+
 @media (max-width:640px){
   .admin-header{flex-direction:column;align-items:flex-start;gap:.8rem}
+  /* In colonna il gruppo diventa una riga a tutta larghezza, ma
+     ROVESCIATA: "Esci" torna cosi' contro il bordo sinistro, dove e'
+     sempre stato in questa vista, e il marchio va all'altro capo. Con
+     l'ordine normale il tasto sarebbe migrato da un lato all'altro
+     dello schermo. */
+  .admin-header-fine{width:100%;flex-direction:row-reverse;justify-content:space-between}
+  .admin-header-marchio{height:24px}
 }
 
 /* ---------- Dashboard Super Admin ---------- */
