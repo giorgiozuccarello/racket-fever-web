@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Campo, Blocco, Circolo, ORARI, fasciaOraria, orarioFineSlot } from '../../../data/circoli';
+import { Campo, Blocco, Circolo, ORARI, fasciaOraria, orarioFineSlot, slotNelPassato } from '../../../data/circoli';
 import { SocioCircolo } from '../../../data/users';
 import { calcolaPrezzo } from '../../../data/prezzi';
 import { aggiungiBlocco } from '../../../data/circoliRepo';
@@ -40,6 +40,15 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   nomeEsecutore: string;
 }) {
   const [selDay, setSelDay] = useState(0);
+  // Un battito ogni mezzo minuto. Questo pannello sta aperto sul PC
+  // della segreteria per ore: senza, gli slot che scoccano non
+  // diventerebbero mai passati finche' non arriva un aggiornamento da
+  // Firestore. Il valore non si usa, serve solo a ridisegnare.
+  const [, battito] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => battito((n) => n + 1), 30000);
+    return () => clearInterval(t);
+  }, []);
   const [selCampoId, setSelCampoId] = useState('');
   const [daAnnullare, setDaAnnullare] = useState<PrenotazioneAdmin | null>(null);
   // Mezz'ora centrale: il pop-up resta completo, sparisce solo il
@@ -109,7 +118,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   };
 
   const slotPrenotabile = (ora: string) =>
-    !prenotazioneSlot(ora) && !bloccoAttivo(ora);
+    !prenotazioneSlot(ora) && !bloccoAttivo(ora) && !slotNelPassato(dataSelIso, ora);
 
   // Timer della pressione prolungata: se il dito resta fermo mezzo
   // secondo, parte la selezione. pressioneLunga evita che al rilascio
@@ -224,6 +233,14 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   const confermaPrenotazione = async () => {
     if (invioInCorso.current) return;
     if (oreDaPrenotare.length === 0 || !campoSel) return;
+    // Ultima barriera prima della scrittura: fra la selezione e la
+    // conferma puo' essere scoccata la mezz'ora, e il pannello resta
+    // aperto anche a lungo. Il controllo sullo slot non basta.
+    if (oreDaPrenotare.some((o) => slotNelPassato(dataSelIso, o))) {
+      // Stesso canale degli altri errori di questa sezione.
+      alert('Una o più mezz\u2019ore sono nel frattempo passate: chiudi e riseleziona.');
+      return;
+    }
     if (modalitaEsterno && !nomeEsterno.trim()) return;
     if (!modalitaEsterno && !socioScelto) return;
     invioInCorso.current = true;
@@ -284,6 +301,12 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
 
   const confermaRiserva = async () => {
     if (oreDaRiservare.length === 0 || !campoSel || !etichettaRiserva.trim()) return;
+    // Stessa barriera della prenotazione: non si riserva nel passato.
+    if (oreDaRiservare.some((o) => slotNelPassato(dataSelIso, o))) {
+      // Stesso canale degli altri errori di questa sezione.
+      alert('Una o più mezz\u2019ore sono nel frattempo passate: chiudi e riseleziona.');
+      return;
+    }
     setElaborando(true);
     try {
       // Un solo blocco per l'intero intervallo: gli orari riservati
@@ -389,6 +412,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       <div className="admin-card-title">Prenotazione Campi</div>
       <p className="admin-card-hint">
         Clicca su uno slot occupato per vedere chi ha prenotato ed eventualmente annullare.
+        Le mezz&apos;ore già cominciate diventano grigie: non si possono più assegnare né riservare,
+        ma restano cliccabili se hanno qualcosa sopra.
       </p>
 
       <div className="pc-row">
@@ -419,6 +444,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-occupato" /> Prenotato</span>
         <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-lezione" /> Lezione</span>
         <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-riservato" /> Riservato</span>
+        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-passato" /> Ora passata</span>
       </div>
 
       {selezioneMultipla.length > 0 && (
@@ -446,16 +472,25 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           if (p?.sfidaId) sotto = 'Sfida in corso';
           else if (p) sotto = p.utenteCognome ? `${p.utenteNome} ${p.utenteCognome[0]}.` : p.utenteNome;
           else if (blocco) sotto = 'Riservato';
+          // Stessa regola dell'app: dall'INIZIO dello slot in poi
+          // quell'ora non e' piu' gestibile da nessuno.
+          const passato = slotNelPassato(dataSelIso, ora);
           const selezionatoOra = selezioneMultipla.includes(ora);
           const idxOra = ORARI.indexOf(ora);
           const idxMinSel = selezioneMultipla.length ? ORARI.indexOf(selezioneMultipla[0]) : -1;
           const idxMaxSel = selezioneMultipla.length ? ORARI.indexOf(selezioneMultipla[selezioneMultipla.length - 1]) : -1;
           const estendibileOra = selezioneMultipla.length > 0 && !selezionatoOra
             && (idxOra === idxMinSel - 1 || idxOra === idxMaxSel + 1)
-            && selezioneMultipla.length < MASSIMO_SLOT_MULTIPLI && !p && !blocco;
+            && selezioneMultipla.length < MASSIMO_SLOT_MULTIPLI && !p && !blocco && !passato;
           return (
             <button
               key={ora}
+              // Passato non vuol dire muto: se sullo slot c'e' una
+              // prenotazione o un orario riservato il pop-up resta
+              // apribile, altrimenti l'Admin non potrebbe piu' sapere chi
+              // c'era sul campo un'ora fa ne' annullare chi non si e'
+              // presentato. Spenti solo i passati vuoti.
+              disabled={passato && !p && !blocco}
               onClick={() => {
                 // Dopo una pressione prolungata il browser emette
                 // comunque un click: qui lo si ignora, altrimenti la
@@ -473,15 +508,22 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
               // selezione del testo — quindi la pressione si rileva a
               // mano con un timer. Il click destro resta valido per chi
               // lavora da PC con il mouse.
-              onPointerDown={() => avviaTimerPressione(ora)}
+              onPointerDown={() => { if (!passato) avviaTimerPressione(ora); }}
               onPointerUp={annullaTimerPressione}
               onPointerLeave={annullaTimerPressione}
               onPointerCancel={annullaTimerPressione}
-              onContextMenu={(e) => { e.preventDefault(); iniziaSelezione(ora); }}
-              className={`pc-slot ${p ? 'occupato' : ''} ${eLezione ? 'lezione' : ''} ${blocco ? 'riservato' : ''}${selezionatoOra ? ' selezionato' : ''}${estendibileOra ? ' estendibile' : ''}${selezioneMultipla.length > 0 && !selezionatoOra && !estendibileOra ? ' attenuato' : ''}`}
+              onContextMenu={(e) => { e.preventDefault(); if (!passato) iniziaSelezione(ora); }}
+              className={`pc-slot ${p ? 'occupato' : ''} ${eLezione ? 'lezione' : ''} ${blocco ? 'riservato' : ''}${passato ? ' passato' : ''}${selezionatoOra ? ' selezionato' : ''}${estendibileOra ? ' estendibile' : ''}${selezioneMultipla.length > 0 && !selezionatoOra && !estendibileOra ? ' attenuato' : ''}`}
             >
-              <div className="pc-slot-ora">{ora}</div>
-              <div className="pc-slot-sotto">{sotto}</div>
+              {/* Ora passata: rettangolo grigio e nient'altro. Le
+                  scritte del passato erano l'unica cosa che competeva
+                  con le ore ancora assegnabili. */}
+              {(!passato || selezionatoOra) && (
+                <>
+                  <div className="pc-slot-ora">{ora}</div>
+                  <div className="pc-slot-sotto">{sotto}</div>
+                </>
+              )}
             </button>
           );
         })}

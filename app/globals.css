@@ -621,6 +621,7 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .pc-legend-occupato{background:var(--occupato,#EFEBE0)}
 .pc-legend-lezione{background:#1F5C3C}
 .pc-legend-riservato{background:#C9C2D9}
+.pc-legend-passato{background:#636363}
 .pc-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.55rem;padding-top:.4rem}
 @media (max-width:480px){.pc-grid{grid-template-columns:repeat(3,1fr)}}
 .pc-slot{
@@ -631,6 +632,12 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .pc-slot.lezione{background:#1F5C3C;border-color:#1F5C3C;cursor:pointer}
 .pc-slot.lezione .pc-slot-ora,.pc-slot.lezione .pc-slot-sotto{color:#fff}
 .pc-slot.riservato{background:#C9C2D9;border-color:#C9C2D9;cursor:pointer}
+/* Ora gia' cominciata: da qui in poi lo slot non e' piu' gestibile da
+   nessuno, quindi non ha nemmeno un cursore che inviti a cliccarlo.
+   Stesso grigio dell'app (#636363), scelto per restare visibile sia sui
+   fondi chiari sia su quelli quasi neri. Le scritte spariscono: erano
+   l'unica cosa che competeva con le ore ancora assegnabili. */
+.pc-slot.passato{background:#636363;border-color:#636363;cursor:default}
 .pc-slot-ora{font-size:.82rem;font-weight:700;color:var(--inchiostro);font-variant-numeric:tabular-nums}
 .pc-slot-sotto{font-size:.62rem;color:var(--grigio);margin-top:.15rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 

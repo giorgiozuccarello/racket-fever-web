@@ -198,6 +198,29 @@ export function orarioFineSlot(orario: string): string {
   return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
 }
 
+// Regola UNICA del passato per tutte le griglie — Socio, Admin,
+// Maestro e pannello web. Uno slot appartiene al passato appena il suo
+// orario di INIZIO e' trascorso: da quel momento non e' piu' gestibile
+// da nessuno. Non si prenota, non si riserva, non si assegna, non si
+// cancella toccandolo.
+//
+// Si guarda l'inizio e non la fine perche' una mezz'ora gia' cominciata
+// non e' piu' vendibile: non si puo' dare a un socio un campo su cui si
+// sta gia' giocando, e non si puo' nemmeno prenderselo per meta'. Prima
+// le tre griglie non erano d'accordo — il Socio guardava l'inizio,
+// Admin e Maestro la fine — e alle 10:15 la stessa mezz'ora risultava
+// morta da una parte e viva dall'altra.
+//
+// ⚠️ Da non confondere con la regola delle CARD in Home, che invece
+// guarda la FINE dell'ultimo slot: una partita in corso e' ancora una
+// partita, e la sua card deve restare al suo posto fino al fischio.
+export function slotNelPassato(data: string, orario: string, adesso: Date = new Date()): boolean {
+  const [h, m] = orario.split(':').map(Number);
+  const inizio = new Date(`${data}T00:00:00`);
+  inizio.setHours(h, m, 0, 0);
+  return adesso.getTime() >= inizio.getTime();
+}
+
 // Fascia oraria completa (es. "18:00 - 18:30"), da usare ovunque
 // TRANNE che nelle celle della griglia (lì resta solo "18:00", per
 // non affollarle): popup, avvisi/notifiche, storico prenotazioni.
