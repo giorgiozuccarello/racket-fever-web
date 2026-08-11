@@ -18,6 +18,7 @@ import SezioneCollaboratori from './SezioneCollaboratori';
 import SezionePersonalizzaApp from './SezionePersonalizzaApp';
 import SezioneCampi from './SezioneCampi';
 import SezioneLimite from './SezioneLimite';
+import SezioneLimiteCancellazione from './SezioneLimiteCancellazione';
 import SezionePrezzi from './SezionePrezzi';
 import SezioneBlocchi from './SezioneBlocchi';
 import SezioneSoci from './SezioneSoci';
@@ -170,6 +171,9 @@ export default function AdminDashboard() {
         </SezioneCollassabile>
         <SezioneCollassabile id="limite" titolo="Limite Prenotazioni" descrizione="Limite di prenotazioni settimanali per socio">
           <SezioneLimite circolo={circolo} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="limite-cancellazione" titolo="Limite Cancellazione Prenotazioni" descrizione="Entro quante ore prima un socio può disdire">
+          <SezioneLimiteCancellazione circolo={circolo} />
         </SezioneCollassabile>
         <SezioneCollassabile id="prezzi" titolo="Prezzi" descrizione="Tariffe orarie e fasce speciali">
           <SezionePrezzi circoloId={circolo.id} campi={campi} />

@@ -29,6 +29,11 @@ export interface Circolo {
   // Secondi fra un cambio e l'altro: 0 = fisso, si vede la prima e
   // basta. Vedi INTERVALLI_SPONSOR per i valori ammessi.
   sponsorSfideIntervallo?: number | null;
+  // Quante ore prima dell'inizio dello slot un socio puo' ancora
+  // disdire. 0 o assente = nessun limite, si cancella fino all'ora di
+  // gioco. Il massimo e' ORE_LIMITE_CANCELLAZIONE_MAX (vedi
+  // data/cancellazione.ts, dove sta tutta la logica).
+  oreLimiteCancellazione?: number | null;
   limiteSfidaPosizioni?: number; // 0/assente = usa il default (5): quante posizioni sopra si può sfidare
   // Solo web: sfumatura scelta dall'admin per la classifica sociale.
   // Non esiste nel mobile, va conservata quando si allineano i file.
