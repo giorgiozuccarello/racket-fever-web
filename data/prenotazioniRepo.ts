@@ -8,7 +8,6 @@
 
 import { runTransaction, doc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { rimuoviDisponibilitaPerSlot } from './disponibilitaLezioni';
 import { registraMovimentoInTransazione, registraMovimentoSemplice } from './movimenti';
 import { idTessera } from './tessere';
 import { orarioFineSlot } from './circoli';
@@ -494,10 +493,9 @@ export async function prenotaConCompagno(params: {
 // Prenota una LEZIONE: stessa identica logica di pagamento di
 // prenotaConCredito (il socio paga solo il normale costo del
 // campo — la lezione vera si accorda direttamente con il maestro,
-// fuori piattaforma), con in più il collegamento al maestro e la
-// rimozione delle disponibilità ormai superate su quello slot.
-// Usata sia quando è il socio a prenotare (sceglie tra i maestri
-// disponibili), sia quando è il maestro a prenotare per un socio.
+// fuori piattaforma), con in più il collegamento al maestro.
+// ⚠️ La crea sempre il MAESTRO, dalla sua dashboard: il socio non
+// prenota più lezioni da solo, le chiede e il maestro conferma.
 export async function prenotaLezione(params: {
   uid: string; // socio che paga e per cui viene creata la prenotazione
   circoloId: string;
@@ -592,9 +590,6 @@ export async function prenotaLezione(params: {
     });
   });
 
-  // Fuori dalla transazione: tocca un'altra collezione con una query,
-  // non un singolo documento noto in anticipo.
-  await rimuoviDisponibilitaPerSlot(params.circoloId, params.campoId, params.data, params.orario);
 }
 
 // Prenota una lezione con un allievo che NON è socio del circolo
@@ -664,7 +659,6 @@ export async function prenotaLezioneEsterno(params: {
     descrizione: 'Lezione con un allievo esterno — nessun addebito, non ha un account',
   });
 
-  await rimuoviDisponibilitaPerSlot(params.circoloId, params.campoId, params.data, params.orario);
 }
 
 // Quanto va restituito annullando questa prenotazione.

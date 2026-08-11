@@ -56,8 +56,8 @@ export default function SezioneMaestri({ circoloId, maestri }: {
     <div className="admin-card">
       <div className="admin-card-title">Maestri</div>
       <p className="admin-card-hint">
-        Ogni Maestro ha un proprio account, separato dal tuo: gestisce solo la
-        disponibilità per le lezioni, non prezzi, soci o incassi — a meno che
+        Ogni Maestro ha un proprio account, separato dal tuo: gestisce solo le proprie
+        lezioni, non prezzi, soci o incassi — a meno che
         tu non gli conceda esplicitamente anche l&apos;accesso Admin.
       </p>
 
