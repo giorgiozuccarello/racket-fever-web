@@ -37,6 +37,15 @@ export interface ProfiloMaestro {
   email: string;
   circoloId: string;
   puoAccedereAdmin?: boolean; // se true, questo account può accedere ANCHE come Admin Circolo
+  // Entro quante ore prima un allievo puo' ancora disdire una LEZIONE
+  // con questo Maestro. Sta qui e non sul circolo perche' l'Admin
+  // regola i campi, che sono suoi; le lezioni le da' il Maestro.
+  //
+  // ⚠️ Assente (o null) NON vuol dire "nessun limite": vuol dire che il
+  // Maestro non ha ancora scelto e vale quello del circolo. Uno zero
+  // scritto davvero e' invece una scelta: nessun limite. La differenza
+  // la fa oreLimiteLezioniDi, che guarda null/undefined e non Number().
+  oreLimiteCancellazioneLezioni?: number | null;
 }
 
 export interface MaestroConUid extends ProfiloMaestro {
@@ -53,12 +62,26 @@ export async function accediMaestro(email: string, password: string): Promise<Us
   return cred.user;
 }
 
-export function ascoltaMaestriCircolo(circoloId: string, callback: (m: MaestroConUid[]) => void) {
+// ⚠️ `onErrore` non e' un lusso. Chi usa questo elenco per il TERMINE
+// DI DISDETTA delle lezioni deve poter distinguere "l'elenco non e'
+// ancora arrivato" da "non arrivera'": nel primo caso non si puo'
+// ancora dire niente al socio, nel secondo bisogna ripiegare su
+// qualcosa invece di lasciarlo bloccato per sempre. Con il solo
+// console.warn di prima, un ascolto respinto era indistinguibile da un
+// ascolto lento.
+export function ascoltaMaestriCircolo(
+  circoloId: string,
+  callback: (m: MaestroConUid[]) => void,
+  onErrore?: () => void,
+) {
   const q = query(collection(db, 'maestri'), where('circoloId', '==', circoloId));
   return onSnapshot(
     q,
     (snap) => callback(snap.docs.map((d) => ({ uid: d.id, ...(d.data() as any) })) as MaestroConUid[]),
-    (errore) => console.warn('Ascolto maestri interrotto:', errore?.message ?? errore)
+    (errore) => {
+      console.warn('Ascolto maestri interrotto:', errore?.message ?? errore);
+      onErrore?.();
+    }
   );
 }
 
@@ -108,6 +131,13 @@ export async function impostaAccessoAdmin(maestro: MaestroConUid, consentito: bo
     await deleteDoc(doc(db, 'responsabili', maestro.uid));
   }
   await updateDoc(doc(db, 'maestri', maestro.uid), { puoAccedereAdmin: consentito });
+}
+
+// Il Maestro scrive il PROPRIO limite, dalle sue Impostazioni. Le
+// regole gia' lo consentono (ognuno puo' aggiornare il suo documento);
+// nessun altro passa da qui.
+export async function impostaLimiteCancellazioneLezioni(uid: string, ore: number): Promise<void> {
+  await updateDoc(doc(db, 'maestri', uid), { oreLimiteCancellazioneLezioni: ore });
 }
 
 export async function rimuoviMaestro(maestro: MaestroConUid) {

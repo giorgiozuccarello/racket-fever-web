@@ -35,9 +35,13 @@ export interface Circolo {
   // fisso.
   sponsorSfideDurate?: number[] | null;
   // Quante ore prima dell'inizio dello slot un socio puo' ancora
-  // disdire. 0 o assente = nessun limite, si cancella fino all'ora di
-  // gioco. Il massimo e' ORE_LIMITE_CANCELLAZIONE_MAX (vedi
+  // disdire un CAMPO. 0 o assente = nessun limite, si cancella fino
+  // all'ora di gioco. Il massimo e' ORE_LIMITE_CANCELLAZIONE_MAX (vedi
   // data/cancellazione.ts, dove sta tutta la logica).
+  // ⚠️ Le LEZIONI non passano di qui: il loro termine e' del Maestro
+  // che le tiene (oreLimiteCancellazioneLezioni su /maestri). Questo
+  // numero resta il valore che il Maestro eredita finche' non sceglie
+  // il suo.
   oreLimiteCancellazione?: number | null;
   limiteSfidaPosizioni?: number; // 0/assente = usa il default (5): quante posizioni sopra si può sfidare
   // Solo web: sfumatura scelta dall'admin per la classifica sociale.

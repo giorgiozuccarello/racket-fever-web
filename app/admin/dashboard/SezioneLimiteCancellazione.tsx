@@ -62,12 +62,17 @@ export default function SezioneLimiteCancellazione({ circolo }: { circolo: Circo
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Entro quando un socio può disdire</div>
+      <div className="admin-card-title">Entro quando un socio può disdire un campo</div>
       <p className="admin-card-hint">
         Quante ore prima dell&apos;inizio dello slot un socio può ancora cancellare la sua
-        prenotazione. Superato il termine il pulsante di cancellazione si disattiva e il socio
-        vede l&apos;orario entro cui avrebbe dovuto disdire. Vale solo per i soci: il circolo e i
-        maestri possono cancellare sempre.
+        prenotazione di un campo. Superato il termine il pulsante di cancellazione si
+        disattiva e il socio vede l&apos;orario entro cui avrebbe dovuto disdire. Vale solo
+        per i soci: il circolo e i maestri possono cancellare sempre.
+      </p>
+      <p className="admin-card-hint">
+        Le lezioni non rientrano qui: il termine per disdire una lezione lo stabilisce il
+        Maestro che la tiene, dalle sue Impostazioni nell&apos;app. Finché non lo cambia, per
+        le sue lezioni vale il numero che imposti tu.
       </p>
       <div className="admin-slider-value">
         {valore === 0

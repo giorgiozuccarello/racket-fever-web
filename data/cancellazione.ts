@@ -65,6 +65,42 @@ export function oreLimiteDi(circolo?: { oreLimiteCancellazione?: number | null }
   return Math.min(Math.max(1, Math.round(v)), ORE_LIMITE_CANCELLAZIONE_MAX);
 }
 
+// Il limite delle LEZIONI non e' quello del circolo: e' del Maestro
+// che la tiene. L'Admin regola i campi, che sono suoi; una lezione la
+// da' il Maestro, ed e' lui a dover dire entro quando gli si puo' dare
+// buca — deve poter riempire quell'ora con un altro allievo.
+//
+// ⚠️ Campo assente = EREDITA dal circolo, e non "nessun limite". Il
+// giorno dell'aggiornamento nessun maestro ha ancora toccato il
+// cursore: partendo da zero, tutte le lezioni gia' prenotate sarebbero
+// diventate di colpo disdicibili fino all'ultimo minuto, senza che
+// nessuno avesse deciso niente. Finche' il Maestro non sceglie, vale
+// quello che il circolo aveva gia' stabilito.
+//
+// ⚠️ Per questo il controllo e' su null/undefined e NON su Number():
+// `Number(null)` fa 0, e un campo mai scritto sarebbe stato letto come
+// "il Maestro ha scelto nessun limite" — cioe' l'esatto contrario di
+// ereditare. Uno zero VERO, messo dal Maestro, resta zero.
+export function oreLimiteLezioniDi(
+  maestro?: { oreLimiteCancellazioneLezioni?: number | null } | null,
+  circolo?: { oreLimiteCancellazione?: number | null } | null,
+): number {
+  const suo = maestro?.oreLimiteCancellazioneLezioni;
+  if (suo === undefined || suo === null) return oreLimiteDi(circolo);
+  const v = Number(suo);
+  if (!isFinite(v) || v <= 0) return 0;
+  return Math.min(Math.max(1, Math.round(v)), ORE_LIMITE_CANCELLAZIONE_MAX);
+}
+
+// Il Maestro ha gia' scelto, o sta ancora ereditando dal circolo?
+// Serve solo alla sua schermata Impostazioni, per dirglielo.
+export function limiteLezioniEreditato(
+  maestro?: { oreLimiteCancellazioneLezioni?: number | null } | null,
+): boolean {
+  const suo = maestro?.oreLimiteCancellazioneLezioni;
+  return suo === undefined || suo === null;
+}
+
 // Entro quando si puo' ancora cancellare.
 // null = nessun limite (slider a zero): si disdice fino all'inizio.
 // Su una prenotazione di piu' mezz'ore vale sempre la PRIMA: e'
@@ -98,9 +134,15 @@ export function testoLimiteCancellazione(
   orario: string,
   oreLimite: number,
   adesso: Date = new Date(),
+  // Una lezione non e' "una prenotazione": chi la disdice sta dando
+  // buca a una persona, e la frase deve dire quello che il socio ha
+  // davanti. Il termine, poi, non lo decide nemmeno lo stesso: quello
+  // dei campi e' del circolo, quello delle lezioni del Maestro.
+  eLezione = false,
 ): string {
   const inizio = istanteSlot(data, orario);
   const limite = limiteCancellazione(data, orario, oreLimite);
+  const cosa = eLezione ? 'questa lezione' : 'questa prenotazione';
   // Senza limite si cancella fino all'inizio, ma NON oltre: a partita
   // cominciata sePuoCancellare dice gia' di no, e questa frase deve
   // dire la stessa cosa. Con il testo fisso, chi apriva una partita
@@ -108,14 +150,18 @@ export function testoLimiteCancellazione(
   // gioco" scritto in rosso come motivo del blocco.
   if (!limite) {
     if (adesso.getTime() >= inizio.getTime()) {
-      return `La partita è già cominciata (${dataEstesa(inizio)} alle ${oraBreve(inizio)}): non si può più annullare.`;
+      return eLezione
+        ? `La lezione è già cominciata (${dataEstesa(inizio)} alle ${oraBreve(inizio)}): non si può più annullare.`
+        : `La partita è già cominciata (${dataEstesa(inizio)} alle ${oraBreve(inizio)}): non si può più annullare.`;
     }
-    return 'Puoi cancellare questa prenotazione fino all’orario di gioco.';
+    return eLezione
+      ? 'Puoi cancellare questa lezione fino all’orario di inizio.'
+      : 'Puoi cancellare questa prenotazione fino all’orario di gioco.';
   }
   if (adesso.getTime() >= limite.getTime()) {
-    return `Il termine per cancellare questa prenotazione è scaduto (era ${dataEstesa(limite)} alle ${oraBreve(limite)}).`;
+    return `Il termine per cancellare ${cosa} è scaduto (era ${dataEstesa(limite)} alle ${oraBreve(limite)}).`;
   }
-  return `Se vuoi cancellare questa prenotazione puoi farlo entro le ${oraBreve(limite)} di ${dataEstesa(limite)}.`;
+  return `Se vuoi cancellare ${cosa} puoi farlo entro le ${oraBreve(limite)} di ${dataEstesa(limite)}.`;
 }
 
 // ---- Promemoria ----
@@ -143,6 +189,11 @@ export interface DatiPromemoria {
 // I tre promemoria di una prenotazione, gia' ordinati e gia' ripuliti
 // da quelli inutili: se prenoti stamattina per stasera, l'avviso "due
 // giorni prima" cadrebbe nel passato e semplicemente non esiste.
+// ⚠️ `oreLimite` lo passa chi chiama, e per una LEZIONE dev'essere
+// quello del Maestro (oreLimiteLezioniDi), non quello del circolo:
+// altrimenti l'ultima chiamata a disdire arriverebbe a un'ora che non
+// e' il vero termine. Oggi questa funzione non ha ancora chiamanti —
+// li avra' con le Cloud Functions — ma il vincolo nasce qui.
 export function promemoriaPrenotazione(
   p: DatiPromemoria,
   oreLimite: number,
@@ -163,7 +214,7 @@ export function promemoriaPrenotazione(
     chiave,
     quando,
     titolo,
-    corpo: `${dove} — ${quandoTesto}.\n${testoLimiteCancellazione(p.data, p.orario, oreLimite, quando)}`,
+    corpo: `${dove} — ${quandoTesto}.\n${testoLimiteCancellazione(p.data, p.orario, oreLimite, quando, p.tipo === 'lezione')}`,
   });
 
   // Senza limite di cancellazione questa non e' piu' "l'ultima

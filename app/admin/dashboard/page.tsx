@@ -172,7 +172,7 @@ export default function AdminDashboard() {
         <SezioneCollassabile id="limite" titolo="Limite Prenotazioni" descrizione="Limite di prenotazioni settimanali per socio">
           <SezioneLimite circolo={circolo} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="limite-cancellazione" titolo="Limite Cancellazione Prenotazioni" descrizione="Entro quante ore prima un socio può disdire">
+        <SezioneCollassabile id="limite-cancellazione" titolo="Limite Cancellazione Prenotazioni Campi" descrizione="Entro quante ore prima un socio può disdire un campo">
           <SezioneLimiteCancellazione circolo={circolo} />
         </SezioneCollassabile>
         <SezioneCollassabile id="prezzi" titolo="Prezzi" descrizione="Tariffe orarie e fasce speciali">
