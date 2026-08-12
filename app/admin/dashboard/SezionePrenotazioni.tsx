@@ -15,6 +15,13 @@ import { PrenotazioneAdmin, cancellaConRimborso, cancellaConRimborsoDiviso, canc
 import { Sfida } from '../../../data/sfide';
 import { creaNotifica } from '../../../data/notifiche';
 import { creaNotificaMaestro } from '../../../data/notificheMaestro';
+
+// Gli avvisi sono un di piu': se falliscono non deve mai sembrare che
+// l'annullamento sia fallito — a quel punto la prenotazione e' gia'
+// stata cancellata e il credito rimborsato.
+async function senzaBloccare(fn: () => Promise<unknown>) {
+  try { await fn(); } catch (e) { console.warn('Avviso non inviato:', e); }
+}
 import { formatISO } from '../../../data/settimana';
 import Modal from './Modal';
 
@@ -358,14 +365,25 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           eseguitoDaRuolo: 'admin',
           parziale: true,
         });
-        await creaNotifica(
+        // ⚠️ Il circolo va SEMPRE passato, e l'avviso non deve poter
+        // far fallire l'annullamento: la prenotazione a questo punto e'
+        // gia' cancellata. Senza circoloId l'avviso finisce nel circolo
+        // principale del socio — quello sbagliato, se qui e' Ospite — e
+        // per un Ospite la scrittura viene proprio rifiutata, con
+        // l'errore che risale e nasconde un'operazione riuscita.
+        await senzaBloccare(() => creaNotifica(
           daAnnullare.utenteId,
-          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua metà: € ${meta}.`
-        );
-        await creaNotifica(
-          daAnnullare.compagnoId,
-          `Il circolo ha annullato la prenotazione con ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua metà: € ${meta}.`
-        );
+          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua metà: € ${meta}.`,
+          undefined,
+          circolo.id,
+        ));
+        const compagnoId = daAnnullare.compagnoId;
+        await senzaBloccare(() => creaNotifica(
+          compagnoId,
+          `Il circolo ha annullato la prenotazione con ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua metà: € ${meta}.`,
+          undefined,
+          circolo.id,
+        ));
       } else {
         await cancellaConRimborso({
           circoloId: circolo.id,
@@ -388,18 +406,21 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           // Dalla griglia si cancella sempre una sola mezz'ora.
           parziale: true,
         });
-        await creaNotifica(
+        await senzaBloccare(() => creaNotifica(
           daAnnullare.utenteId,
           `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}.`
-            + (importoDaRimborsare(daAnnullare) > 0 ? ` Credito rimborsato: € ${importoDaRimborsare(daAnnullare).toFixed(2)}.` : '')
-        );
+            + (importoDaRimborsare(daAnnullare) > 0 ? ` Credito rimborsato: € ${importoDaRimborsare(daAnnullare).toFixed(2)}.` : ''),
+          undefined,
+          circolo.id,
+        ));
       }
-      if (daAnnullare.tipo === 'lezione' && daAnnullare.maestroId) {
-        await creaNotificaMaestro(
-          daAnnullare.maestroId,
+      const maestroId = daAnnullare.maestroId;
+      if (daAnnullare.tipo === 'lezione' && maestroId) {
+        await senzaBloccare(() => creaNotificaMaestro(
+          maestroId,
           `Il circolo ha annullato la lezione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}.`,
           circolo.id,
-        );
+        ));
       }
       setDaAnnullare(null);
     } finally {

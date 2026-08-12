@@ -408,8 +408,22 @@ export async function resettaSociTest(circoloId: string): Promise<{
     const snap = await getDocs(query(collection(db, 'richieste_lezione'), where('circoloId', '==', circoloId)));
     for (const d of snap.docs) {
       try {
-        const msg = await getDocs(collection(db, 'richieste_lezione', d.id, 'messaggi'));
-        for (const m of msg.docs) await deleteDoc(m.ref);
+        // ⚠️ Si rilegge finche' non resta niente, e il padre si
+        // cancella per ULTIMO e solo a sottocollezione vuota. Un
+        // messaggio scritto fra la lettura e la cancellazione
+        // sopravviverebbe al padre, e da quel momento sarebbe
+        // illeggibile e incancellabile per chiunque — nemmeno un reset
+        // successivo lo raggiunge, perche' lo cerca partendo dal padre.
+        // (Sul mobile lo stesso giro sta in eliminaRichiesta; qui il
+        // modulo delle lezioni non esiste, l'app Maestro e' solo li'.)
+        const messaggi = collection(db, 'richieste_lezione', d.id, 'messaggi');
+        for (let giro = 0; giro < 4; giro++) {
+          const msg = await getDocs(messaggi);
+          if (msg.empty) break;
+          for (const m of msg.docs) await deleteDoc(m.ref);
+        }
+        const rimasti = await getDocs(messaggi);
+        if (!rimasti.empty) throw new Error('MESSAGGI_NON_CANCELLATI');
         await deleteDoc(d.ref);
         richiesteCancellate++;
       } catch (e) {
@@ -480,13 +494,23 @@ export async function resettaSociTest(circoloId: string): Promise<{
   // delle Sfide, e tutto cio' che e' stato scritto prima che il campo
   // esistesse. Il filtro per circolo non li trova, quindi si passa dai
   // destinatari: le tessere di questo circolo, una per una.
+  //
+  // ⚠️ Solo le tessere PRINCIPALI: la regola che permette all'Admin di
+  // leggere gli avvisi di un socio passa dal circolo scritto sul suo
+  // profilo, quindi per un Ospite — che ha il profilo su un altro club
+  // — la query viene respinta in blocco e non si cancella niente.
+  // ⚠️ E si saltano gli avvisi che un circolo ce l'hanno gia': quella
+  // regola concede TUTTA la collezione del socio, compresi gli avvisi
+  // di un altro club dove e' Ospite, e il reset del circolo A stava
+  // cancellando roba del circolo B.
   for (const d of snapT.docs) {
     const uid = d.data().uid as string | undefined;
-    if (!uid) continue;
+    if (!uid || d.data().principale !== true) continue;
     try {
       const snap = await getDocs(query(collection(db, 'notifiche'), where('utenteId', '==', uid)));
       for (const n of snap.docs) {
         if (giaVisti.has(`notifiche/${n.id}`)) continue;
+        if (n.data().circoloId) continue;
         try { await deleteDoc(n.ref); avvisiCancellati++; } catch (e) { console.warn('Avviso non cancellato:', n.id, e); }
       }
     } catch (e) {
