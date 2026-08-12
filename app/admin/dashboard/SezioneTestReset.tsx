@@ -34,7 +34,7 @@ export default function SezioneTestReset({ circolo, sfide }: { circolo: Circolo;
     setErrore(''); setResettando(true);
     try {
       const r = await resettaSociTest(circolo.id);
-      setEsito(`Azzerati ${r.tessereAzzerate} portafogli · ${r.prenotazioniCancellate} prenotazioni, ${r.movimentiCancellati} movimenti, ${r.avvisiCancellati} avvisi e ${r.sfideCancellate} sfide cancellati.`);
+      setEsito(`Azzerati ${r.tessereAzzerate} portafogli · ${r.prenotazioniCancellate} prenotazioni, ${r.movimentiCancellati} movimenti, ${r.avvisiCancellati} avvisi, ${r.sfideCancellate} sfide e ${r.richiesteCancellate} richieste di lezione cancellate.${r.richiesteFallite === -1 ? ' ⚠️ Le richieste di lezione non si sono potute leggere: controlla che le regole Firestore siano pubblicate.' : r.richiesteFallite > 0 ? ` ⚠️ ${r.richiesteFallite} richieste di lezione non cancellate.` : ''}`);
       setConfermaSoci(false);
     } catch (e: any) {
       setErrore(e?.message ?? 'Errore sconosciuto — controlla la connessione e riprova.');
@@ -55,7 +55,7 @@ export default function SezioneTestReset({ circolo, sfide }: { circolo: Circolo;
 
       <button className="admin-btn-reset" onClick={() => { setEsito(''); setConfermaSoci(true); }}>
         <strong>Reset Completo Soci</strong>
-        <span>Azzera portafogli, prenotazioni, movimenti, avvisi e sfide</span>
+        <span>Azzera portafogli, prenotazioni, movimenti, avvisi, sfide e lezioni</span>
       </button>
 
       <button className="admin-btn-reset" onClick={() => { setEsito(''); setConfermaSfide(true); }}>
@@ -67,8 +67,8 @@ export default function SezioneTestReset({ circolo, sfide }: { circolo: Circolo;
         <div className="admin-modal-title">Reset Completo Soci</div>
         <p className="admin-modal-sub">
           Per TUTTI i Soci/Tesserati e gli Ospiti di questo circolo azzera credito e
-          debito, e cancella prenotazioni, movimenti del registro, avvisi e sfide —
-          comprese le prenotazioni passate.
+          debito, e cancella prenotazioni, movimenti del registro, avvisi, sfide e
+          richieste di lezione con le relative chat — comprese le prenotazioni passate.
         </p>
         <p className="admin-modal-sub" style={{ marginTop: '.5rem', fontWeight: 800, color: '#B3261E' }}>
           Nessuno viene rimosso dal circolo e le posizioni in classifica restano

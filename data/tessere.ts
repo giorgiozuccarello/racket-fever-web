@@ -372,6 +372,10 @@ export async function resettaSociTest(circoloId: string): Promise<{
   aperture: number;
   avvisiCancellati: number;
   sfideCancellate: number;
+  richiesteCancellate: number;
+  // -1 = l'elenco non si e' proprio potuto leggere (regole non
+  // pubblicate?); >0 = lette ma alcune non cancellate.
+  richiesteFallite: number;
 }> {
   // Primo passo: portafogli a zero, tessera per tessera.
   const qT = query(collection(db, 'tessere'), where('circoloId', '==', circoloId));
@@ -384,6 +388,41 @@ export async function resettaSociTest(circoloId: string): Promise<{
     } catch (e) {
       console.warn('Tessera non azzerata durante il reset:', d.id, e);
     }
+  }
+
+
+  // ⚠️ PRIMA le richieste di lezione e le loro conversazioni, POI le
+  // prenotazioni. Nell'ordine inverso, per tutta la durata del reset
+  // ogni richiesta confermata del circolo risulta "confermata senza
+  // campi" — che e' la fotografia di una conferma andata a meta' — e i
+  // soci collegati si vedono comparire in Home "Lezione confermata ma
+  // campi non occupati".
+  // I messaggi stanno in una sottocollezione e Firestore NON li elimina
+  // insieme al documento padre: vanno cancellati PRIMA, o resterebbero
+  // conversazioni orfane che nessuno puo' piu' ne' leggere ne'
+  // ripulire — nemmeno un reset successivo, che le cerca partendo dal
+  // padre.
+  let richiesteCancellate = 0;
+  let richiesteFallite = 0;
+  try {
+    const snap = await getDocs(query(collection(db, 'richieste_lezione'), where('circoloId', '==', circoloId)));
+    for (const d of snap.docs) {
+      try {
+        const msg = await getDocs(collection(db, 'richieste_lezione', d.id, 'messaggi'));
+        for (const m of msg.docs) await deleteDoc(m.ref);
+        await deleteDoc(d.ref);
+        richiesteCancellate++;
+      } catch (e) {
+        richiesteFallite++;
+        console.warn('Richiesta di lezione non cancellata:', d.id, e);
+      }
+    }
+  } catch (e) {
+    // Distinto dal "non ce n'erano": senza, l'Admin legge "0 richieste
+    // cancellate" e non ha modo di capire se il reset ha funzionato o
+    // se le regole non sono pubblicate.
+    richiesteFallite = -1;
+    console.warn('Richieste di lezione non lette durante il reset:', e);
   }
 
   // Secondo passo: tutte le prenotazioni del circolo, anche passate —
@@ -471,7 +510,7 @@ export async function resettaSociTest(circoloId: string): Promise<{
 
   return {
     tessereAzzerate, prenotazioniCancellate, movimentiCancellati,
-    aperture, avvisiCancellati, sfideCancellate,
+    aperture, avvisiCancellati, sfideCancellate, richiesteCancellate, richiesteFallite,
   };
 }
 
