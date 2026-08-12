@@ -3,9 +3,10 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Circolo, immaginiSponsor, MAX_IMMAGINI_SPONSOR, INTERVALLI_SPONSOR,
+  durateSponsor, sponsorFisso, DURATA_SPONSOR_MINIMA,
 } from '../../../data/circoli';
 import { aggiornaCircolo } from '../../../data/circoliRepo';
-import { caricaLogoCircolo, caricaSponsorSfide, rimuoviImmagineSponsor, impostaIntervalloSponsor } from '../../../data/storage';
+import { caricaLogoCircolo, caricaSponsorSfide, rimuoviImmagineSponsor, impostaDurataSponsor , spostaImmagineSponsor} from '../../../data/storage';
 
 export default function SezionePersonalizzaApp({ circolo }: { circolo: Circolo }) {
   return (
@@ -62,7 +63,9 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
     immaginiPrec.current = immagini.length;
   }, [immagini.length]);
 
-  const intervallo = circolo.sponsorSfideIntervallo ?? 0;
+  const durate = durateSponsor(circolo);
+  // L'indice del banner che si e' preso la scena, se c'e'.
+  const iFisso = sponsorFisso(circolo);
 
   const apriSelettore = (indice: number) => {
     rigaScelta.current = indice;
@@ -111,19 +114,36 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
   // da un capo all'altro manderebbe sei scritture su Firestore, e ogni
   // scrittura viene ribattuta a tutti i soci collegati facendo ripartire
   // la rotazione dello sponsor sui loro telefoni.
-  const [posizione, setPosizione] = useState(Math.max(0, INTERVALLI_SPONSOR.indexOf(intervallo)));
+  // Una posizione per riga, ora che ogni banner ha il suo tempo.
+  const [posizioni, setPosizioni] = useState<number[]>([]);
+  const chiaveDurate = durate.join('|');
   useEffect(() => {
-    setPosizione(Math.max(0, INTERVALLI_SPONSOR.indexOf(intervallo)));
-  }, [intervallo]);
+    setPosizioni(durate.map((d) => Math.max(0, INTERVALLI_SPONSOR.indexOf(d))));
+    // La dipendenza e' la stringa e non l'array: un array nuovo a ogni
+    // disegno rimetterebbe i cursori a posto in continuazione, anche
+    // mentre l'Admin ne sta trascinando uno.
+  }, [chiaveDurate]);
 
-  const salvaIntervallo = async (indice: number) => {
-    const secondi = INTERVALLI_SPONSOR[indice] ?? 0;
-    if (secondi === intervallo) return;
+  const salvaDurata = async (indice: number, posizione: number) => {
+    const secondi = INTERVALLI_SPONSOR[posizione] ?? 0;
+    if (secondi === durate[indice]) return;
     setErrore('');
     try {
-      await impostaIntervalloSponsor(circolo.id, secondi);
+      await impostaDurataSponsor(circolo.id, indice, secondi);
     } catch {
-      setErrore('Non sono riuscito a salvare il tempo di cambio. Riprova.');
+      setErrore('Non sono riuscito a salvare il tempo di questo sponsor. Riprova.');
+    }
+  };
+
+  const sposta = async (indice: number, verso: -1 | 1) => {
+    setErrore('');
+    setRimuovendo(true);
+    try {
+      await spostaImmagineSponsor(circolo.id, indice, verso);
+    } catch {
+      setErrore('Non sono riuscito a spostare lo sponsor. Riprova.');
+    } finally {
+      setRimuovendo(false);
     }
   };
 
@@ -133,23 +153,59 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
         Compare in cima alla Classifica Sfide e in Home, sotto le tre caselle. Serve
         un&apos;immagine larga tre volte la sua altezza — l&apos;ideale e&apos; 1200x400
         pixel. Se le proporzioni sono diverse viene ritagliata dal centro. Puoi
-        caricarne fino a {MAX_IMMAGINI_SPONSOR}: si alternano da sole.
+        caricarne fino a {MAX_IMMAGINI_SPONSOR}: si alternano da sole, ognuna per il
+        tempo che le dai qui sotto. Le frecce spostano lo sponsor nell&apos;ordine di
+        rotazione — il Main Sponsor va in cima.
       </p>
+
+      {iFisso >= 0 && (
+        <div className="sponsor-nota-fisso">
+          Lo Sponsor {iFisso + 1} è a Fisso: resta l&apos;unico visibile e gli altri non
+          compaiono. Riportalo ad almeno {DURATA_SPONSOR_MINIMA} secondi per rimettere
+          in gioco tutti.
+        </div>
+      )}
 
       {Array.from({ length: righe }, (_, indice) => {
         const url = immagini[indice];
+        const durata = durate[indice] ?? 0;
+        // Con uno sponsor a Fisso gli altri sono fuori gioco: i loro
+        // comandi si spengono, cosi' si vede che non e' un guasto.
+        const spento = iFisso >= 0 && iFisso !== indice;
         return (
-          <div key={indice} className="sponsor-riga">
+          <div key={indice} className="sponsor-riga" style={spento ? { opacity: 0.55 } : undefined}>
             <div className="sponsor-riga-testata">
               <span className="sponsor-riga-numero">Sponsor {indice + 1}</span>
-              {url && (
-                <button
-                  type="button" className="sponsor-riga-togli"
-                  onClick={() => rimuovi(indice)} disabled={occupato}
-                >
-                  Togli
-                </button>
-              )}
+              <span style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
+                {url && immagini.length > 1 && (
+                  <>
+                    <button
+                      type="button" className="sponsor-riga-ordine"
+                      onClick={() => sposta(indice, -1)}
+                      disabled={occupato || indice === 0}
+                      aria-label="Sposta questo sponsor più in alto"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button" className="sponsor-riga-ordine"
+                      onClick={() => sposta(indice, 1)}
+                      disabled={occupato || indice >= immagini.length - 1}
+                      aria-label="Sposta questo sponsor più in basso"
+                    >
+                      ↓
+                    </button>
+                  </>
+                )}
+                {url && (
+                  <button
+                    type="button" className="sponsor-riga-togli"
+                    onClick={() => rimuovi(indice)} disabled={occupato}
+                  >
+                    Togli
+                  </button>
+                )}
+              </span>
             </div>
             {url ? (
               // eslint-disable-next-line @next/next/no-img-element
@@ -165,6 +221,32 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
             >
               {inCarico === indice ? 'Caricamento…' : url ? 'Cambia immagine' : 'Carica immagine'}
             </button>
+
+            {url && (
+              <div className="sponsor-timer" style={{ marginTop: '.6rem' }}>
+                <input
+                  type="range"
+                  min={0}
+                  max={INTERVALLI_SPONSOR.length - 1}
+                  step={1}
+                  value={posizioni[indice] ?? 0}
+                  disabled={occupato || spento}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setPosizioni((prec) => prec.map((p, i) => (i === indice ? v : p)));
+                  }}
+                  onPointerUp={() => salvaDurata(indice, posizioni[indice] ?? 0)}
+                  onKeyUp={() => salvaDurata(indice, posizioni[indice] ?? 0)}
+                  aria-label={`Durata dello sponsor ${indice + 1}, in secondi`}
+                />
+                <span className="sponsor-timer-valore">
+                  {(INTERVALLI_SPONSOR[posizioni[indice] ?? 0] ?? 0) === 0
+                    ? 'Fisso — solo questo'
+                    : `${INTERVALLI_SPONSOR[posizioni[indice] ?? 0]} secondi`}
+                  {spento ? ' · non visibile' : ''}
+                </span>
+              </div>
+            )}
           </div>
         );
       })}
@@ -187,32 +269,6 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
         onChange={gestisciFile} style={{ display: 'none' }}
       />
 
-      <p className="admin-card-hint" style={{ marginTop: '1.4rem', marginBottom: '.4rem' }}>
-        Ogni quanto cambia lo sponsor mostrato. Con una sola immagine non c&apos;e&apos;
-        niente da alternare e il tempo non ha effetto.
-      </p>
-      <div className="sponsor-timer">
-        <input
-          type="range"
-          min={0}
-          max={INTERVALLI_SPONSOR.length - 1}
-          step={1}
-          value={posizione}
-          disabled={immagini.length < 2}
-          onChange={(e) => setPosizione(Number(e.target.value))}
-          onPointerUp={() => salvaIntervallo(posizione)}
-          onKeyUp={() => salvaIntervallo(posizione)}
-        />
-        <span className="sponsor-timer-valore">
-          {INTERVALLI_SPONSOR[posizione] === 0 ? 'Fisso' : `${INTERVALLI_SPONSOR[posizione]} secondi`}
-        </span>
-      </div>
-      {immagini.length > 1 && intervallo === 0 && (
-        <div className="admin-error-text">
-          Con piu&apos; immagini il tempo non puo&apos; restare su Fisso: si vedrebbe solo
-          la prima. Spostalo per scegliere ogni quanto cambiano.
-        </div>
-      )}
     </div>
   );
 }

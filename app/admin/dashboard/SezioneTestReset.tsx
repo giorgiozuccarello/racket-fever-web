@@ -34,7 +34,7 @@ export default function SezioneTestReset({ circolo, sfide }: { circolo: Circolo;
     setErrore(''); setResettando(true);
     try {
       const r = await resettaSociTest(circolo.id);
-      setEsito(`Azzerati ${r.tessereAzzerate} portafogli · ${r.prenotazioniCancellate} prenotazioni, ${r.movimentiCancellati} movimenti, ${r.avvisiCancellati} avvisi, ${r.sfideCancellate} sfide e ${r.richiesteCancellate} richieste di lezione cancellate.${r.richiesteFallite === -1 ? ' ⚠️ Le richieste di lezione non si sono potute leggere: controlla che le regole Firestore siano pubblicate.' : r.richiesteFallite > 0 ? ` ⚠️ ${r.richiesteFallite} richieste di lezione non cancellate.` : ''}`);
+      setEsito(`Azzerati ${r.tessereAzzerate} portafogli · ${r.prenotazioniCancellate} prenotazioni, ${r.movimentiCancellati} movimenti, ${r.avvisiCancellati} avvisi, ${r.sfideCancellate} sfide e ${r.richiesteCancellate} richieste di lezione cancellate.${r.richiesteFallite === -1 ? ` ⚠️ Le richieste di lezione non si sono potute leggere: controlla che le regole Firestore siano pubblicate. (${r.motivoRichieste})` : r.richiesteFallite > 0 ? ` ⚠️ ${r.richiesteFallite} richieste di lezione non cancellate. Motivo: ${r.motivoRichieste}` : ''}`);
       setConfermaSoci(false);
     } catch (e: any) {
       setErrore(e?.message ?? 'Errore sconosciuto — controlla la connessione e riprova.');

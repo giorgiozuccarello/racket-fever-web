@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { Campo, Blocco, Circolo, ORARI, orarioFineSlot } from './circoli';
-import { PrenotazioneAdmin, prenotaConCompagno, cancellaConRimborsoDiviso } from './prenotazioniRepo';
+import { PrenotazioneAdmin, prenotaConCompagno, cancellaConRimborsoDiviso, idSlot, SLOT_OCCUPATO } from './prenotazioniRepo';
 import { calcolaPrezzo } from './prezzi';
 import { SocioCircolo, impostaCongelamentoSfide } from './users';
 import { formatISO } from './settimana';
@@ -338,8 +338,18 @@ async function applicaRegolaCircolo(
         return !riservato;
       });
       if (libero) {
-        await fissaMatch(sfida, campo, dataIso, ORARIO_UFFICIO, true);
-        return;
+        try {
+          await fissaMatch(sfida, campo, dataIso, ORARIO_UFFICIO, true);
+          return;
+        } catch (e: any) {
+          // ⚠️ "Libero" e' quello che dice la fotografia locale: fra il
+          // controllo e la scrittura qualcuno puo' aver preso l'orario.
+          // Non e' un motivo per arrendersi — il campo dopo, o la
+          // domenica dopo, possono essere ancora liberi. Su ogni altro
+          // errore (credito, rete) ci si ferma davvero.
+          if (e?.message !== SLOT_OCCUPATO) throw e;
+          console.warn('Regola del circolo: campo occupato all\'ultimo, si prova il successivo', campo.id);
+        }
       }
     }
     domenica = new Date(domenica);
@@ -491,6 +501,33 @@ export async function risolviTimerAccordo(sfida: Sfida, soci: SocioCircolo[]): P
   }
 }
 
+// ⚠️ Cancella i segnaposto di QUESTA sfida, e solo quelli.
+//
+// Da quando l'identificativo di una prenotazione e' ricavato dallo
+// slot (circolo, campo, giorno, ora), un id conservato dentro la sfida
+// non punta piu' "a quel documento o a niente": punta ALLO SLOT. Se
+// nel frattempo il segnaposto e' stato tolto e un altro socio ha
+// prenotato quella mezz'ora, quell'id e' diventato il suo — e una
+// cancellazione alla cieca gli avrebbe fatto sparire la prenotazione
+// pagata, senza rimborso, senza movimento e senza un avviso.
+// Quindi si legge prima, e si cancella solo se e' davvero un
+// segnaposto sospeso di questa sfida.
+async function liberaSegnaposto(prenotazioneIds: string[] | null | undefined, sfidaId: string) {
+  if (!prenotazioneIds || prenotazioneIds.length === 0) return;
+  for (const id of prenotazioneIds) {
+    try {
+      const rif = doc(db, 'prenotazioni', id);
+      const snap = await getDoc(rif);
+      if (!snap.exists()) continue;
+      const dati = snap.data() as any;
+      if (dati.sfidaId !== sfidaId || !dati.sospesaSfida) continue;
+      await deleteDoc(rif);
+    } catch (e) {
+      console.warn('Segnaposto sfida non liberato:', id, e);
+    }
+  }
+}
+
 // ---------------- Fase "prenotazione" — proposta formale ----------------
 
 export async function inviaPropostaFormale(
@@ -506,18 +543,38 @@ export async function inviaPropostaFormale(
   // confermati con "Prenota queste ore" — usiamo prezzo 0 e un
   // marcatore dedicato, cancellabili senza rimborso se il timer
   // scade o la proposta non va a buon fine.
+  // ⚠️ Anche i segnaposto sospesi occupano il campo, quindi passano
+  // dallo stesso identificativo ricavato da circolo/campo/giorno/ora:
+  // con un id sorteggiato, due proposte formali sullo stesso orario —
+  // o una proposta sopra una prenotazione appena fatta da un altro
+  // socio — creavano due documenti per la stessa mezz'ora.
+  // ⚠️ Tutte le mezz'ore o nessuna. Senza il disfacimento, se la
+  // seconda risultava occupata la prima restava scritta e fuori da
+  // ogni elenco: nessun percorso dell'app poteva piu' liberarla —
+  // uno slot rosso a prezzo zero per sempre — e riproporre lo stesso
+  // orario falliva all'infinito contro il proprio stesso segnaposto.
   const prenotazioneIds: string[] = [];
+  try {
   for (const ora of orari) {
-    const ref = await addDoc(collection(db, 'prenotazioni'), {
-      utenteId: sfida.sfidanteId, circoloId: sfida.circoloId,
-      campoId: campo.id, campoNome: campo.nome, data: dataIso, dataLabel, orario: ora,
-      prezzo: 0, etichetta: null,
-      utenteNome: sfida.sfidanteNome, utenteCognome: sfida.sfidanteCognome,
-      compagnoId: sfida.sfidatoId, compagnoNome: sfida.sfidatoNome, compagnoCognome: sfida.sfidatoCognome,
-      costoDiviso: true, sfidaId: sfida.id, sospesaSfida: true,
-      creataIl: serverTimestamp(),
+    const ref = doc(db, 'prenotazioni', idSlot(sfida.circoloId, campo.id, dataIso, ora));
+    await runTransaction(db, async (tx) => {
+      const gia = await tx.get(ref);
+      if (gia.exists()) throw new Error(SLOT_OCCUPATO);
+      tx.set(ref, {
+        utenteId: sfida.sfidanteId, circoloId: sfida.circoloId,
+        campoId: campo.id, campoNome: campo.nome, data: dataIso, dataLabel, orario: ora,
+        prezzo: 0, etichetta: null,
+        utenteNome: sfida.sfidanteNome, utenteCognome: sfida.sfidanteCognome,
+        compagnoId: sfida.sfidatoId, compagnoNome: sfida.sfidatoNome, compagnoCognome: sfida.sfidatoCognome,
+        costoDiviso: true, sfidaId: sfida.id, sospesaSfida: true,
+        creataIl: serverTimestamp(),
+      });
     });
     prenotazioneIds.push(ref.id);
+  }
+  } catch (e) {
+    await liberaSegnaposto(prenotazioneIds, sfida.id);
+    throw e;
   }
 
   const proposta: PropostaFormale = { campoId: campo.id, campoNome: campo.nome, data: dataIso, dataLabel, orari, prezzi };
@@ -563,10 +620,19 @@ export async function prenotaOrarioSfida(sfida: Sfida, campi: Campo[]): Promise<
   // Cancella i segnaposto "sospesi" e li ricrea come prenotazioni
   // vere — più semplice e sicuro che provare ad "aggiornare" un
   // segnaposto a metà transazione.
-  for (const id of prenotazioneIds) {
-    try { await deleteDoc(doc(db, 'prenotazioni', id)); } catch { /* già assente, va bene comunque */ }
+  await liberaSegnaposto(prenotazioneIds, sfida.id);
+  try {
+    return await fissaMatch(sfida, campoReale, proposta.data, proposta.orari, false);
+  } catch (e: any) {
+    // ⚠️ I segnaposto sono stati tolti e la ricreazione non e' andata:
+    // gli id conservati sulla sfida ora puntano a slot che possono
+    // essere di chiunque. Vanno azzerati SUBITO, o il timer o un
+    // annullamento successivo cancellerebbero la prenotazione di un
+    // altro socio.
+    try { await updateDoc(doc(db, 'sfide', sfida.id), { prenotazioneIds: null }); }
+    catch (e2) { console.warn('prenotazioneIds non azzerati dopo un fallimento:', e2); }
+    throw e;
   }
-  return await fissaMatch(sfida, campoReale, proposta.data, proposta.orari, false);
 }
 
 export async function risolviTimerPrenotazione(sfida: Sfida, soci: SocioCircolo[]): Promise<void> {
@@ -592,11 +658,7 @@ export async function risolviTimerPrenotazione(sfida: Sfida, soci: SocioCircolo[
   if (!colpaDi) return;
 
   // Libera gli slot eventualmente sospesi.
-  if (sfida.prenotazioneIds && sfida.prenotazioneIds.length > 0) {
-    for (const id of sfida.prenotazioneIds) {
-      try { await deleteDoc(doc(db, 'prenotazioni', id)); } catch { /* già assente */ }
-    }
-  }
+  await liberaSegnaposto(sfida.prenotazioneIds, sfida.id);
 
   if (colpaDi === 'sfidante') {
     await applicaCongelamento(sfida.sfidanteId);
@@ -697,15 +759,7 @@ export async function modificaRisultatoUfficiale(sfidaId: string, nuovoTesto: st
 }
 
 export async function annullaSfida(sfida: Sfida): Promise<void> {
-  if (sfida.prenotazioneIds && sfida.prenotazioneIds.length > 0) {
-    for (const prenId of sfida.prenotazioneIds) {
-      try {
-        await deleteDoc(doc(db, 'prenotazioni', prenId));
-      } catch (e) {
-        console.warn('Prenotazione già assente durante annullamento sfida:', prenId, e);
-      }
-    }
-  }
+  await liberaSegnaposto(sfida.prenotazioneIds, sfida.id);
   // Il regolamento chiede che una sfida annullata sparisca del tutto
   // dai dati (nessuna traccia in Bacheca né altrove) — cancelliamo
   // anche i messaggi della chat, poi il documento stesso.
@@ -723,11 +777,7 @@ export async function annullaSfida(sfida: Sfida): Promise<void> {
 export async function resettaSfideTest(circoloId: string, sfide: Sfida[]): Promise<void> {
   const daCancellare = sfide.filter((sf) => sf.circoloId === circoloId);
   for (const sf of daCancellare) {
-    if (sf.prenotazioneIds && sf.prenotazioneIds.length > 0) {
-      for (const prenId of sf.prenotazioneIds) {
-        try { await deleteDoc(doc(db, 'prenotazioni', prenId)); } catch (e) { console.warn('Prenotazione già assente durante il reset:', prenId, e); }
-      }
-    }
+    await liberaSegnaposto(sf.prenotazioneIds, sf.id);
     try {
       const msgSnap = await getDocs(collection(db, 'sfide', sf.id, 'messaggi'));
       for (const m of msgSnap.docs) {

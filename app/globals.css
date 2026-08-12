@@ -446,6 +446,25 @@ footer li a:hover{opacity:1;text-decoration:underline}
   background:none;border:none;cursor:pointer;padding:.1rem .2rem;
   font-family:inherit;font-size:.78rem;font-weight:700;color:#B3261E;
 }
+
+/* Le frecce di riordino NON sono un comando distruttivo: riusare la
+   classe di "Togli" le faceva rosse, e senza una regola per lo stato
+   spento la freccia in cima restava identica a una attiva — ci si
+   clicca sopra e non succede niente. */
+.sponsor-riga-ordine {
+  background: none; border: 1.5px solid var(--bordo); border-radius: 8px;
+  color: var(--pino); font-size: .95rem; font-weight: 800; line-height: 1;
+  padding: .35rem .5rem; min-width: 32px; min-height: 32px; cursor: pointer;
+}
+.sponsor-riga-ordine:disabled { opacity: .35; cursor: default; }
+
+/* L'avviso "uno sponsor e' a Fisso" descrive una scelta dell'Admin,
+   non un errore: ambra e non rosso. */
+.sponsor-nota-fisso {
+  background: #FDF6E3; border: 1.5px solid #EFE4C0; border-radius: 12px;
+  color: #8A6200; font-weight: 700; font-size: .82rem; line-height: 1.45;
+  padding: .6rem .7rem; margin-bottom: .7rem;
+}
 .sponsor-riga-togli:hover{text-decoration:underline}
 .sponsor-anteprima{
   width:100%;aspect-ratio:3 / 1;object-fit:cover;border-radius:.9rem;display:block;

@@ -26,9 +26,14 @@ export interface Circolo {
   // Da 1 a MAX_IMMAGINI_SPONSOR immagini, mostrate a rotazione con una
   // dissolvenza nell'app. L'ordine e' quello in cui compaiono.
   sponsorSfideUrls?: string[] | null;
-  // Secondi fra un cambio e l'altro: 0 = fisso, si vede la prima e
-  // basta. Vedi INTERVALLI_SPONSOR per i valori ammessi.
+  // ⚠️ Campo STORICO: un tempo unico per tutti i banner. Non si scrive
+  // piu'; si legge solo per ereditarne il valore la prima volta che si
+  // guardano le durate per singolo banner. Vedi durateSponsor().
   sponsorSfideIntervallo?: number | null;
+  // Una durata in secondi per ogni immagine, allineata a
+  // sponsorSfideUrls. 0 = quel banner e' l'unico visibile e resta
+  // fisso.
+  sponsorSfideDurate?: number[] | null;
   // Quante ore prima dell'inizio dello slot un socio puo' ancora
   // disdire. 0 o assente = nessun limite, si cancella fino all'ora di
   // gioco. Il massimo e' ORE_LIMITE_CANCELLAZIONE_MAX (vedi
@@ -88,15 +93,11 @@ export const FONDO_BOX_SOCIO_CHIARI: Record<string, string> = {
 
 
 // ---- Sponsor ----
-// Quante immagini puo' caricare un circolo, e i tempi di cambio
-// ammessi. Lo zero e' "fisso": si vede solo la prima.
+// Quante immagini puo' caricare un circolo, e i tempi ammessi sul
+// cursore. Lo zero non e' un tempo: vuol dire "questo banner e'
+// l'unico visibile, e resta fisso". Vedi durateSponsor().
 export const MAX_IMMAGINI_SPONSOR = 5;
 export const INTERVALLI_SPONSOR = [0, 5, 10, 15, 20, 25, 30];
-// Tempo che si applica da solo quando l'Admin carica la seconda
-// immagine avendo lasciato il cambio su "fisso": senza, il secondo
-// sponsor — che magari ha pagato — non comparirebbe mai.
-export const INTERVALLO_SPONSOR_MINIMO = 5;
-
 // L'elenco vero delle immagini sponsor di un circolo. Unico punto in
 // cui si guarda il campo vecchio a immagine singola: tutto il resto
 // dell'app passa da qui e non deve sapere che esiste.
@@ -112,16 +113,65 @@ export function immaginiSponsor(circolo?: {
   return circolo.sponsorSfideUrl ? [circolo.sponsorSfideUrl] : [];
 }
 
-// Il tempo di cambio da usare davvero. Con una sola immagine non c'e'
-// nulla da alternare, quindi vale zero qualunque cosa dica il campo.
-export function intervalloSponsor(circolo?: {
+// ⚠️ LA DURATA E' PER SINGOLO BANNER, non piu' una sola per tutti.
+// Serve perche' gli sponsor non pagano tutti uguale: un Main Sponsor
+// chiede piu' visibilita' di uno piccolo, e con un tempo unico non si
+// poteva dargliela. `sponsorSfideDurate[i]` e' la durata dell'immagine
+// in posizione i, in secondi.
+//
+// Lo ZERO ha un significato speciale: quel banner resta l'UNICO
+// visibile, fisso, e gli altri non compaiono. E' il modo per dare a
+// uno sponsor la scena intera per un periodo.
+export const DURATA_SPONSOR_MINIMA = 5;
+export const DURATA_SPONSOR_PREDEFINITA = 5;
+
+// Le durate allineate all'elenco delle immagini, una per una.
+// Fa anche da ponte per i circoli che hanno ancora il vecchio tempo
+// unico: quello diventa il punto di partenza di tutti i banner, cosi'
+// chi aveva impostato 30 secondi non se li vede diventare 5 di colpo.
+export function durateSponsor(circolo?: {
   sponsorSfideUrls?: string[] | null;
   sponsorSfideUrl?: string | null;
+  sponsorSfideDurate?: number[] | null;
+  sponsorSfideIntervallo?: number | null;
+} | null): number[] {
+  const quante = immaginiSponsor(circolo).length;
+  const salvate = circolo?.sponsorSfideDurate;
+  const vecchioUnico = circolo?.sponsorSfideIntervallo;
+  // ⚠️ Nel vecchio sistema lo zero voleva dire "fisso: si vede solo la
+  // PRIMA". Trattandolo come "nessun valore" e mettendo tutti al
+  // predefinito, un circolo che aveva dato l'esclusiva al suo Main
+  // Sponsor si sarebbe visto girare tutti i banner ogni cinque
+  // secondi, senza che nessuno avesse toccato niente. Quindi lo zero
+  // di prima diventa lo zero di adesso, sul primo banner.
+  const eraFisso = vecchioUnico === 0;
+  const ereditata = typeof vecchioUnico === 'number' && vecchioUnico >= DURATA_SPONSOR_MINIMA
+    ? vecchioUnico
+    : DURATA_SPONSOR_PREDEFINITA;
+  return Array.from({ length: quante }, (_, i) => {
+    const v = Array.isArray(salvate) ? salvate[i] : undefined;
+    if (typeof v !== 'number') {
+      if (eraFisso) return i === 0 ? 0 : DURATA_SPONSOR_PREDEFINITA;
+      return ereditata;
+    }
+    // Fra zero e il minimo non c'e' niente: un banner che gira dopo
+    // due secondi non lo legge nessuno.
+    if (v <= 0) return 0;
+    return Math.max(DURATA_SPONSOR_MINIMA, v);
+  });
+}
+
+// L'indice del banner che si e' preso la scena, se c'e' (-1 se
+// nessuno). Con piu' di uno a zero vince il primo: l'ordine
+// dell'elenco e' quello che l'Admin cambia con le frecce, quindi e'
+// anche il modo per decidere quale.
+export function sponsorFisso(circolo?: {
+  sponsorSfideUrls?: string[] | null;
+  sponsorSfideUrl?: string | null;
+  sponsorSfideDurate?: number[] | null;
   sponsorSfideIntervallo?: number | null;
 } | null): number {
-  if (immaginiSponsor(circolo).length < 2) return 0;
-  const valore = circolo?.sponsorSfideIntervallo;
-  return typeof valore === 'number' && valore > 0 ? valore : 0;
+  return durateSponsor(circolo).findIndex((d) => d === 0);
 }
 
 export const TEMI_APP: Record<string, TemaApp> = {

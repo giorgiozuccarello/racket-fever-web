@@ -10,10 +10,11 @@
 // ============================================================
 
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
-import { doc, updateDoc, getDoc } from 'firebase/firestore';
+import { doc, updateDoc, getDoc, runTransaction } from 'firebase/firestore';
 import { storage, db } from '../lib/firebase';
 import {
-  Circolo, immaginiSponsor, MAX_IMMAGINI_SPONSOR, INTERVALLO_SPONSOR_MINIMO,
+  Circolo, immaginiSponsor, MAX_IMMAGINI_SPONSOR,
+  durateSponsor, DURATA_SPONSOR_MINIMA, DURATA_SPONSOR_PREDEFINITA,
 } from './circoli';
 
 const LATO = 512;
@@ -120,13 +121,15 @@ export async function caricaSponsorSfide(circoloId: string, file: File, indice: 
     // e' passato alla lista, e leggerli entrambi darebbe un doppione.
     sponsorSfideUrl: null,
   };
-  // Con piu' di un'immagine il cambio non puo' restare su "fisso", o il
-  // secondo sponsor non comparirebbe mai. Si alza al minimo, e l'Admin
-  // se lo vede spostare sotto gli occhi.
-  const intervalloAttuale = dati?.sponsorSfideIntervallo ?? 0;
-  if (nuovo.length > 1 && intervalloAttuale <= 0) {
-    modifiche.sponsorSfideIntervallo = INTERVALLO_SPONSOR_MINIMO;
-  }
+  // Le durate seguono le immagini, posizione per posizione. Un banner
+  // nuovo nasce con la durata predefinita; se un altro si e' preso la
+  // scena (durata zero) il nuovo entra comunque, ma resta invisibile
+  // finche' quello zero non viene tolto — ed e' esattamente quello che
+  // l'Admin ha chiesto mettendolo a zero.
+  const durateAttuali = durateSponsor(dati);
+  const nuoveDurate = [...durateAttuali];
+  while (nuoveDurate.length < nuovo.length) nuoveDurate.push(DURATA_SPONSOR_PREDEFINITA);
+  modifiche.sponsorSfideDurate = nuoveDurate.slice(0, MAX_IMMAGINI_SPONSOR);
   await updateDoc(riferimentoCircolo, modifiche);
 
   // Il file sostituito non serve piu' a nessuno. Si cancella DOPO aver
@@ -146,15 +149,76 @@ export async function caricaSponsorSfide(circoloId: string, file: File, indice: 
 // lista non deve avere buchi, o la rotazione mostrerebbe il vuoto.
 export async function rimuoviImmagineSponsor(circoloId: string, indice: number): Promise<void> {
   const riferimentoCircolo = doc(db, 'circoli', circoloId);
-  const istantanea = await getDoc(riferimentoCircolo);
-  const dati = istantanea.data() as Circolo | undefined;
-  const elenco = immaginiSponsor(dati);
-  if (indice < 0 || indice >= elenco.length) return;
-  const nuovo = elenco.filter((_, i) => i !== indice);
-  await updateDoc(riferimentoCircolo, { sponsorSfideUrls: nuovo, sponsorSfideUrl: null });
+  await runTransaction(db, async (tx) => {
+    const istantanea = await tx.get(riferimentoCircolo);
+    const dati = istantanea.data() as Circolo | undefined;
+    const elenco = immaginiSponsor(dati);
+    if (indice < 0 || indice >= elenco.length) return;
+    const nuovo = elenco.filter((_, i) => i !== indice);
+    // La durata se ne va insieme alla sua immagine, o da qui in poi
+    // ogni banner erediterebbe il tempo di quello prima.
+    const nuoveDurate = durateSponsor(dati).filter((_, i) => i !== indice);
+    tx.update(riferimentoCircolo, {
+      sponsorSfideUrls: nuovo,
+      sponsorSfideUrl: null,
+      sponsorSfideDurate: nuoveDurate,
+    });
+  });
 }
 
-// Tempo di cambio fra uno sponsor e l'altro, in secondi. Zero = fisso.
-export async function impostaIntervalloSponsor(circoloId: string, secondi: number): Promise<void> {
-  await updateDoc(doc(db, 'circoli', circoloId), { sponsorSfideIntervallo: secondi });
+// ⚠️ La durata di UN banner, in secondi. Zero vuol dire "solo questo,
+// e fisso": in quel caso tutti gli altri tornano al valore minimo e i
+// loro comandi si spengono, cosi' l'Admin vede subito che sono fuori
+// gioco e sa come rimetterli dentro (togliere lo zero). Senza questa
+// regola due zeri avrebbero significati contraddittori.
+export async function impostaDurataSponsor(
+  circoloId: string, indice: number, secondi: number,
+): Promise<void> {
+  const riferimentoCircolo = doc(db, 'circoli', circoloId);
+  // ⚠️ Dentro una transazione, e riscrivendo ANCHE l'elenco delle
+  // immagini. Leggendo e scrivendo in due tempi, bastava che nel
+  // frattempo qualcuno togliesse un banner — dall'altro pannello, o
+  // dall'altro dispositivo — per lasciare un elenco di durate piu'
+  // lungo di quello delle immagini: da li' in poi ogni banner
+  // ereditava il tempo di un altro.
+  await runTransaction(db, async (tx) => {
+    const istantanea = await tx.get(riferimentoCircolo);
+    const dati = istantanea.data() as Circolo | undefined;
+    const urls = immaginiSponsor(dati);
+    const durate = durateSponsor(dati);
+    if (indice < 0 || indice >= durate.length) return;
+
+    const valore = secondi <= 0 ? 0 : Math.max(DURATA_SPONSOR_MINIMA, Math.round(secondi));
+    const nuove = valore === 0
+      ? durate.map((_, i) => (i === indice ? 0 : DURATA_SPONSOR_PREDEFINITA))
+      : durate.map((d, i) => (i === indice ? valore : d));
+    tx.update(riferimentoCircolo, { sponsorSfideUrls: urls, sponsorSfideUrl: null, sponsorSfideDurate: nuove });
+  });
+}
+
+// Sposta un banner di una posizione, su o giu'. L'ordine conta due
+// volte: e' quello di rotazione, ed e' quello che decide chi vince se
+// piu' banner sono a zero. Immagine e durata viaggiano insieme.
+export async function spostaImmagineSponsor(
+  circoloId: string, indice: number, verso: -1 | 1,
+): Promise<void> {
+  const riferimentoCircolo = doc(db, 'circoli', circoloId);
+  await runTransaction(db, async (tx) => {
+    const istantanea = await tx.get(riferimentoCircolo);
+    const dati = istantanea.data() as Circolo | undefined;
+    const elenco = immaginiSponsor(dati);
+    const destinazione = indice + verso;
+    if (indice < 0 || indice >= elenco.length) return;
+    if (destinazione < 0 || destinazione >= elenco.length) return;
+
+    const urls = [...elenco];
+    const durate = durateSponsor(dati);
+    [urls[indice], urls[destinazione]] = [urls[destinazione], urls[indice]];
+    [durate[indice], durate[destinazione]] = [durate[destinazione], durate[indice]];
+    tx.update(riferimentoCircolo, {
+      sponsorSfideUrls: urls,
+      sponsorSfideUrl: null,
+      sponsorSfideDurate: durate,
+    });
+  });
 }

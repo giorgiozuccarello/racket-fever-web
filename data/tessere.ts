@@ -376,6 +376,9 @@ export async function resettaSociTest(circoloId: string): Promise<{
   // -1 = l'elenco non si e' proprio potuto leggere (regole non
   // pubblicate?); >0 = lette ma alcune non cancellate.
   richiesteFallite: number;
+  // Il motivo vero della prima che non e' andata, da mostrare
+  // all'Admin: senza, un fallimento resta un mistero.
+  motivoRichieste: string;
 }> {
   // Primo passo: portafogli a zero, tessera per tessera.
   const qT = query(collection(db, 'tessere'), where('circoloId', '==', circoloId));
@@ -404,38 +407,70 @@ export async function resettaSociTest(circoloId: string): Promise<{
   // padre.
   let richiesteCancellate = 0;
   let richiesteFallite = 0;
-  try {
-    const snap = await getDocs(query(collection(db, 'richieste_lezione'), where('circoloId', '==', circoloId)));
-    for (const d of snap.docs) {
-      try {
-        // ⚠️ Si rilegge finche' non resta niente, e il padre si
-        // cancella per ULTIMO e solo a sottocollezione vuota. Un
-        // messaggio scritto fra la lettura e la cancellazione
-        // sopravviverebbe al padre, e da quel momento sarebbe
-        // illeggibile e incancellabile per chiunque — nemmeno un reset
-        // successivo lo raggiunge, perche' lo cerca partendo dal padre.
-        // (Sul mobile lo stesso giro sta in eliminaRichiesta; qui il
-        // modulo delle lezioni non esiste, l'app Maestro e' solo li'.)
-        const messaggi = collection(db, 'richieste_lezione', d.id, 'messaggi');
-        for (let giro = 0; giro < 4; giro++) {
-          const msg = await getDocs(messaggi);
-          if (msg.empty) break;
-          for (const m of msg.docs) await deleteDoc(m.ref);
-        }
-        const rimasti = await getDocs(messaggi);
-        if (!rimasti.empty) throw new Error('MESSAGGI_NON_CANCELLATI');
-        await deleteDoc(d.ref);
-        richiesteCancellate++;
-      } catch (e) {
-        richiesteFallite++;
-        console.warn('Richiesta di lezione non cancellata:', d.id, e);
+  // ⚠️ Il motivo del fallimento va PORTATO A SCHERMO. Prima finiva solo
+  // in console: l'Admin leggeva "una richiesta non cancellata" e non
+  // aveva modo di sapere perche', ne' quale.
+  let motivoRichieste = '';
+
+  // Cancella una conversazione e i suoi messaggi. Il padre va per
+  // ULTIMO e solo a sottocollezione vuota: un messaggio scritto fra la
+  // lettura e la cancellazione sopravviverebbe al padre, e da quel
+  // momento sarebbe illeggibile e incancellabile per chiunque —
+  // nemmeno un reset successivo lo raggiunge, perche' lo cerca
+  // partendo dal padre. E un messaggio che non si lascia cancellare
+  // non deve far rinunciare a tutti gli altri.
+  // (Sul mobile lo stesso giro sta in eliminaRichiesta; qui il modulo
+  // delle lezioni non esiste, l'app Maestro e' solo li'.)
+  const eliminaConversazione = async (richiestaId: string) => {
+    const messaggi = collection(db, 'richieste_lezione', richiestaId, 'messaggi');
+    let ultimoErrore: any = null;
+    for (let giro = 0; giro < 4; giro++) {
+      const msg = await getDocs(messaggi);
+      if (msg.empty) break;
+      ultimoErrore = null;
+      let qualcunoTolto = false;
+      for (const m of msg.docs) {
+        try { await deleteDoc(m.ref); qualcunoTolto = true; }
+        catch (e) { ultimoErrore = e; }
       }
+      if (!qualcunoTolto) break;
     }
-  } catch (e) {
+    const rimasti = await getDocs(messaggi);
+    if (!rimasti.empty) {
+      const codice = ultimoErrore?.code ?? 'sconosciuto';
+      const dettaglio = ultimoErrore?.message ?? 'nessun errore riportato';
+      throw new Error(`MESSAGGI_NON_CANCELLATI (${rimasti.size} rimasti, ${codice}: ${dettaglio})`);
+    }
+    await deleteDoc(doc(db, 'richieste_lezione', richiestaId));
+  };
+
+  try {
+    // Due giri, non uno: il primo puo' fallire su una conversazione per
+    // un motivo passeggero (un messaggio scritto proprio in quel
+    // momento), e il secondo la prende.
+    for (let giro = 0; giro < 2; giro++) {
+      const snap = await getDocs(query(collection(db, 'richieste_lezione'), where('circoloId', '==', circoloId)));
+      if (snap.empty) break;
+      richiesteFallite = 0;
+      motivoRichieste = '';
+      for (const d of snap.docs) {
+        try {
+          await eliminaConversazione(d.id);
+          richiesteCancellate++;
+        } catch (e: any) {
+          richiesteFallite++;
+          if (!motivoRichieste) motivoRichieste = `${d.id}: ${e?.code ?? ''} ${e?.message ?? e}`.trim();
+          console.warn('Richiesta di lezione non cancellata:', d.id, e);
+        }
+      }
+      if (richiesteFallite === 0) break;
+    }
+  } catch (e: any) {
     // Distinto dal "non ce n'erano": senza, l'Admin legge "0 richieste
     // cancellate" e non ha modo di capire se il reset ha funzionato o
     // se le regole non sono pubblicate.
     richiesteFallite = -1;
+    motivoRichieste = `${e?.code ?? ''} ${e?.message ?? e}`.trim();
     console.warn('Richieste di lezione non lette durante il reset:', e);
   }
 
@@ -535,6 +570,7 @@ export async function resettaSociTest(circoloId: string): Promise<{
   return {
     tessereAzzerate, prenotazioniCancellate, movimentiCancellati,
     aperture, avvisiCancellati, sfideCancellate, richiesteCancellate, richiesteFallite,
+    motivoRichieste,
   };
 }
 

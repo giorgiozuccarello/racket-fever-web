@@ -7,6 +7,8 @@ import { calcolaPrezzo } from '../../../data/prezzi';
 import { aggiungiBlocco } from '../../../data/circoliRepo';
 import { prenotaPerSocioDaAdmin, prenotaEsternoDaAdmin } from '../../../data/prenotazioniRepo';
 import { nuovoGruppoId } from '../../../data/movimenti';
+import { collection, doc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { db } from '../../../lib/firebase';
 import { stessaCard } from '../../../data/raggruppamento';
 
 const GIORNI_IT_ESTESO = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
@@ -21,6 +23,31 @@ import { creaNotificaMaestro } from '../../../data/notificheMaestro';
 // stata cancellata e il credito rimborsato.
 async function senzaBloccare(fn: () => Promise<unknown>) {
   try { await fn(); } catch (e) { console.warn('Avviso non inviato:', e); }
+}
+
+// ⚠️ Chiude la conversazione di una lezione annullata dal circolo.
+// Senza, al socio spariva la lezione e restava una chat su una cosa
+// che non esiste piu', e al Maestro una riga nel suo elenco.
+// Il modulo delle lezioni vive solo nell'app: qui il giro si fa a
+// mano, e il documento padre va cancellato per ULTIMO e solo a
+// sottocollezione vuota, o resterebbero messaggi orfani che nessuno
+// puo' piu' ne' leggere ne' ripulire.
+async function chiudiConversazioneLezione(cardId: string) {
+  const snap = await getDocs(query(collection(db, 'richieste_lezione'), where('cardId', '==', cardId)));
+  for (const d of snap.docs) {
+    const messaggi = collection(db, 'richieste_lezione', d.id, 'messaggi');
+    for (let giro = 0; giro < 4; giro++) {
+      const msg = await getDocs(messaggi);
+      if (msg.empty) break;
+      let qualcunoTolto = false;
+      for (const m of msg.docs) {
+        try { await deleteDoc(m.ref); qualcunoTolto = true; } catch { /* si riprova */ }
+      }
+      if (!qualcunoTolto) break;
+    }
+    const rimasti = await getDocs(messaggi);
+    if (rimasti.empty) await deleteDoc(doc(db, 'richieste_lezione', d.id));
+  }
 }
 import { formatISO } from '../../../data/settimana';
 import Modal from './Modal';
@@ -252,12 +279,19 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     if (!modalitaEsterno && !socioScelto) return;
     invioInCorso.current = true;
     setElaborando(true);
+    // ⚠️ Fuori dal try: il messaggio d'errore deve poter dire quante
+    // mezz'ore sono state comunque scritte.
+    let fatte = 0;
     try {
       // Uno scritto per mezz'ora, in sequenza: stesso principio del
       // mobile. Le card si ricompongono poi in un blocco unico.
       // Un solo codice per l'intera operazione: lega le mezz'ore nel
       // registro movimenti.
       const gruppoId = nuovoGruppoId();
+      // ⚠️ Quante ne sono andate davvero: un blocco interrotto a meta'
+      // lasciava scritte le prime mezz'ore senza dirlo, e il "riprova"
+      // ripartiva dalla prima sbattendo contro la prenotazione appena
+      // fatta dall'Admin stesso.
       for (const ora of oreDaPrenotare) {
         const prezzo = senzaAddebito && !modalitaEsterno
           ? 0
@@ -284,6 +318,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             tipoUtente: socioScelto.ruoloTessera === 'ospite' ? 'ospite' : 'socio',
           });
         }
+        fatte++;
       }
       // Una sola notifica per l'intero blocco, non una per mezz'ora.
       if (!modalitaEsterno && socioScelto) {
@@ -298,8 +333,13 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         );
       }
       chiudiTutto();
-    } catch {
-      alert('Non è stato possibile completare la prenotazione. Riprova.');
+    } catch (e: any) {
+      const inParte = fatte > 0
+        ? ` Le prime ${fatte} di ${oreDaPrenotare.length} mezz'ore sono state prenotate: aggiorna la griglia prima di riprovare, o le ritroverai come già occupate.`
+        : ' Riprova.';
+      alert((e?.message === 'SLOT_OCCUPATO'
+        ? 'Una di quelle mezz\'ore è stata appena prenotata da qualcun altro.'
+        : 'Non è stato possibile completare la prenotazione.') + inParte);
     } finally {
       invioInCorso.current = false;
       setElaborando(false);
@@ -341,6 +381,10 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   const confermaAnnulla = async () => {
     if (!daAnnullare) return;
     setElaborando(true);
+    // Si guarda PRIMA di cancellare, mentre l'elenco delle
+    // prenotazioni e' ancora quello di adesso.
+    const ultimaDellaLezione = daAnnullare.tipo === 'lezione' && !!daAnnullare.cardId
+      && !prenotazioni.some((p) => p.cardId === daAnnullare.cardId && p.id !== daAnnullare.id);
     try {
       if (!daAnnullare.utenteId) {
         await cancellaSenzaRimborso(daAnnullare.id);
@@ -421,6 +465,9 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           `Il circolo ha annullato la lezione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}.`,
           circolo.id,
         ));
+      }
+      if (ultimaDellaLezione && daAnnullare.cardId) {
+        await senzaBloccare(() => chiudiConversazioneLezione(daAnnullare.cardId as string));
       }
       setDaAnnullare(null);
     } finally {

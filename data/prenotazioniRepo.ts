@@ -17,6 +17,38 @@ import { orarioFineSlot } from './circoli';
 // segreteria al circolo A resta al circolo A e non viene mai
 // trasportato o sommato a quello di un altro circolo.
 
+// ============================================================
+// ⚠️ L'IDENTIFICATIVO DI UNA PRENOTAZIONE NON E' CASUALE
+//
+// E' ricavato da circolo, campo, giorno e orario. E' l'unica cosa che
+// rende IMPOSSIBILE prenotare due volte la stessa mezz'ora: con un id
+// sorteggiato, due persone che confermavano nello stesso istante
+// scrivevano due documenti diversi sullo stesso campo alla stessa ora,
+// nessuno se ne accorgeva, e la griglia — che cerca la prima
+// prenotazione che trova — ne mostrava una sola. Due giocatori sul
+// campo, e in segreteria nessuna traccia del problema.
+//
+// I controlli "e' ancora libero?" che le schermate fanno prima di
+// scrivere restano utili per dirlo bene all'utente, ma non possono
+// bastare: guardano una fotografia che arriva con qualche istante di
+// ritardo. Questa e' la rete che non ha buchi.
+//
+// Con l'id fisso la seconda scrittura finisce sullo STESSO documento:
+// dentro la transazione ce ne accorgiamo e ci fermiamo, e se anche
+// qualcuno provasse a scavalcare il codice le regole rifiutano — una
+// create su un documento che esiste gia' non e' una create, e l'unico
+// update consentito su una prenotazione riguarda il nome del campo.
+// ============================================================
+export const SLOT_OCCUPATO = 'SLOT_OCCUPATO';
+
+export function idSlot(circoloId: string, campoId: string, data: string, orario: string): string {
+  return `${circoloId}_${campoId}_${data}_${orario}`;
+}
+
+function rifSlot(circoloId: string, campoId: string, data: string, orario: string) {
+  return doc(db, 'prenotazioni', idSlot(circoloId, campoId, data, orario));
+}
+
 export async function prenotaConCredito(params: {
   uid: string;
   circoloId: string;
@@ -44,12 +76,19 @@ export async function prenotaConCredito(params: {
   compagnoCognome?: string | null;
 }): Promise<{ sosUsato: boolean }> {
   const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
-  const prenotazioneRef = doc(collection(db, 'prenotazioni'));
+  const prenotazioneRef = rifSlot(params.circoloId, params.campoId, params.data, params.orario);
   let sosUsato = false;
 
   await runTransaction(db, async (tx) => {
     const utenteSnap = await tx.get(utenteRef);
     if (!utenteSnap.exists()) throw new Error('UTENTE_NON_TROVATO');
+    // ⚠️ Il campo e' ancora libero? La domanda si fa QUI dentro, non
+    // prima: fra il controllo della schermata e la scrittura passa
+    // sempre un momento, e in quel momento chiunque puo' aver preso la
+    // stessa mezz'ora. Dentro la transazione, invece, o siamo i primi o
+    // ci fermiamo.
+    const slotSnap = await tx.get(prenotazioneRef);
+    if (slotSnap.exists()) throw new Error(SLOT_OCCUPATO);
 
     const creditoAttuale = (utenteSnap.data().credito as number) ?? 0;
     const sosAttuale = (utenteSnap.data().sosUtilizzato as number) ?? 0;
@@ -89,27 +128,27 @@ export async function prenotaConCredito(params: {
     });
 
     tx.set(prenotazioneRef, {
-      utenteId: params.uid,
-      circoloId: params.circoloId,
-      campoId: params.campoId,
-      campoNome: params.campoNome,
-      data: params.data,
-      dataLabel: params.dataLabel,
-      orario: params.orario,
-      prezzo: params.prezzo,
-      etichetta: params.etichetta ?? null,
-      utenteNome: params.utenteNome,
-      utenteCognome: params.utenteCognome,
-      note: params.note?.trim() || null,
-      nascondiInfo: !!params.nascondiInfo,
-      compagnoId: params.compagnoId ?? null,
-      compagnoNome: params.compagnoNome ?? null,
-      compagnoCognome: params.compagnoCognome ?? null,
-      costoDiviso: false,
-      gruppoId: params.gruppoId ?? null,
-      cardId: params.cardId ?? null,
-      tipoUtente: params.tipoUtente ?? 'socio',
-      creataIl: serverTimestamp(),
+        utenteId: params.uid,
+        circoloId: params.circoloId,
+        campoId: params.campoId,
+        campoNome: params.campoNome,
+        data: params.data,
+        dataLabel: params.dataLabel,
+        orario: params.orario,
+        prezzo: params.prezzo,
+        etichetta: params.etichetta ?? null,
+        utenteNome: params.utenteNome,
+        utenteCognome: params.utenteCognome,
+        note: params.note?.trim() || null,
+        nascondiInfo: !!params.nascondiInfo,
+        compagnoId: params.compagnoId ?? null,
+        compagnoNome: params.compagnoNome ?? null,
+        compagnoCognome: params.compagnoCognome ?? null,
+        costoDiviso: false,
+        gruppoId: params.gruppoId ?? null,
+        cardId: params.cardId ?? null,
+        tipoUtente: params.tipoUtente ?? 'socio',
+        creataIl: serverTimestamp(),
     });
   });
   return { sosUsato };
@@ -150,12 +189,19 @@ export async function prenotaPerSocioDaAdmin(params: {
   note?: string;
 }): Promise<{ sosUsato: boolean }> {
   const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
-  const prenotazioneRef = doc(collection(db, 'prenotazioni'));
+  const prenotazioneRef = rifSlot(params.circoloId, params.campoId, params.data, params.orario);
   let sosUsato = false;
 
   await runTransaction(db, async (tx) => {
     const utenteSnap = await tx.get(utenteRef);
     if (!utenteSnap.exists()) throw new Error('UTENTE_NON_TROVATO');
+    // ⚠️ Il campo e' ancora libero? La domanda si fa QUI dentro, non
+    // prima: fra il controllo della schermata e la scrittura passa
+    // sempre un momento, e in quel momento chiunque puo' aver preso la
+    // stessa mezz'ora. Dentro la transazione, invece, o siamo i primi o
+    // ci fermiamo.
+    const slotSnap = await tx.get(prenotazioneRef);
+    if (slotSnap.exists()) throw new Error(SLOT_OCCUPATO);
 
     const creditoAttuale = (utenteSnap.data().credito as number) ?? 0;
     const sosAttuale = (utenteSnap.data().sosUtilizzato as number) ?? 0;
@@ -197,29 +243,29 @@ export async function prenotaPerSocioDaAdmin(params: {
     });
 
     tx.set(prenotazioneRef, {
-      utenteId: params.uid,
-      circoloId: params.circoloId,
-      campoId: params.campoId,
-      campoNome: params.campoNome,
-      data: params.data,
-      dataLabel: params.dataLabel,
-      orario: params.orario,
-      prezzo: params.prezzo,
-      etichetta: params.etichetta ?? null,
-      utenteNome: params.utenteNome,
-      utenteCognome: params.utenteCognome,
-      note: params.note?.trim() || null,
-      nascondiInfo: false,
-      compagnoId: null,
-      compagnoNome: null,
-      compagnoCognome: null,
-      costoDiviso: false,
-      tipo: 'campo',
-      tipoUtente: params.tipoUtente ?? 'socio',
-      gruppoId: params.gruppoId ?? null,
-      cardId: params.cardId ?? null,
-      prenotataDa: 'admin',
-      creataIl: serverTimestamp(),
+        utenteId: params.uid,
+        circoloId: params.circoloId,
+        campoId: params.campoId,
+        campoNome: params.campoNome,
+        data: params.data,
+        dataLabel: params.dataLabel,
+        orario: params.orario,
+        prezzo: params.prezzo,
+        etichetta: params.etichetta ?? null,
+        utenteNome: params.utenteNome,
+        utenteCognome: params.utenteCognome,
+        note: params.note?.trim() || null,
+        nascondiInfo: false,
+        compagnoId: null,
+        compagnoNome: null,
+        compagnoCognome: null,
+        costoDiviso: false,
+        tipo: 'campo',
+        tipoUtente: params.tipoUtente ?? 'socio',
+        gruppoId: params.gruppoId ?? null,
+        cardId: params.cardId ?? null,
+        prenotataDa: 'admin',
+        creataIl: serverTimestamp(),
     });
   });
   return { sosUsato };
@@ -244,30 +290,38 @@ export async function prenotaEsternoDaAdmin(params: {
   eseguitoDaUid?: string | null;
   eseguitoDaNome?: string | null;
 }): Promise<void> {
-  await addDoc(collection(db, 'prenotazioni'), {
-    utenteId: '',
-    utenteNome: params.nomeEsterno,
-    utenteCognome: '',
-    circoloId: params.circoloId,
-    campoId: params.campoId,
-    campoNome: params.campoNome,
-    data: params.data,
-    dataLabel: params.dataLabel,
-    orario: params.orario,
-    prezzo: params.prezzo,
-    etichetta: params.etichetta ?? null,
-    note: params.note?.trim() || null,
-    nascondiInfo: false,
-    compagnoId: null,
-    compagnoNome: null,
-    compagnoCognome: null,
-    costoDiviso: false,
-    tipo: 'campo',
-    tipoUtente: 'esterno',
-    prenotataDa: 'admin',
-    gruppoId: params.gruppoId ?? null,
-    cardId: params.cardId ?? null,
-    creataIl: serverTimestamp(),
+  // Anche qui l'id e' quello dello slot, e la verifica sta dentro una
+  // transazione: senza, l'Admin poteva prenotare un esterno sopra la
+  // prenotazione di un socio arrivata un istante prima.
+  const prenotazioneRef = rifSlot(params.circoloId, params.campoId, params.data, params.orario);
+  await runTransaction(db, async (tx) => {
+    const slotSnap = await tx.get(prenotazioneRef);
+    if (slotSnap.exists()) throw new Error(SLOT_OCCUPATO);
+    tx.set(prenotazioneRef, {
+      utenteId: '',
+      utenteNome: params.nomeEsterno,
+      utenteCognome: '',
+      circoloId: params.circoloId,
+      campoId: params.campoId,
+      campoNome: params.campoNome,
+      data: params.data,
+      dataLabel: params.dataLabel,
+      orario: params.orario,
+      prezzo: params.prezzo,
+      etichetta: params.etichetta ?? null,
+      note: params.note?.trim() || null,
+      nascondiInfo: false,
+      compagnoId: null,
+      compagnoNome: null,
+      compagnoCognome: null,
+      costoDiviso: false,
+      tipo: 'campo',
+      tipoUtente: 'esterno',
+      prenotataDa: 'admin',
+      gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
+      creataIl: serverTimestamp(),
+    });
   });
 
   // Nessun portafoglio da muovere, ma l'occupazione del campo va
@@ -389,7 +443,7 @@ export async function prenotaConCompagno(params: {
 }): Promise<{ id: string; sosUsatoUtente: boolean; sosUsatoCompagno: boolean }> {
   const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
   const compagnoRef = doc(db, 'tessere', idTessera(params.compagnoId, params.circoloId));
-  const prenotazioneRef = doc(collection(db, 'prenotazioni'));
+  const prenotazioneRef = rifSlot(params.circoloId, params.campoId, params.data, params.orario);
   const meta = Math.round((params.prezzo / 2) * 100) / 100;
 
   let sosUsatoUtente = false;
@@ -399,6 +453,13 @@ export async function prenotaConCompagno(params: {
     const utenteSnap = await tx.get(utenteRef);
     const compagnoSnap = await tx.get(compagnoRef);
     if (!utenteSnap.exists() || !compagnoSnap.exists()) throw new Error('UTENTE_NON_TROVATO');
+    // ⚠️ Il campo e' ancora libero? La domanda si fa QUI dentro, non
+    // prima: fra il controllo della schermata e la scrittura passa
+    // sempre un momento, e in quel momento chiunque puo' aver preso la
+    // stessa mezz'ora. Dentro la transazione, invece, o siamo i primi o
+    // ci fermiamo.
+    const slotSnap = await tx.get(prenotazioneRef);
+    if (slotSnap.exists()) throw new Error(SLOT_OCCUPATO);
 
     const creditoUtente = (utenteSnap.data().credito as number) ?? 0;
     const creditoCompagno = (compagnoSnap.data().credito as number) ?? 0;
@@ -463,28 +524,28 @@ export async function prenotaConCompagno(params: {
     });
 
     tx.set(prenotazioneRef, {
-      utenteId: params.uid,
-      circoloId: params.circoloId,
-      campoId: params.campoId,
-      campoNome: params.campoNome,
-      data: params.data,
-      dataLabel: params.dataLabel,
-      orario: params.orario,
-      prezzo: params.prezzo,
-      etichetta: params.etichetta ?? null,
-      utenteNome: params.utenteNome,
-      utenteCognome: params.utenteCognome,
-      note: params.note?.trim() || null,
-      nascondiInfo: !!params.nascondiInfo,
-      compagnoId: params.compagnoId,
-      compagnoNome: params.compagnoNome,
-      compagnoCognome: params.compagnoCognome,
-      costoDiviso: true,
-      gruppoId: params.gruppoId ?? null,
-      cardId: params.cardId ?? null,
-      tipoUtente: params.tipoUtente ?? 'socio',
-      sfidaId: params.sfidaId ?? null,
-      creataIl: serverTimestamp(),
+        utenteId: params.uid,
+        circoloId: params.circoloId,
+        campoId: params.campoId,
+        campoNome: params.campoNome,
+        data: params.data,
+        dataLabel: params.dataLabel,
+        orario: params.orario,
+        prezzo: params.prezzo,
+        etichetta: params.etichetta ?? null,
+        utenteNome: params.utenteNome,
+        utenteCognome: params.utenteCognome,
+        note: params.note?.trim() || null,
+        nascondiInfo: !!params.nascondiInfo,
+        compagnoId: params.compagnoId,
+        compagnoNome: params.compagnoNome,
+        compagnoCognome: params.compagnoCognome,
+        costoDiviso: true,
+        gruppoId: params.gruppoId ?? null,
+        cardId: params.cardId ?? null,
+        tipoUtente: params.tipoUtente ?? 'socio',
+        sfidaId: params.sfidaId ?? null,
+        creataIl: serverTimestamp(),
     });
   });
   return { id: prenotazioneRef.id, sosUsatoUtente, sosUsatoCompagno };
@@ -522,11 +583,18 @@ export async function prenotaLezione(params: {
   prenotataDa: 'socio' | 'maestro';
 }): Promise<void> {
   const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
-  const prenotazioneRef = doc(collection(db, 'prenotazioni'));
+  const prenotazioneRef = rifSlot(params.circoloId, params.campoId, params.data, params.orario);
 
   await runTransaction(db, async (tx) => {
     const utenteSnap = await tx.get(utenteRef);
     if (!utenteSnap.exists()) throw new Error('UTENTE_NON_TROVATO');
+    // ⚠️ Il campo e' ancora libero? La domanda si fa QUI dentro, non
+    // prima: fra il controllo della schermata e la scrittura passa
+    // sempre un momento, e in quel momento chiunque puo' aver preso la
+    // stessa mezz'ora. Dentro la transazione, invece, o siamo i primi o
+    // ci fermiamo.
+    const slotSnap = await tx.get(prenotazioneRef);
+    if (slotSnap.exists()) throw new Error(SLOT_OCCUPATO);
 
     const creditoAttuale = (utenteSnap.data().credito as number) ?? 0;
     const sosAttuale = (utenteSnap.data().sosUtilizzato as number) ?? 0;
@@ -567,26 +635,26 @@ export async function prenotaLezione(params: {
     });
 
     tx.set(prenotazioneRef, {
-      utenteId: params.uid,
-      circoloId: params.circoloId,
-      campoId: params.campoId,
-      campoNome: params.campoNome,
-      data: params.data,
-      dataLabel: params.dataLabel,
-      orario: params.orario,
-      prezzo: params.prezzo,
-      etichetta: params.etichetta ?? null,
-      utenteNome: params.utenteNome,
-      utenteCognome: params.utenteCognome,
-      tipo: 'lezione',
-      maestroId: params.maestroId,
-      maestroNome: params.maestroNome,
-      maestroCognome: params.maestroCognome,
-      nascondiInfo: !!params.nascondiInfo,
-      prenotataDa: params.prenotataDa,
-      gruppoId: params.gruppoId ?? null,
-      cardId: params.cardId ?? null,
-      creataIl: serverTimestamp(),
+        utenteId: params.uid,
+        circoloId: params.circoloId,
+        campoId: params.campoId,
+        campoNome: params.campoNome,
+        data: params.data,
+        dataLabel: params.dataLabel,
+        orario: params.orario,
+        prezzo: params.prezzo,
+        etichetta: params.etichetta ?? null,
+        utenteNome: params.utenteNome,
+        utenteCognome: params.utenteCognome,
+        tipo: 'lezione',
+        maestroId: params.maestroId,
+        maestroNome: params.maestroNome,
+        maestroCognome: params.maestroCognome,
+        nascondiInfo: !!params.nascondiInfo,
+        prenotataDa: params.prenotataDa,
+        gruppoId: params.gruppoId ?? null,
+        cardId: params.cardId ?? null,
+        creataIl: serverTimestamp(),
     });
   });
 
@@ -616,28 +684,33 @@ export async function prenotaLezioneEsterno(params: {
   gruppoId?: string;
   cardId?: string;
 }): Promise<void> {
-  await addDoc(collection(db, 'prenotazioni'), {
-    utenteId: '',
-    utenteNome: params.nomeEsterno,
-    utenteCognome: '',
-    circoloId: params.circoloId,
-    campoId: params.campoId,
-    campoNome: params.campoNome,
-    data: params.data,
-    dataLabel: params.dataLabel,
-    orario: params.orario,
-    prezzo: params.prezzo,
-    etichetta: null,
-    tipo: 'lezione',
-    tipoUtente: 'esterno',
-    maestroId: params.maestroId,
-    maestroNome: params.maestroNome,
-    maestroCognome: params.maestroCognome,
-    prenotataDa: 'maestro',
-    nascondiInfo: !!params.nascondiInfo,
-    gruppoId: params.gruppoId ?? null,
-    cardId: params.cardId ?? null,
-    creataIl: serverTimestamp(),
+  const prenotazioneRef = rifSlot(params.circoloId, params.campoId, params.data, params.orario);
+  await runTransaction(db, async (tx) => {
+    const slotSnap = await tx.get(prenotazioneRef);
+    if (slotSnap.exists()) throw new Error(SLOT_OCCUPATO);
+    tx.set(prenotazioneRef, {
+      utenteId: '',
+      utenteNome: params.nomeEsterno,
+      utenteCognome: '',
+      circoloId: params.circoloId,
+      campoId: params.campoId,
+      campoNome: params.campoNome,
+      data: params.data,
+      dataLabel: params.dataLabel,
+      orario: params.orario,
+      prezzo: params.prezzo,
+      etichetta: null,
+      tipo: 'lezione',
+      tipoUtente: 'esterno',
+      maestroId: params.maestroId,
+      maestroNome: params.maestroNome,
+      maestroCognome: params.maestroCognome,
+      prenotataDa: 'maestro',
+      nascondiInfo: !!params.nascondiInfo,
+      gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
+      creataIl: serverTimestamp(),
+    });
   });
 
   // L'allievo esterno non ha un portafoglio, ma la lezione occupa il
