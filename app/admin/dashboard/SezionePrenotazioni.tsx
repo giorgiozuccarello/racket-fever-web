@@ -14,6 +14,7 @@ import { stessaCard } from '../../../data/raggruppamento';
 const GIORNI_IT_ESTESO = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 const MESI_IT = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
 import { PrenotazioneAdmin, cancellaConRimborso, cancellaConRimborsoDiviso, cancellaSenzaRimborso, importoDaRimborsare } from '../../../data/prenotazioniRepo';
+import { giocatoriDi, quotaChiPrenota, elencoNomi } from '../../../data/giocatori';
 import { Sfida } from '../../../data/sfide';
 import { creaNotifica } from '../../../data/notifiche';
 import { creaNotificaMaestro } from '../../../data/notificheMaestro';
@@ -62,8 +63,8 @@ function intestazionePrenotazione(p: PrenotazioneAdmin): string {
       ? `${p.maestroNome} ${p.maestroCognome} lezione con ${p.utenteNome} ${p.utenteCognome}`
       : `${p.utenteNome} ${p.utenteCognome} lezione con ${p.maestroNome} ${p.maestroCognome}`;
   }
-  if (p.compagnoNome) {
-    return `${p.utenteNome} ${p.utenteCognome} gioca con ${p.compagnoNome} ${p.compagnoCognome}`;
+  if (giocatoriDi(p).length > 0) {
+    return `${p.utenteNome} ${p.utenteCognome} gioca con ${elencoNomi(giocatoriDi(p))}`;
   }
   return `${p.utenteNome} ${p.utenteCognome}`;
 }
@@ -388,12 +389,16 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     try {
       if (!daAnnullare.utenteId) {
         await cancellaSenzaRimborso(daAnnullare.id);
-      } else if (daAnnullare.costoDiviso && daAnnullare.compagnoId) {
-        const meta = (daAnnullare.prezzo / 2).toFixed(2);
+      } else if (giocatoriDi(daAnnullare).length > 0) {
+        const altri = giocatoriDi(daAnnullare);
+        const miaQuota = quotaChiPrenota(daAnnullare).toFixed(2);
         await cancellaConRimborsoDiviso({
           circoloId: circolo.id,
           utenteId: daAnnullare.utenteId,
-          compagnoId: daAnnullare.compagnoId,
+          // ⚠️ Ognuno riceve la SUA quota, letta dalla prenotazione:
+          // dopo un cambio giocatore non sono piu' per forza uguali.
+          compagnoId: daAnnullare.compagnoId ?? altri[0].uid,
+          giocatori: altri,
           prenotazioneId: daAnnullare.id,
           prezzoTotale: daAnnullare.prezzo,
           campoNome: daAnnullare.campoNome,
@@ -417,17 +422,18 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         // l'errore che risale e nasconde un'operazione riuscita.
         await senzaBloccare(() => creaNotifica(
           daAnnullare.utenteId,
-          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua metà: € ${meta}.`,
+          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua quota: € ${miaQuota}.`,
           undefined,
           circolo.id,
         ));
-        const compagnoId = daAnnullare.compagnoId;
-        await senzaBloccare(() => creaNotifica(
-          compagnoId,
-          `Il circolo ha annullato la prenotazione con ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua metà: € ${meta}.`,
-          undefined,
-          circolo.id,
-        ));
+        for (const g of altri) {
+          await senzaBloccare(() => creaNotifica(
+            g.uid,
+            `Il circolo ha annullato la prenotazione con ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua quota: € ${g.quota.toFixed(2)}.`,
+            undefined,
+            circolo.id,
+          ));
+        }
       } else {
         await cancellaConRimborso({
           circoloId: circolo.id,
@@ -612,7 +618,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             <strong>Prolunga quella delle {v.orario}</strong>
             <span>
               {v.utenteNome} {v.utenteCognome}
-              {v.compagnoNome ? ` · con ${v.compagnoNome} ${v.compagnoCognome ?? ''}` : ''}
+              {giocatoriDi(v).length > 0 ? ` · con ${elencoNomi(giocatoriDi(v))}` : ''}
               {v.maestroNome ? ` · Lezione con ${v.maestroNome}` : ''}
             </span>
           </button>
@@ -870,8 +876,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
                 ? daAnnullare?.tipo === 'lezione'
                   ? 'Nessun rimborso: le lezioni non hanno addebito.'
                   : 'Non è previsto rimborso per questa cancellazione.'
-                : daAnnullare?.costoDiviso && daAnnullare?.compagnoNome
-                  ? `Saranno rimborsati ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome} e ${daAnnullare.compagnoNome} ${daAnnullare.compagnoCognome ?? ''}, € ${(importoDaRimborsare(daAnnullare) / 2).toFixed(2)} a testa.`
+                : daAnnullare && giocatoriDi(daAnnullare).length > 0
+                  ? `Saranno rimborsati ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome} (€ ${quotaChiPrenota(daAnnullare).toFixed(2)}) e ${elencoNomi(giocatoriDi(daAnnullare))}, ognuno per la sua quota.`
                   : `Il credito sarà rimborsato a ${daAnnullare?.utenteNome} ${daAnnullare?.utenteCognome}: € ${importoDaRimborsare(daAnnullare).toFixed(2)}.`}
             </p>
             <div className="admin-modal-btn-row">

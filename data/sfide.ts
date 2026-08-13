@@ -14,6 +14,7 @@ import {
 import { db } from '../lib/firebase';
 import { Campo, Blocco, Circolo, ORARI, orarioFineSlot } from './circoli';
 import { PrenotazioneAdmin, prenotaConCompagno, cancellaConRimborsoDiviso, idSlot, SLOT_OCCUPATO } from './prenotazioniRepo';
+import { dividiInParti } from './giocatori';
 import { calcolaPrezzo } from './prezzi';
 import { SocioCircolo, impostaCongelamentoSfide } from './users';
 import { formatISO } from './settimana';
@@ -422,6 +423,17 @@ async function fissaMatch(
         await cancellaConRimborsoDiviso({
           utenteId: sfida.sfidanteId,
           compagnoId: sfida.sfidatoId,
+          // ⚠️ La quota ESATTA che era stata addebitata. Senza, il
+          // rimborso ricadeva su una divisione a meta' arrotondata in
+          // modo diverso dall'addebito, e su un prezzo con i centesimi
+          // dispari uno dei due si ritrovava un centesimo in piu' e
+          // l'altro uno in meno — per sempre.
+          giocatori: [{
+            uid: sfida.sfidatoId,
+            nome: sfida.sfidatoNome,
+            cognome: sfida.sfidatoCognome,
+            quota: dividiInParti(c.prezzo, 1).quotaCiascuno,
+          }],
           circoloId: sfida.circoloId,
           prenotazioneId: c.id,
           prezzoTotale: c.prezzo,

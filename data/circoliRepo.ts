@@ -58,17 +58,17 @@ export function ascoltaCampi(circoloId: string, callback: (campi: Campo[]) => vo
 }
 
 export async function aggiungiCampo(
-  circoloId: string, nome: string, superficie: string, ordine: number
+  circoloId: string, nome: string, disciplina: string, ordine: number
 ) {
   await addDoc(collection(db, 'circoli', circoloId, 'campi'), {
-    nome, superficie, ordine, prezzoOraDefault: null, tariffaSpeciale: null,
+    nome, disciplina, ordine, prezzoOraDefault: null, tariffaSpeciale: null,
   });
 }
 
 export async function rinominaCampo(
-  circoloId: string, campoId: string, nome: string, superficie: string
+  circoloId: string, campoId: string, nome: string, disciplina: string
 ) {
-  await updateDoc(doc(db, 'circoli', circoloId, 'campi', campoId), { nome, superficie });
+  await updateDoc(doc(db, 'circoli', circoloId, 'campi', campoId), { nome, disciplina });
 
   // Il nome del campo viene "congelato" dentro ogni prenotazione al
   // momento della creazione (per mostrarlo velocemente senza dover

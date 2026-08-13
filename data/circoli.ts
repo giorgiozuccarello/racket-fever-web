@@ -43,6 +43,12 @@ export interface Circolo {
   // numero resta il valore che il Maestro eredita finche' non sceglie
   // il suo.
   oreLimiteCancellazione?: number | null;
+  // In che regione sta il circolo. Serve ai TORNEI, che sono la prima
+  // cosa condivisa fra circoli: e' la regione con cui la bacheca parte
+  // filtrata per i suoi soci, ed e' quella che l'Admin si ritrova gia'
+  // spuntata quando pubblica. Senza, non c'e' modo di sapere dove sta
+  // un circolo — l'indirizzo non e' mai stato chiesto.
+  regione?: string | null;
   limiteSfidaPosizioni?: number; // 0/assente = usa il default (5): quante posizioni sopra si può sfidare
   // Solo web: sfumatura scelta dall'admin per la classifica sociale.
   // Non esiste nel mobile, va conservata quando si allineano i file.
@@ -204,10 +210,30 @@ export interface TariffaSpeciale {
 export interface Campo {
   id: string;
   nome: string;
-  superficie: string;
+  // La riga sotto il nome, sul bottone del campo e negli elenchi.
+  // ⚠️ Era "superficie" e voleva dire "terra rossa, sintetico, erba".
+  // Adesso e' la DISCIPLINA — tennis, padel, beach — perche' un circolo
+  // con piu' discipline ha bisogno di distinguerle prima ancora di
+  // sapere su cosa si gioca. Resta un testo libero: chi ci vuole
+  // scrivere "Tennis - Terra Rossa" puo' farlo.
+  //
+  // ⚠️ Il vecchio campo resta LEGGIBILE ma non si scrive piu'. I campi
+  // creati prima non hanno "disciplina", e senza questa ricaduta si
+  // ritroverebbero la riga vuota fino a quando qualcuno non li riapre
+  // uno per uno.
+  disciplina?: string;
+  superficie?: string;
   ordine: number;
   prezzoOraDefault: number | null; // null = non ancora impostato dall'admin
   tariffaSpeciale?: TariffaSpeciale | null;
+}
+
+// La riga sotto il nome del campo, comunque sia scritta sul documento.
+// Sta qui e non nelle schermate perche' la leggono in quattro punti
+// diversi fra app e sito, e quattro ricadute scritte a mano sarebbero
+// divergute alla prima disattenzione.
+export function disciplinaDi(campo?: { disciplina?: string; superficie?: string } | null): string {
+  return (campo?.disciplina ?? campo?.superficie ?? '').trim();
 }
 
 export interface Blocco {

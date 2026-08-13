@@ -17,6 +17,7 @@ import SezionePassword from './SezionePassword';
 import SezioneCollaboratori from './SezioneCollaboratori';
 import SezionePersonalizzaApp from './SezionePersonalizzaApp';
 import SezioneCampi from './SezioneCampi';
+import SezioneTornei from './SezioneTornei';
 import SezioneLimite from './SezioneLimite';
 import SezioneLimiteCancellazione from './SezioneLimiteCancellazione';
 import SezionePrezzi from './SezionePrezzi';
@@ -166,8 +167,11 @@ export default function AdminDashboard() {
         <SezioneCollassabile id="collaboratori" titolo="Collaboratori" descrizione="Accesso rapido per lo staff, senza account personale">
           <SezioneCollaboratori circoloId={circolo.id} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="campi" titolo="Campi" descrizione="Numero, nome e superficie dei campi">
+        <SezioneCollassabile id="campi" titolo="Campi" descrizione="Nome e disciplina dei campi">
           <SezioneCampi circoloId={circolo.id} campi={campi} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="tornei" titolo="Tornei" descrizione="Pubblica un torneo sulla bacheca della rete">
+          <SezioneTornei circolo={circolo} />
         </SezioneCollassabile>
         <SezioneCollassabile id="limite" titolo="Limite Prenotazioni" descrizione="Limite di prenotazioni settimanali per socio">
           <SezioneLimite circolo={circolo} />
