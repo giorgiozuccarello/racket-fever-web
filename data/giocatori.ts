@@ -207,3 +207,34 @@ export function elencoNomi(giocatori: { nome: string; cognome: string }[]): stri
   if (nomi.length === 1) return nomi[0];
   return `${nomi.slice(0, -1).join(', ')} e ${nomi[nomi.length - 1]}`;
 }
+
+// ⚠️ COME SI DICE, A CHI E' STATO AGGIUNTO, CHI C'E' IN CAMPO.
+// Chi non ha prenotato apre la scheda della partita e la prima cosa
+// che vuole sapere e' due cose: chi mi ci ha messo, e con chi gioco.
+// Prima si leggeva solo la prima — «Ti ha invitato Mario» — e su una
+// partita in tre o in quattro gli altri non comparivano da nessuna
+// parte: si arrivava al campo scoprendo la formazione.
+//
+// «Invitato» e' diventato «aggiunto» perche' e' quello che succede
+// davvero: non e' un invito che si puo' declinare, e' un posto in
+// campo con addebito della quota. Chiamarlo invito addolciva una cosa
+// che tocca il portafoglio.
+//
+// Torna una coppia e non una frase sola perche' le due righe si
+// scrivono diverse: la prima e' il fatto, la seconda e' contorno.
+// Gli altri arrivano gia' scritti in fila (`elencoNomi`) e non come
+// elenco di persone: le due schermate che chiamano questa funzione li
+// hanno in due forme diverse — una ha gli oggetti, l'altra solo la
+// stringa gia' composta — e farle convergere qui e' l'unico modo
+// perche' dicano la stessa identica frase.
+export function chiTiHaAggiunto(
+  chiHaPrenotato: string,
+  nomiDegliAltri: string,
+): { principale: string; altri: string } {
+  const nome = (chiHaPrenotato ?? '').trim();
+  const altri = (nomiDegliAltri ?? '').trim();
+  return {
+    principale: nome ? `Ti ha aggiunto ${nome}` : 'Sei stato aggiunto a questa partita',
+    altri: altri ? `In campo anche ${altri}` : '',
+  };
+}
