@@ -16,6 +16,19 @@
 // regione, che e' una dimenticanza facile e senza conseguenze buone.
 // ============================================================
 
+import {
+  MESI, giornoDi, soloGiorno, oggiIso, isoDi, fraGiorni,
+  dataScrittaBene, giornoBreve, dataNumerica, linkNavigabile,
+} from './giorni';
+
+// ⚠️ Ri-esportate cosi' com'erano: le date e il link vivono adesso in
+// `giorni.ts`, perche' anche la Bacheca deve calcolarli allo stesso
+// identico modo. Chi le importava da qui non ha dovuto cambiare niente.
+export {
+  giornoDi, oggiIso, isoDi, fraGiorni, dataScrittaBene,
+  giornoBreve, dataNumerica, linkNavigabile,
+};
+
 // ---- Tipologie ----
 // Elenco chiuso e non testo libero: la tipologia e' l'etichetta in cima
 // alla card, quella con cui si riconosce un torneo a colpo d'occhio
@@ -112,18 +125,6 @@ export interface Torneo {
 // non c'era vuole sapere com'e' andata.
 export const CODA_TORNEO_GIORNI = 15;
 
-// 'YYYY-MM-DD' → istante locale di INIZIO giornata. Mai new Date con la
-// Z: il confronto e' con l'orologio di chi guarda, non con Greenwich.
-export function giornoDi(iso: string): Date {
-  return new Date(`${iso}T00:00:00`);
-}
-
-function soloGiorno(d: Date): Date {
-  const x = new Date(d.getTime());
-  x.setHours(0, 0, 0, 0);
-  return x;
-}
-
 export function fineTorneo(t: { dataInizio: string; dataFine?: string }): string {
   return t.dataFine && t.dataFine >= t.dataInizio ? t.dataFine : t.dataInizio;
 }
@@ -174,30 +175,7 @@ export function torneoDaMostrare(
 // Serve anche a Firestore: scritto sul documento, e' il campo su cui
 // si filtra senza doversi portare a casa tutto l'archivio.
 export function ultimoGiornoVisibile(t: { dataInizio: string; dataFine?: string }): string {
-  const d = giornoDi(fineTorneo(t));
-  d.setDate(d.getDate() + CODA_TORNEO_GIORNI);
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const gg = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${mm}-${gg}`;
-}
-
-export function oggiIso(adesso: Date = new Date()): string {
-  const d = soloGiorno(adesso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-}
-
-// Una data scritta a mano e' davvero una data? La forma non basta:
-// "2026-13-45" ha la forma giusta e non esiste, e "2026-02-30"
-// JavaScript la trasforma in silenzio nel 2 marzo. Il giro completo —
-// costruisci e riscrivi — e' l'unico controllo che le prende tutte.
-export function dataScrittaBene(v: string): boolean {
-  const pulito = (v ?? '').trim();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(pulito)) return false;
-  const d = giornoDi(pulito);
-  if (Number.isNaN(d.getTime())) return false;
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  const gg = String(d.getDate()).padStart(2, '0');
-  return `${d.getFullYear()}-${mm}-${gg}` === pulito;
+  return fraGiorni(fineTorneo(t), CODA_TORNEO_GIORNI);
 }
 
 // Si vede in questa regione?
@@ -236,37 +214,16 @@ export function ordinaTornei<T extends { id: string; dataInizio: string; dataFin
   });
 }
 
-// ---- Le date, scritte come le legge un socio ----
-const MESI = [
-  'gennaio', 'febbraio', 'marzo', 'aprile', 'maggio', 'giugno',
-  'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre',
-];
-
-// Nomi a mano e non toLocaleDateString: su Hermes i dati di
-// localizzazione possono mancare del tutto, e uscirebbe in inglese o
-// con un errore a runtime. Stessa scelta gia' fatta per i promemoria.
-export function giornoBreve(iso: string): string {
-  const d = giornoDi(iso);
-  return `${d.getDate()} ${MESI[d.getMonth()]}`;
-}
-
 // Le due date per esteso, con il giorno, il mese e l'ANNO.
 // ⚠️ Convivono con periodoTorneo e non lo sostituiscono: quella e' la
 // riga che si legge scorrendo ("Dal 16 al 30 agosto"), questa e' il
 // dato preciso — un torneo si prenota, ci si organizza il fine
 // settimana, e "30 agosto" senza anno su una bacheca che tiene anche
 // l'edizione dell'anno prima non basta.
-function numerica(iso: string): string {
-  const d = giornoDi(iso);
-  const gg = String(d.getDate()).padStart(2, '0');
-  const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return `${gg}/${mm}/${d.getFullYear()}`;
-}
-
 export function dateEstese(t: { dataInizio: string; dataFine?: string }): string {
   const fine = fineTorneo(t);
-  if (fine === t.dataInizio) return numerica(t.dataInizio);
-  return `Dal ${numerica(t.dataInizio)} al ${numerica(fine)}`;
+  if (fine === t.dataInizio) return dataNumerica(t.dataInizio);
+  return `Dal ${dataNumerica(t.dataInizio)} al ${dataNumerica(fine)}`;
 }
 
 export function periodoTorneo(t: { dataInizio: string; dataFine?: string }): string {
@@ -282,16 +239,3 @@ export function periodoTorneo(t: { dataInizio: string; dataFine?: string }): str
   return `Dal ${giornoBreve(t.dataInizio)} al ${giornoBreve(fine)}`;
 }
 
-// Un indirizzo su cui si puo' mandare qualcuno. Serve perche' il link
-// lo incolla una persona: senza il protocollo davanti il browser non
-// parte, e "www.qualcosa.it" e' esattamente quello che si incolla.
-export function linkNavigabile(link?: string | null): string | null {
-  const pulito = (link ?? '').trim();
-  if (!pulito) return null;
-  if (/^https?:\/\//i.test(pulito)) return pulito;
-  // ⚠️ Solo indirizzi web. Senza questo controllo un link scritto male
-  // — o messo li' apposta — poteva essere un javascript: o un intent:,
-  // e aprirlo e' tutto un altro genere di cosa.
-  if (/^[a-z][a-z0-9+.-]*:/i.test(pulito)) return null;
-  return `https://${pulito}`;
-}

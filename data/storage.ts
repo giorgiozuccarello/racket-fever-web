@@ -222,3 +222,62 @@ export async function spostaImmagineSponsor(
     });
   });
 }
+
+// ============================================================
+// VOLANTINO DELLA BACHECA — l'unica immagine dell'app che NON viene
+// ritagliata.
+//
+// Il logo e' un quadrato, lo sponsor e' una fascia 3:1: di quelli si
+// prende il ritaglio piu' grande centrato e si butta il resto. Un
+// volantino no — e' un A4 verticale, e ritagliarlo a quadrato vuol
+// dire buttare via meta' del foglio, che di solito e' proprio la
+// meta' con l'orario e il numero di telefono. Qui si tengono le
+// proporzioni originali e si limita solo il LATO PIU' LUNGO, cosi'
+// un A4, una locandina orizzontale e una foto scattata al volo
+// arrivano tutte leggere senza perdere niente.
+// ============================================================
+const VOLANTINO_LATO_MAX = 1400;
+
+export async function caricaVolantino(circoloId: string, file: File): Promise<string> {
+  const img = await caricaImmagine(file);
+  const piuLungo = Math.max(img.width, img.height);
+  // Non si ingrandisce mai: una locandina gia' piccola sgranata a
+  // 1400 pesa di piu' e si legge peggio dell'originale.
+  const fattore = piuLungo > VOLANTINO_LATO_MAX ? VOLANTINO_LATO_MAX / piuLungo : 1;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(img.width * fattore);
+  canvas.height = Math.round(img.height * fattore);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) throw new Error("Impossibile elaborare l'immagine");
+  ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (b) => (b ? resolve(b) : reject(new Error('Errore di conversione'))),
+      'image/jpeg',
+      0.85,
+    );
+  });
+
+  // ⚠️ Il nome del file porta l'istante: senza, due volantini caricati
+  // per lo stesso circolo finivano sullo stesso indirizzo, e il
+  // secondo sostituiva il primo — con l'avviso di ieri che da un
+  // momento all'altro mostrava la locandina di oggi.
+  const nome = `${Date.now()}.jpg`;
+  const riferimento = ref(storage, `bacheca/${circoloId}/${nome}`);
+  await uploadBytes(riferimento, blob);
+  return await getDownloadURL(riferimento);
+}
+
+// Il file resta orfano se l'avviso viene tolto: qui si toglie anche
+// quello. Fallisce in silenzio — un volantino orfano non fa danno, un
+// errore a schermo mentre si cancella un avviso si'.
+export async function rimuoviVolantino(url?: string | null): Promise<void> {
+  if (!url) return;
+  try {
+    await deleteObject(ref(storage, url));
+  } catch (e) {
+    console.warn('Volantino non rimosso dallo storage:', (e as any)?.message ?? e);
+  }
+}

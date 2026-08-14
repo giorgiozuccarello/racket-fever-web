@@ -18,6 +18,7 @@ import SezioneCollaboratori from './SezioneCollaboratori';
 import SezionePersonalizzaApp from './SezionePersonalizzaApp';
 import SezioneCampi from './SezioneCampi';
 import SezioneTornei from './SezioneTornei';
+import SezioneBacheca from './SezioneBacheca';
 import SezioneLimite from './SezioneLimite';
 import SezioneLimiteCancellazione from './SezioneLimiteCancellazione';
 import SezionePrezzi from './SezionePrezzi';
@@ -169,6 +170,13 @@ export default function AdminDashboard() {
         </SezioneCollassabile>
         <SezioneCollassabile id="campi" titolo="Campi" descrizione="Nome e disciplina dei campi">
           <SezioneCampi circoloId={circolo.id} campi={campi} />
+        </SezioneCollassabile>
+        {/* La Bacheca sta PRIMA dei Tornei, e nell'ordine c'e' un
+            senso: la bacheca e' quotidiana — una chiusura, una quota,
+            un avviso — mentre un torneo si pubblica ogni tanto. Quello
+            che si usa tutti i giorni sta sopra. */}
+        <SezioneCollassabile id="bacheca" titolo="Bacheca" descrizione="Avvisi, volantini e comunicazioni per i tuoi soci">
+          <SezioneBacheca circolo={circolo} autoreNome={circolo.nome} />
         </SezioneCollassabile>
         <SezioneCollassabile id="tornei" titolo="Tornei" descrizione="Pubblica un torneo sulla bacheca della rete">
           <SezioneTornei circolo={circolo} />
