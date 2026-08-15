@@ -33,21 +33,20 @@ import { giornoDi, oggiIso, fraGiorni, soloGiorno } from './giorni';
 //
 // ⚠️ I COLORI SONO FISSI, non presi dal tema del circolo. E' la stessa
 // scelta gia' fatta per la scheda del socio e per il pop-up della
-// Classifica, ma qui il motivo e' piu' forte: sulla mattonella il
-// colore E' l'informazione, non decorazione. Preso dal tema,
-// "Chiusure" sarebbe rossa in un circolo e blu in un altro, e lo
-// stesso rosso vorrebbe dire due cose diverse — cioe' il colore
-// smetterebbe di dire qualcosa.
+// Classifica, ma qui il motivo e' piu' forte: il colore E'
+// l'informazione, non decorazione. Preso dal tema, "Chiusure" sarebbe
+// rossa in un circolo e blu in un altro, e lo stesso rosso vorrebbe
+// dire due cose diverse — cioe' il colore smetterebbe di dire qualcosa.
 //
-// Tutti e otto sono scuri abbastanza da reggere il testo bianco
-// sopra: la mattonella senza volantino e' un rettangolo pieno con il
-// titolo dentro.
+// Tutti e otto sono scuri abbastanza da reggere il testo bianco sopra:
+// servono per la spilletta che tiene appeso il foglio, per il nome
+// della categoria stampato sul foglio, e per la pillola del filtro.
 export interface Categoria {
   chiave: string;
   nome: string;
-  // Nome dell'icona Ionicons, senza il suffisso "-outline": sulle
-  // mattonelle si usa la versione piena, che a quaranta punti si legge
-  // meglio del contorno.
+  // Nome dell'icona Ionicons, senza il suffisso "-outline": si usa la
+  // versione piena, che dentro una pillola piccola si legge meglio del
+  // contorno.
   icona: string;
   colore: string;
 }
@@ -76,12 +75,11 @@ export interface Avviso {
   id: string;
   circoloId: string;
   categoria: string;
-  // ⚠️ Il titolo e' l'unica cosa obbligatoria, ed e' l'unica che si
-  // legge sulla mattonella: in due colonne ci sono centosessanta punti
-  // di larghezza, dove stanno l'etichetta, due righe di titolo e la
-  // data. Il testo dell'avviso non ci sta, e nemmeno mezzo. La
-  // mattonella e' il foglio visto da lontano, il pop-up e' il foglio
-  // letto da vicino.
+  // ⚠️ Il titolo e' l'unica cosa obbligatoria: e' quello che si legge
+  // sul foglio appeso, insieme all'inizio del testo. Il foglio e'
+  // pero' solo l'anteprima — il testo lungo ci sta troncato — mentre
+  // il pop-up e' il foglio staccato e letto da vicino, con il
+  // volantino intero e tutto il testo.
   titolo: string;
   testo?: string;
   // Il volantino. Facoltativo: un avviso puo' essere solo titolo e

@@ -161,9 +161,15 @@ export function ascoltaSociCircolo(circoloId: string, callback: (soci: SocioCirc
   let tessere: Record<string, any> = {};
   let profili: Record<string, any> = {};
   let prontoTessere = false;
+  // ⚠️ SI ASPETTANO TUTTE E DUE LE LETTURE. Le tessere e i profili
+  // arrivano da due ascolti diversi, e prima si emetteva appena
+  // rispondevano le tessere: in quella prima consegna nessun socio
+  // aveva la foto — la foto sta sul profilo — e a schermo compariva
+  // ovunque il segnaposto, sostituito un istante dopo dalla foto vera.
+  let prontoProfili = false;
 
   const emetti = () => {
-    if (!prontoTessere) return;
+    if (!prontoTessere || !prontoProfili) return;
     const elenco = Object.entries(tessere).map(([uid, t]) => {
       const p = profili[uid] ?? {};
       return {
@@ -207,8 +213,17 @@ export function ascoltaSociCircolo(circoloId: string, callback: (soci: SocioCirc
   const unsubP = onSnapshot(qP, (snap) => {
     profili = {};
     snap.docs.forEach((d) => { profili[d.id] = d.data(); });
+    prontoProfili = true;
     emetti();
-  }, suUnsub);
+  }, (e) => {
+    // ⚠️ Se i profili non arrivano proprio — permesso negato, rete —
+    // NON si resta muti per sempre: si sblocca lo stesso e si consegna
+    // quello che c'e'. Un elenco senza foto e' una pagina piu' povera;
+    // un elenco che non arriva mai e' una pagina che non funziona.
+    prontoProfili = true;
+    emetti();
+    suUnsub(e);
+  });
 
   return () => { unsubT(); unsubP(); };
 }
