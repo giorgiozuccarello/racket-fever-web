@@ -16,7 +16,8 @@ import {
   doc, setDoc, getDoc, updateDoc, onSnapshot,
   collection, query, where, runTransaction,
 } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { auth, db, functions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { registraMovimentoInTransazione } from './movimenti';
 
 export interface ProfiloUtente {
@@ -32,7 +33,10 @@ export interface ProfiloUtente {
   classificaFitp?: string | null; // dichiarata dal socio stesso, es. "3.4" o "NC" — non verificata
   posizioneClassificaSociale?: number | null; // assente = il socio non è (ancora) in classifica
   preferenzeSfide?: { giorni: number[]; oraInizio: string; oraFine: string } | null; // 3 giorni (0=Dom...6=Sab) + fascia di 6h
-  sfideCongelateFino?: string | null; // 'YYYY-MM-DD' — non sfidabile fino a questa data compresa
+  sfideCongelateFino?: string | null;
+  // La rinuncia volontaria, distinta dalla penalita' (vedi
+  // impostaRinunciaSfide).
+  rinunciaSfideFino?: string | null; // 'YYYY-MM-DD' — non sfidabile fino a questa data compresa
   temaAppPersonale?: string | null; // uno degli 8 TEMI_APP scelto dal Socio per sé — assente = usa il Tema del circolo
   vetroBordoAttivo?: boolean; // true/assente = card con bordo sottile, false = senza bordo
   mostraIconaTennis?: boolean; // true/assente = mostra la pallina Tennis nell'header
@@ -247,27 +251,13 @@ export async function aggiornaLimitePersonale(uid: string, circoloId: string, li
 export async function ripristinaSOS(
   uid: string, circoloId: string, eseguitoDa?: { uid: string; nome: string }, socioNome?: string
 ) {
-  const rif = doc(db, 'tessere', `${uid}_${circoloId}`);
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(rif);
-    const credito = snap.exists() ? ((snap.data().credito as number) ?? 0) : 0;
-    const debito = snap.exists() ? ((snap.data().sosUtilizzato as number) ?? 0) : 0;
-    tx.update(rif, { sosUtilizzato: 0 });
-    registraMovimentoInTransazione(tx, {
-      circoloId, uid,
-      socioNome: socioNome ?? null,
-      tipo: 'ripristino_sos',
-      importo: 0,
-      saldoPrima: credito, saldoDopo: credito,
-      debitoPrima: debito, debitoDopo: 0,
-      eseguitoDaUid: eseguitoDa?.uid ?? null,
-      eseguitoDaNome: eseguitoDa?.nome ?? null,
-      eseguitoDaRuolo: 'admin',
-      descrizione: 'Fido saldato in segreteria',
-    });
-  });
+  // ⚠️ Azzerare il debito e' denaro che rientra, esattamente come una
+  // ricarica: le regole non lo concedono piu' a nessun client, nemmeno
+  // all'Admin. Passa dalla Cloud Function, che scrive la riga di
+  // registro nella stessa transazione e la firma con chi l'ha fatto.
+  const chiama = httpsCallable(functions, 'movimentoCredito');
+  await chiama({ tipo: 'saldoDebito', uid, circoloId });
 }
-
 // ============================================================
 // CLASSIFICA — FITP (dichiarata dal socio) e Sociale (gestita
 // dall'Admin, posizione numerica intera e univoca all'interno del
@@ -308,8 +298,24 @@ export async function impostaPreferenzeSfide(
 // data inclusa: nessuno può sfidare il socio fino ad allora (una
 // volta l'anno, per un massimo di 15 giorni, come da regolamento —
 // il limite lo controlla l'interfaccia, non questa funzione).
-export async function impostaCongelamentoSfide(uid: string, dataFino: string | null) {
-  await updateDoc(doc(db, 'utenti', uid), { sfideCongelateFino: dataFino });
+// ⚠️ DUE CAMPI, PERCHE' SONO DUE COSE DIVERSE.
+//
+// `sfideCongelateFino` e' la PENALITA': sette giorni senza poter
+// lanciare sfide, applicata a chi non ha risposto in tempo. Non se la
+// puo' togliere chi la subisce — sarebbe come cancellarsi una multa —
+// quindi la scrive solo la Cloud Function che la applica, e le regole
+// la vietano al titolare del profilo.
+//
+// `rinunciaSfideFino` e' la RINUNCIA del regolamento: il socio dichiara
+// che per un periodo non vuole essere sfidato. E' una scelta sua, e
+// deve restare sua.
+//
+// Stavano nello stesso campo, e quando la penalita' e' stata chiusa al
+// client si e' portata dietro anche la rinuncia: il socio non poteva
+// piu' ne' congelarsi ne' scongelarsi, e la schermata non diceva
+// niente perche' nessuno intercettava l'errore.
+export async function impostaRinunciaSfide(uid: string, dataFino: string | null) {
+  await updateDoc(doc(db, 'utenti', uid), { rinunciaSfideFino: dataFino });
 }
 
 // Il tema personale vive sulla TESSERA, non sul profilo: un socio

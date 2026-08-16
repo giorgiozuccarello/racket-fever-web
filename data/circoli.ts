@@ -54,6 +54,85 @@ export interface Circolo {
   // Non esiste nel mobile, va conservata quando si allineano i file.
   gradienteClassifica?: { da: string; a: string };
   timerSfideVeloce?: boolean; // true = i 2 timer delle Sfide durano 5 minuti invece di 24 ore (solo per i test)
+
+  // ============================================================
+  // ANAGRAFICA DI RETE — la scrive e la legge il Super Admin.
+  //
+  // ⚠️ Sono tutti facoltativi perche' i circoli che esistono gia' non
+  // li hanno: sono nati da uno script di seed che non li scriveva. Un
+  // campo obbligatorio qui avrebbe fatto sparire dall'elenco proprio i
+  // circoli piu' vecchi — quelli che ci interessa di piu' non perdere.
+  // ============================================================
+
+  // ⚠️ ASSENTE VUOL DIRE ATTIVO. E' l'unica lettura possibile: i
+  // circoli scritti prima di oggi non hanno questo campo, e trattarli
+  // come sospesi vorrebbe dire spegnere la piattaforma a tutti i soci
+  // gia' iscritti nel momento in cui si pubblica questa versione.
+  stato?: StatoCircolo;
+  // Quando e' entrato in rete. Millisecondi, come tutte le altre date
+  // che si confrontano nell'app.
+  creatoIlMs?: number;
+  sospesoIlMs?: number | null;
+  chiusoIlMs?: number | null;
+  // Chi ha chiesto l'adesione e chi ha firmato il contratto: sono due
+  // persone diverse piu' spesso di quanto si creda — chiede il
+  // segretario, firma il presidente — e sapere QUALE delle due
+  // chiamare quando qualcosa non va e' meta' del lavoro di assistenza.
+  richiedenteNome?: string | null;
+  richiedenteRuolo?: string | null;
+  richiedenteEmail?: string | null;
+  richiedenteTelefono?: string | null;
+  firmatarioNome?: string | null;
+  firmatarioRuolo?: string | null;
+  firmaIl?: string | null; // 'YYYY-MM-DD'
+  // La richiesta arrivata dal sito da cui questo circolo e' nato, se
+  // ce n'e' una: e' il filo che lega il contatto commerciale al
+  // circolo vero, e senza si perde la storia di come e' arrivato.
+  richiestaId?: string | null;
+  // Appunti del team. Non li vede nessun altro.
+  noteInterne?: string | null;
+}
+
+// ---- Lo stato di un circolo nella rete ----
+//
+// ⚠️ TRE STATI E NON UN INTERRUTTORE, ed e' una scelta presa dopo
+// averci ragionato. Un circolo tiene tessere, prenotazioni, movimenti,
+// sfide e i portafogli dei soci: cancellarne il documento lascerebbe
+// orfano tutto il resto, e il registro movimenti e' immutabile per
+// costruzione — non si distrugge nemmeno volendo.
+//
+// 'sospeso' e' reversibile e serve al caso vero: un circolo che non
+// paga, che sparisce, o che chiede una pausa. Esce dalla lista di
+// scelta, non accetta nuove tessere ne' nuove prenotazioni, e tutto il
+// resto resta leggibile — comprese le prenotazioni gia' fatte, che
+// sono impegni presi con delle persone e non si annullano da soli.
+//
+// 'chiuso' e' definitivo e si mette solo su un circolo gia' sospeso:
+// e' il modo di dire "questa storia e' finita" senza cancellare niente.
+export type StatoCircolo = 'attivo' | 'sospeso' | 'chiuso';
+
+export function statoCircolo(c?: { stato?: StatoCircolo } | null): StatoCircolo {
+  return c?.stato ?? 'attivo';
+}
+
+// Il circolo accetta gente nuova e nuove prenotazioni?
+export function circoloOperativo(c?: { stato?: StatoCircolo } | null): boolean {
+  return statoCircolo(c) === 'attivo';
+}
+
+// Il circolo compare nella lista di chi cerca dove iscriversi?
+// ⚠️ E' la stessa domanda di sopra, ma tenuta separata apposta: il
+// giorno in cui servisse un circolo che resta visibile ma non accetta
+// iscrizioni — o il contrario — le due risposte si separano qui e non
+// in dieci schermate.
+export function circoloSceglibile(c?: { stato?: StatoCircolo } | null): boolean {
+  return statoCircolo(c) === 'attivo';
+}
+
+export function etichettaStatoCircolo(s: StatoCircolo): string {
+  if (s === 'sospeso') return 'Sospeso';
+  if (s === 'chiuso') return 'Chiuso';
+  return 'Attivo';
 }
 
 // Gli 8 Temi App — sostituiscono del tutto il vecchio sistema

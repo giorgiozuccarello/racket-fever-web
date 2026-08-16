@@ -59,10 +59,55 @@ async function prepara(file: File): Promise<Blob> {
 export async function caricaLogoCircolo(circoloId: string, file: File): Promise<string> {
   const blob = await prepara(file);
   const riferimento = ref(storage, `loghi_circoli/${circoloId}/logo.jpg`);
-  await uploadBytes(riferimento, blob);
+  // ⚠️ Il tipo si DICHIARA. Le regole dello Storage adesso accettano
+  // solo image/*, e il blob che esce da fetch() su un file locale
+  // arriva spesso senza tipo o come application/octet-stream: senza
+  // questa riga il caricamento verrebbe respinto, e l'unica cosa che
+  // l'utente vedrebbe e' un errore generico. Il file e' sempre un JPEG
+  // — lo produce il ritaglio qui sopra.
+  await uploadBytes(riferimento, blob, { contentType: 'image/jpeg' });
   const url = await getDownloadURL(riferimento);
   await updateDoc(doc(db, 'circoli', circoloId), { logoUrl: url });
   return url;
+}
+
+// ============================================================
+// FOTO DEL MAESTRO — la carica l'Admin dalla scheda del Maestro.
+//
+// ⚠️ NON finisce sotto foto_profilo/{uid}. Li' le regole dello Storage
+// consentono la scrittura al solo proprietario dell'identificativo, e
+// qui a caricare e' l'Admin: sarebbe stato respinto sempre. Sta invece
+// sotto foto_maestri/{circoloId}, dove comanda chi comanda sul
+// circolo, esattamente come per logo e sponsor.
+//
+// ⚠️ E il nome del file porta l'istante. Storage rigenera il token di
+// download a ogni scrittura sullo stesso percorso: con un nome fisso,
+// un caricamento andato a buon fine seguito da un salvataggio fallito
+// avrebbe lasciato sulla scheda un indirizzo morto — foto rotta, e
+// nessun modo di capire perche'.
+export async function caricaFotoMaestro(circoloId: string, uid: string, file: File): Promise<string> {
+  const blob = await prepara(file);
+  const riferimento = ref(storage, `foto_maestri/${circoloId}/${uid}_${Date.now()}.jpg`);
+  await uploadBytes(riferimento, blob, { contentType: 'image/jpeg' });
+  return await getDownloadURL(riferimento);
+}
+
+// Toglie dal bucket una foto di Maestro che non serve piu' (sostituita
+// o rimossa dalla scheda).
+// ⚠️ Non fa fallire niente se non ci riesce: si chiama sempre DOPO che
+// la scheda e' stata salvata, e a quel punto il file non e' piu'
+// raggiungibile da nessuna schermata. Un errore qui e' un file
+// dimenticato, non un dato perso.
+// ⚠️ Ma va chiamata: senza, ogni "cambia foto" lasciava nel bucket una
+// copia a pagamento, e il volto di un Maestro allontanato dal circolo
+// restava scaricabile da chi si era salvato l'indirizzo.
+export async function rimuoviFotoMaestro(url?: string | null): Promise<void> {
+  if (!url) return;
+  try {
+    await deleteObject(ref(storage, url));
+  } catch (e) {
+    console.warn('Foto del Maestro non rimossa dallo storage:', (e as any)?.message ?? e);
+  }
 }
 
 // Sponsor mostrato in cima alla Classifica Sfide, lato pannello web.
@@ -100,7 +145,13 @@ export async function caricaSponsorSfide(circoloId: string, file: File, indice: 
   // un'altra posizione, e quell'altra si ritroverebbe l'indirizzo
   // morto — Storage rigenera il token a ogni scrittura.
   const riferimento = ref(storage, `sponsor_sfide/${circoloId}/sponsor_${Date.now()}.jpg`);
-  await uploadBytes(riferimento, blob);
+  // ⚠️ Il tipo si DICHIARA. Le regole dello Storage adesso accettano
+  // solo image/*, e il blob che esce da fetch() su un file locale
+  // arriva spesso senza tipo o come application/octet-stream: senza
+  // questa riga il caricamento verrebbe respinto, e l'unica cosa che
+  // l'utente vedrebbe e' un errore generico. Il file e' sempre un JPEG
+  // — lo produce il ritaglio qui sopra.
+  await uploadBytes(riferimento, blob, { contentType: 'image/jpeg' });
   const url = await getDownloadURL(riferimento);
 
   // La lista si rilegge dal documento vero, non da quella che aveva in
@@ -266,7 +317,13 @@ export async function caricaVolantino(circoloId: string, file: File): Promise<st
   // momento all'altro mostrava la locandina di oggi.
   const nome = `${Date.now()}.jpg`;
   const riferimento = ref(storage, `bacheca/${circoloId}/${nome}`);
-  await uploadBytes(riferimento, blob);
+  // ⚠️ Il tipo si DICHIARA. Le regole dello Storage adesso accettano
+  // solo image/*, e il blob che esce da fetch() su un file locale
+  // arriva spesso senza tipo o come application/octet-stream: senza
+  // questa riga il caricamento verrebbe respinto, e l'unica cosa che
+  // l'utente vedrebbe e' un errore generico. Il file e' sempre un JPEG
+  // — lo produce il ritaglio qui sopra.
+  await uploadBytes(riferimento, blob, { contentType: 'image/jpeg' });
   return await getDownloadURL(riferimento);
 }
 

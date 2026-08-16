@@ -11,12 +11,13 @@
 import {
   collection, doc, addDoc, updateDoc, deleteDoc, getDoc, getDocs, runTransaction, onSnapshot, query, where, orderBy, serverTimestamp,
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import { Campo, Blocco, Circolo, ORARI, orarioFineSlot } from './circoli';
+import { auth, db, functions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { Campo, Blocco, Circolo, ORARI, orarioFineSlot, circoloOperativo, StatoCircolo } from './circoli';
 import { PrenotazioneAdmin, prenotaConCompagno, cancellaConRimborsoDiviso, idSlot, SLOT_OCCUPATO } from './prenotazioniRepo';
 import { dividiInParti } from './giocatori';
 import { calcolaPrezzo } from './prezzi';
-import { SocioCircolo, impostaCongelamentoSfide } from './users';
+import { SocioCircolo } from './users';
 import { formatISO } from './settimana';
 import { creaNotifica } from './notifiche';
 
@@ -52,6 +53,14 @@ export function durataTimerMs(circolo: { timerSfideVeloce?: boolean } | null | u
 }
 
 const GIORNI_CONGELAMENTO_PENALITA = 7;
+
+// ⚠️ QUI STAVANO circoloAttivoAdesso e rimandaTimer, la rete di
+// sicurezza che spostava in avanti i timer quando il circolo era
+// sospeso. Sono state tolte perche' quel lavoro adesso lo fa il
+// server, dentro risolviTimerSfida: e' li' che si decide se
+// penalizzare, quindi e' li' che va guardato lo stato del circolo.
+// Lasciarle qui voleva dire due reti di sicurezza che possono
+// dissentire, e la piu' permissiva vince sempre.
 
 export type FaseSfida = 'accordo' | 'prenotazione' | 'accettata' | 'conclusa' | 'decaduta' | 'annullata';
 
@@ -104,6 +113,20 @@ export interface Sfida {
 
 export type TipoMessaggioSfida = 'testo' | 'sistema' | 'proposta_formale';
 
+// ⚠️ QUELLO CHE SERVE PER DISEGNARE UNA CARD, non per scrivere una
+// frase. I messaggi automatici erano una riga di corsivo grigio in
+// mezzo alla conversazione: si leggevano male e si confondevano con i
+// messaggi veri — proprio loro, che raccontano le cose che decidono.
+// Il tono sceglie colore e icona, niente altro.
+export interface DatiSistemaSfida {
+  titolo: string;
+  tono?: 'neutro' | 'ok' | 'attenzione';
+  campoNome?: string;
+  dataLabel?: string;
+  ore?: string;
+  nota?: string;
+}
+
 export interface MessaggioSfida {
   id: string;
   tipo: TipoMessaggioSfida;
@@ -111,6 +134,9 @@ export interface MessaggioSfida {
   mittenteNome: string;
   testo?: string;
   proposta?: PropostaFormale;
+  // ⚠️ Assente sui messaggi scritti prima di questa versione: la card
+  // deve saperli mostrare lo stesso, con la sola frase.
+  dati?: DatiSistemaSfida;
   creatoIl?: any;
 }
 
@@ -163,9 +189,16 @@ export function sfidaTroppoRecente(uid1: string, uid2: string, sfide: Sfida[]): 
   });
 }
 
+// ⚠️ DUE MOTIVI PER NON POTER ESSERE SFIDATI, e vanno guardati
+// entrambi: la PENALITA' (sfideCongelateFino, che applica il server) e
+// la RINUNCIA volontaria (rinunciaSfideFino, che sceglie il socio).
+// Erano lo stesso campo; separandoli, chi guardasse solo il primo
+// lascerebbe sfidare chi ha rinunciato.
 export function socioCongelato(socio: SocioCircolo): boolean {
-  if (!socio.sfideCongelateFino) return false;
-  return socio.sfideCongelateFino >= formatISO(new Date());
+  const oggi = formatISO(new Date());
+  const perPenalita = !!socio.sfideCongelateFino && socio.sfideCongelateFino >= oggi;
+  const perRinuncia = !!socio.rinunciaSfideFino && socio.rinunciaSfideFino >= oggi;
+  return perPenalita || perRinuncia;
 }
 
 // ---------------- Fase 0 — Lancio ----------------
@@ -211,7 +244,11 @@ export async function inviaMessaggioTesto(sfida: Sfida, mittenteId: string, mitt
   const pulito = testo.trim();
   if (!pulito) return;
   await addDoc(collection(db, 'sfide', sfida.id, 'messaggi'), {
-    tipo: 'testo', mittenteId, mittenteNome, testo: pulito, creatoIl: serverTimestamp(),
+    tipo: 'testo', mittenteId, mittenteNome, testo: pulito,
+    // Chi ha materialmente scritto, sempre. Le regole lo pretendono:
+    // e' quello che rende ogni messaggio attribuibile.
+    scrittoDa: auth.currentUser?.uid ?? '',
+    creatoIl: serverTimestamp(),
   });
   // In fase "prenotazione" ogni messaggio conta come "azione" ai fini
   // della regola "ultima risposta valida": chi scrive per ultimo è
@@ -224,47 +261,49 @@ export async function inviaMessaggioTesto(sfida: Sfida, mittenteId: string, mitt
   await notificaSfidaConRitentativi(destinatarioId, `${mittenteNome}: ${pulito}`, sfida.circoloId);
 }
 
-async function messaggioSistema(sfidaId: string, testo: string): Promise<void> {
-  await addDoc(collection(db, 'sfide', sfidaId, 'messaggi'), {
-    tipo: 'sistema', mittenteId: 'sistema', mittenteNome: 'Sistema', testo, creatoIl: serverTimestamp(),
-  });
+// ⚠️ GLI AVVISI DI SISTEMA NON LI SCRIVE PIU' IL TELEFONO.
+// Le frasi in gioco qui sono di quelle che decidono — "perde la
+// posizione in classifica", "e' congelato per 7 giorni", "sfida
+// fissata: Campo 2, giovedi' alle 18" — e finche' le scriveva il
+// client bastava una chiamata diretta per far leggere all'avversario
+// che era stato penalizzato senza che lo fosse.
+// Adesso si manda il NOME DI UN EVENTO: la frase la compone il server
+// leggendo la sfida, dopo aver verificato che quell'evento sia davvero
+// successo. Le regole vietano a qualunque client di scrivere un
+// messaggio con tipo 'sistema'.
+export type EventoSfida =
+  | 'accordoCliccato'
+  | 'accordoDaEntrambi'
+  | 'accordoNonTrovato'
+  | 'annullataNessunCampo'
+  | 'matchFissato'
+  | 'propostaAccettata';
+
+// ⚠️ Non blocca mai chi la chiama. Un avviso mancante in chat e' meno
+// grave di un'operazione che sembra fallita: a questo punto la cosa
+// vera — l'accordo, la penalita', il campo prenotato — e' gia' scritta.
+async function messaggioSistema(sfidaId: string, evento: EventoSfida): Promise<void> {
+  try {
+    const chiama = httpsCallable(functions, 'messaggioSfida');
+    await chiama({ sfidaId, evento });
+  } catch (e) {
+    console.warn('Avviso di sistema non scritto:', e);
+  }
 }
 
 // ---------------- Penalità condivise ----------------
 
-// Il "vincitore" prende la posizione del "perdente" in classifica —
-// stessa identica logica di una vittoria normale (concludiSfida),
-// riusata qui per ogni caso di penalità automatica per mancata
-// risposta o mancata presentazione.
-// Le posizioni in classifica vivono sulla TESSERA (una per circolo),
-// non piu' sul profilo utente: un socio puo' essere 3o in un circolo
-// e 12o in un altro. Scrivere su /utenti non aggiornava nulla — la
-// classifica restava ferma senza segnalare alcun errore.
-async function applicaPerditaPosizione(perdenteId: string, vincitoreId: string, soci: SocioCircolo[], circoloId: string): Promise<void> {
-  const perdente = soci.find((s) => s.uid === perdenteId);
-  const vincitore = soci.find((s) => s.uid === vincitoreId);
-  if (!perdente || !vincitore || perdente.posizioneClassificaSociale == null || vincitore.posizioneClassificaSociale == null) return;
-  if (vincitore.posizioneClassificaSociale <= perdente.posizioneClassificaSociale) return; // già davanti, nulla da fare
-
-  const posPerdente = perdente.posizioneClassificaSociale;
-  const posVincitore = vincitore.posizioneClassificaSociale;
-  await runTransaction(db, async (tx) => {
-    soci.forEach((s) => {
-      const pos = s.posizioneClassificaSociale;
-      if (pos == null || s.uid === vincitoreId) return;
-      if (pos >= posPerdente && pos < posVincitore) {
-        tx.update(doc(db, 'tessere', `${s.uid}_${circoloId}`), { posizioneClassificaSociale: pos + 1 });
-      }
-    });
-    tx.update(doc(db, 'tessere', `${vincitoreId}_${circoloId}`), { posizioneClassificaSociale: posPerdente });
-  });
-}
-
-async function applicaCongelamento(uid: string): Promise<void> {
-  const fino = new Date();
-  fino.setDate(fino.getDate() + GIORNI_CONGELAMENTO_PENALITA);
-  await impostaCongelamentoSfide(uid, formatISO(fino));
-}
+// ⚠️ LE PENALITA' NON SI APPLICANO PIU' DA QUI, e le due funzioni che
+// lo facevano — applicaPerditaPosizione e applicaCongelamento — sono
+// state TOLTE, non lasciate inutilizzate. Erano le uniche righe di
+// questo file capaci di spostare la classifica di un socio e di
+// congelarne un altro: lasciarle in giro voleva dire che il primo che
+// avesse avuto bisogno di "una penalita' al volo" le avrebbe
+// richiamate, riaprendo esattamente la porta che questa tornata
+// chiude. Adesso quel lavoro sta nelle Cloud Functions
+// (risolviTimerSfida, concludiSfidaAdmin) e le regole Firestore non
+// consentono piu' a nessun client di scrivere ne' la posizione in
+// classifica di un altro ne' il proprio congelamento.
 
 // ---------------- Fase "accordo" — i due bottoni ----------------
 
@@ -278,10 +317,10 @@ export async function cliccaAccordoTrovato(sfida: Sfida, chi: 'sfidante' | 'sfid
   const nuovoValore = !valoreAttuale;
 
   await updateDoc(doc(db, 'sfide', sfida.id), { [campo]: nuovoValore });
-  await messaggioSistema(
-    sfida.id,
-    nuovoValore ? `${mittenteNome} ha cliccato "Accordo Trovato".` : `${mittenteNome} ha annullato "Accordo Trovato".`
-  );
+  // Acceso o spento lo legge il server dal campo appena scritto: e'
+  // un interruttore, e raccontarne il contrario sarebbe l'unico modo
+  // di mentire qui dentro.
+  await messaggioSistema(sfida.id, 'accordoCliccato');
 
   const altroValore = chi === 'sfidante' ? sfida.accordoSfidato : sfida.accordoSfidante;
   if (nuovoValore && altroValore) {
@@ -291,12 +330,21 @@ export async function cliccaAccordoTrovato(sfida: Sfida, chi: 'sfidante' | 'sfid
       prenotazioneScadenza: Date.now() + durata,
       ultimaAzioneDi: chi, // l'ultimo dei due a confermare è, per definizione, l'ultima azione
     });
-    await messaggioSistema(sfida.id, 'Accordo trovato da entrambi! Ora potete usare "Proponi Orario" per formalizzare, o continuare a scrivervi.');
+    await messaggioSistema(sfida.id, 'accordoDaEntrambi');
     await notificaSfidaConRitentativi(sfida.sfidanteId, 'Accordo trovato con lo sfidato: ora potete proporre l\'orario formale.', sfida.circoloId);
     await notificaSfidaConRitentativi(sfida.sfidatoId, 'Accordo trovato con lo sfidante: ora potete proporre l\'orario formale.', sfida.circoloId);
   } else {
     const destinatarioId = chi === 'sfidante' ? sfida.sfidatoId : sfida.sfidanteId;
-    await notificaSfidaConRitentativi(destinatarioId, `${mittenteNome} ha cliccato "Accordo Trovato" nella vostra sfida.`, sfida.circoloId);
+    // ⚠️ Anche l'avviso deve distinguere: e' un interruttore, e diceva
+    // "ha cliccato" pure quando il socio stava TOGLIENDO la spunta —
+    // contraddicendo la riga che nel frattempo compare in chat.
+    await notificaSfidaConRitentativi(
+      destinatarioId,
+      nuovoValore
+        ? `${mittenteNome} ha cliccato "Accordo Trovato" nella vostra sfida.`
+        : `${mittenteNome} ha tolto "Accordo Trovato" nella vostra sfida.`,
+      sfida.circoloId,
+    );
   }
 }
 
@@ -304,10 +352,15 @@ export async function cliccaAccordoTrovato(sfida: Sfida, chi: 'sfidante' | 'sfid
 // toggleabile, a differenza di "Trovato" — una volta chiamata in
 // causa la segreteria, l'esito si fissa).
 export async function cliccaAccordoNonTrovato(
-  sfida: Sfida, chi: 'sfidante' | 'sfidato', mittenteNome: string,
+  sfida: Sfida, chi: 'sfidante' | 'sfidato',
+  // ⚠️ Non si usa piu': il nome di chi ha cliccato lo ricava il server
+  // dalla sfida. Resta nella firma perche' i due punti che la chiamano
+  // lo passano ancora, e cambiare la firma per un parametro morto e'
+  // rumore in una tornata che tocca gia' il denaro e le penalita'.
+  _mittenteNome: string,
   campi: Campo[], prenotazioni: PrenotazioneAdmin[], blocchi: Blocco[]
 ): Promise<void> {
-  await messaggioSistema(sfida.id, `${mittenteNome} ha cliccato "Accordo Non Trovato": si applica la regola del circolo.`);
+  await messaggioSistema(sfida.id, 'accordoNonTrovato');
   await applicaRegolaCircolo(sfida, campi, prenotazioni, blocchi);
 }
 
@@ -358,8 +411,13 @@ async function applicaRegolaCircolo(
   }
 
   // Nessun campo libero in nessuna delle due domeniche: annullata, senza penalità.
-  await updateDoc(doc(db, 'sfide', sfida.id), { fase: 'annullata' });
-  await messaggioSistema(sfida.id, 'Nessun campo libero la domenica: la sfida è annullata, senza penalità per nessuno.');
+  // ⚠️ La fase NON la scrive piu' il client: la scrive la Function
+  // insieme al messaggio, dopo aver verificato che ci sia stata una
+  // dichiarazione di "Accordo Non Trovato" e che il timer non sia gia'
+  // scaduto. Finche' la scriveva il telefono, "annullata" era la via di
+  // fuga da ogni penalita': bastava scriverla vedendo il timer arrivare
+  // a sfavore.
+  await messaggioSistema(sfida.id, 'annullataNessunCampo');
   await notificaSfidaConRitentativi(sfida.sfidanteId, 'Sfida Annullata: nessun campo libero la domenica per la regola del circolo.', sfida.circoloId);
   await notificaSfidaConRitentativi(sfida.sfidatoId, 'Sfida Annullata: nessun campo libero la domenica per la regola del circolo.', sfida.circoloId);
 }
@@ -466,52 +524,60 @@ async function fissaMatch(
     matchCampoNome: campo.nome, matchData: dataIso, matchDataLabel: dataLabel, matchOrari: orari,
     matchViaRegolaCircolo: viaRegolaCircolo,
   });
-  await messaggioSistema(sfida.id, `Sfida fissata: ${campo.nome}, ${dataLabel} ore ${orari[0]}-${orarioFineSlot(orari[orari.length - 1])}.`);
+  // Campo, giorno e orari li rilegge il server dal documento, che li
+  // ha appena ricevuti nell'update qui sopra.
+  await messaggioSistema(sfida.id, 'matchFissato');
   const testoNotifica = `Sfida in Corso: ${campo.nome}, ${dataLabel} ore ${orari[0]}.`;
   await notificaSfidaConRitentativi(sfida.sfidanteId, testoNotifica, sfida.circoloId);
   await notificaSfidaConRitentativi(sfida.sfidatoId, testoNotifica, sfida.circoloId);
   return { sosUsatoSfidante, sosUsatoSfidato };
 }
 
-// Risoluzione passiva del timer 1 (chiamata dal client quando nota
-// che accordoScadenza è passata e la fase è ancora "accordo" — non
-// c'è un server dedicato per questo, come per il resto delle Sfide).
-export async function risolviTimerAccordo(sfida: Sfida, soci: SocioCircolo[]): Promise<void> {
-  if (sfida.fase !== 'accordo') return;
-  if (Date.now() < sfida.accordoScadenza) return;
-
-  const sfidaRef = doc(db, 'sfide', sfida.id);
-  let daApplicare: 'silenzio' | 'sfidante_muto' | 'sfidato_muto' | null = null;
-
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(sfidaRef);
-    if (!snap.exists() || snap.data().fase !== 'accordo') return;
-    const s = snap.data() as Sfida;
-    if (!s.accordoSfidante && !s.accordoSfidato) daApplicare = 'silenzio';
-    else if (s.accordoSfidato && !s.accordoSfidante) daApplicare = 'sfidante_muto';
-    else if (s.accordoSfidante && !s.accordoSfidato) daApplicare = 'sfidato_muto';
-    else return; // entrambi trovato: non dovrebbe arrivare qui (già passato a "prenotazione")
-    // "decaduta", non "annullata": qui una vera penalità è stata
-    // applicata (qualcuno ha perso qualcosa) — deve comparire nello
-    // storico, a differenza di un annullamento senza conseguenze.
-    const vincitoreId = daApplicare === 'sfidante_muto' ? s.sfidatoId : s.sfidanteId;
-    tx.update(sfidaRef, { fase: 'decaduta', vincitoreId, risultatoUfficiale: 'Tempo Scaduto', conclusaIl: serverTimestamp() });
-  });
-
-  if (!daApplicare) return;
-
-  if (daApplicare === 'silenzio' || daApplicare === 'sfidato_muto') {
-    await applicaPerditaPosizione(sfida.sfidatoId, sfida.sfidanteId, soci, sfida.circoloId);
-    await messaggioSistema(sfida.id, 'Le 24 ore sono scadute senza risposta dallo sfidato: perde la posizione in classifica.');
-    await notificaSfidaConRitentativi(sfida.sfidatoId, 'Non hai risposto in tempo alla sfida: hai perso la tua posizione in classifica.', sfida.circoloId);
-    await notificaSfidaConRitentativi(sfida.sfidanteId, `${sfida.sfidatoNome} non ha risposto in tempo: hai preso la sua posizione in classifica.`, sfida.circoloId);
-  } else if (daApplicare === 'sfidante_muto') {
-    await applicaCongelamento(sfida.sfidanteId);
-    await messaggioSistema(sfida.id, 'Le 24 ore sono scadute senza risposta dallo sfidante: è congelato dalle sfide per 7 giorni.');
-    await notificaSfidaConRitentativi(sfida.sfidanteId, 'Non hai risposto in tempo alla tua stessa sfida: sei congelato dal lanciarne altre per 7 giorni.', sfida.circoloId);
-    await notificaSfidaConRitentativi(sfida.sfidatoId, `${sfida.sfidanteNome} non ha risposto in tempo: la sfida decade, nessuna penalità per te.`, sfida.circoloId);
+// ============================================================
+// I DUE TIMER — la risoluzione sta sul server.
+//
+// ⚠️ PERCHE' SI E' SPOSTATA. Questi due applicano penalita' vere e
+// irreversibili: sette giorni di stop dalle sfide, oppure la perdita
+// della posizione in classifica, che alla riattivazione non torna
+// indietro. Finche' girava sul telefono, chi le subiva le subiva su
+// decisione di un client — e siccome lo stato della sfida era
+// scrivibile dai due sfidanti, bastava scriversi una sfida decaduta
+// con se' stessi come vincitore.
+//
+// Adesso il client fa una cosa sola: dice "guarda se e' scaduto". Chi
+// ha sbagliato, se la classifica si muove e di quanto lo decide il
+// server, dentro una transazione, leggendo le posizioni dalle tessere
+// vere invece che da un elenco che arriva da fuori.
+//
+// ⚠️ Le firme restano quelle di prima — `soci` e `circolo` non servono
+// piu' a niente — perche' i sei punti che le chiamano continuano a
+// passarli, e cambiare sei chiamate in una tornata che tocca le
+// penalita' e' rumore che non aiuta nessuno.
+// ============================================================
+async function chiediRisoluzioneTimer(sfidaId: string): Promise<void> {
+  try {
+    const chiama = httpsCallable(functions, 'risolviTimerSfida');
+    await chiama({ sfidaId });
+  } catch (e) {
+    // Non blocca e non allarma: se non e' andata, al prossimo giro
+    // qualcuno riprovera'. Una penalita' rimandata non fa danno; una
+    // schermata che dice "errore" su un timer scaduto, si'.
+    console.warn('Timer non risolto:', e);
   }
 }
+
+export async function risolviTimerAccordo(sfida: Sfida, _soci: SocioCircolo[], _circolo?: Circolo | null): Promise<void> {
+  if (sfida.fase !== 'accordo') return;
+  if (Date.now() < sfida.accordoScadenza) return;
+  await chiediRisoluzioneTimer(sfida.id);
+}
+
+export async function risolviTimerPrenotazione(sfida: Sfida, _soci: SocioCircolo[], _circolo?: Circolo | null): Promise<void> {
+  if (sfida.fase !== 'prenotazione') return;
+  if (!sfida.prenotazioneScadenza || Date.now() < sfida.prenotazioneScadenza) return;
+  await chiediRisoluzioneTimer(sfida.id);
+}
+
 
 // ⚠️ Cancella i segnaposto di QUESTA sfida, e solo quelli.
 //
@@ -598,6 +664,7 @@ export async function inviaPropostaFormale(
   });
   await addDoc(collection(db, 'sfide', sfida.id, 'messaggi'), {
     tipo: 'proposta_formale', mittenteId: chi === 'sfidante' ? sfida.sfidanteId : sfida.sfidatoId, mittenteNome,
+    scrittoDa: auth.currentUser?.uid ?? '',
     proposta, creatoIl: serverTimestamp(),
   });
   const destinatarioId = chi === 'sfidante' ? sfida.sfidatoId : sfida.sfidanteId;
@@ -611,7 +678,7 @@ export async function accettaPropostaFormale(sfida: Sfida, chi: 'sfidante' | 'sf
     prenotazioneScadenza: Date.now() + durata,
     ultimaAzioneDi: chi,
   });
-  await messaggioSistema(sfida.id, `${mittenteNome} ha accettato la proposta. Manca solo la conferma finale per prenotare davvero.`);
+  await messaggioSistema(sfida.id, 'propostaAccettata');
   const destinatarioId = chi === 'sfidante' ? sfida.sfidatoId : sfida.sfidanteId;
   await notificaSfidaConRitentativi(destinatarioId, `${mittenteNome} ha accettato la proposta! Conferma per prenotare davvero.`, sfida.circoloId);
 }
@@ -647,43 +714,6 @@ export async function prenotaOrarioSfida(sfida: Sfida, campi: Campo[]): Promise<
   }
 }
 
-export async function risolviTimerPrenotazione(sfida: Sfida, soci: SocioCircolo[]): Promise<void> {
-  if (sfida.fase !== 'prenotazione') return;
-  if (!sfida.prenotazioneScadenza || Date.now() < sfida.prenotazioneScadenza) return;
-
-  const sfidaRef = doc(db, 'sfide', sfida.id);
-  let colpaDi: 'sfidante' | 'sfidato' | null = null;
-
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(sfidaRef);
-    if (!snap.exists() || snap.data().fase !== 'prenotazione') return;
-    const s = snap.data() as Sfida;
-    // Chi ha compiuto l'ultima azione stava aspettando l'altro:
-    // quindi la colpa è di chi NON ha agito per ultimo.
-    colpaDi = s.ultimaAzioneDi === 'sfidante' ? 'sfidato' : 'sfidante';
-    // "decaduta", non "annullata": una vera penalità è stata
-    // applicata — deve comparire nello storico.
-    const vincitoreId = colpaDi === 'sfidante' ? s.sfidatoId : s.sfidanteId;
-    tx.update(sfidaRef, { fase: 'decaduta', vincitoreId, risultatoUfficiale: 'Tempo Scaduto', conclusaIl: serverTimestamp() });
-  });
-
-  if (!colpaDi) return;
-
-  // Libera gli slot eventualmente sospesi.
-  await liberaSegnaposto(sfida.prenotazioneIds, sfida.id);
-
-  if (colpaDi === 'sfidante') {
-    await applicaCongelamento(sfida.sfidanteId);
-    await messaggioSistema(sfida.id, 'Tempo scaduto senza prenotazione: colpa dello sfidante, congelato dalle sfide per 7 giorni.');
-    await notificaSfidaConRitentativi(sfida.sfidanteId, 'Non hai risposto in tempo: sei congelato dal lanciare sfide per 7 giorni.', sfida.circoloId);
-    await notificaSfidaConRitentativi(sfida.sfidatoId, 'Lo sfidante non ha risposto in tempo: la sfida decade, nessuna penalità per te.', sfida.circoloId);
-  } else {
-    await applicaPerditaPosizione(sfida.sfidatoId, sfida.sfidanteId, soci, sfida.circoloId);
-    await messaggioSistema(sfida.id, 'Tempo scaduto senza prenotazione: colpa dello sfidato, perde la posizione in classifica.');
-    await notificaSfidaConRitentativi(sfida.sfidatoId, 'Non hai risposto in tempo: hai perso la tua posizione in classifica.', sfida.circoloId);
-    await notificaSfidaConRitentativi(sfida.sfidanteId, `${sfida.sfidatoNome} non ha risposto in tempo: hai preso la sua posizione in classifica.`, sfida.circoloId);
-  }
-}
 
 // ---------------- Fase 3 — risultato ----------------
 
@@ -699,44 +729,20 @@ export async function dichiaraRisultato(
 // l'aggiornamento veniva scritto su un documento inesistente e la
 // classifica restava ferma — senza alcun errore visibile, perche'
 // tutto il resto (avvisi, chiusura sfida) andava a buon fine.
+// ⚠️ IL RISULTATO UFFICIALE LO REGISTRA IL CIRCOLO, sul server.
+// E' quello che sposta la classifica, e i due in campo sono parte in
+// causa: prima potevano scriverlo entrambi con una chiamata diretta.
+// La firma resta identica — `soci` non serve piu', la classifica il
+// server se la legge da solo dalle tessere.
 export async function concludiSfida(
-  sfidaId: string, sfidanteId: string, sfidatoId: string, vincitoreId: string, soci: SocioCircolo[],
-  faseAttesa: FaseSfida, risultatoUfficiale: string, circoloId: string
+  sfidaId: string, _sfidanteId: string, _sfidatoId: string, vincitoreId: string, _soci: SocioCircolo[],
+  _faseAttesa: FaseSfida, risultatoUfficiale: string, _circoloId: string
 ): Promise<boolean> {
-  const sfidaRef = doc(db, 'sfide', sfidaId);
-  let applicata = false;
-
-  await runTransaction(db, async (tx) => {
-    const sfidaSnap = await tx.get(sfidaRef);
-    if (!sfidaSnap.exists()) return;
-    const faseAttuale = sfidaSnap.data().fase as FaseSfida;
-    if (faseAttuale !== faseAttesa) return;
-
-    const sfidante = soci.find((s) => s.uid === sfidanteId);
-    const sfidato = soci.find((s) => s.uid === sfidatoId);
-
-    if (
-      sfidante && sfidato &&
-      sfidante.posizioneClassificaSociale != null && sfidato.posizioneClassificaSociale != null &&
-      vincitoreId === sfidanteId && sfidante.posizioneClassificaSociale > sfidato.posizioneClassificaSociale
-    ) {
-      const posSfidante = sfidante.posizioneClassificaSociale;
-      const posSfidato = sfidato.posizioneClassificaSociale;
-      soci.forEach((s) => {
-        const pos = s.posizioneClassificaSociale;
-        if (pos == null || s.uid === sfidanteId) return;
-        if (pos >= posSfidato && pos < posSfidante) {
-          tx.update(doc(db, 'tessere', `${s.uid}_${circoloId}`), { posizioneClassificaSociale: pos + 1 });
-        }
-      });
-      tx.update(doc(db, 'tessere', `${sfidanteId}_${circoloId}`), { posizioneClassificaSociale: posSfidato });
-    }
-
-    tx.update(sfidaRef, { fase: 'conclusa', vincitoreId, risultatoUfficiale: risultatoUfficiale.trim(), conclusaIl: serverTimestamp() });
-    applicata = true;
+  const chiama = httpsCallable(functions, 'concludiSfidaAdmin');
+  const esito = await chiama({
+    sfidaId, modo: 'risultato', vincitoreId, risultatoUfficiale,
   });
-
-  return applicata;
+  return (esito.data as { applicata?: boolean })?.applicata === true;
 }
 
 // Mancata presentazione: l'Admin, dal pop-up di conclusione, segnala
@@ -745,17 +751,13 @@ export async function concludiSfida(
 // lo sfidante mancante, ma congelamento; per lo sfidato mancante,
 // perdita diretta della posizione).
 export async function nonPresentatoSfidante(sfida: Sfida): Promise<void> {
-  await applicaCongelamento(sfida.sfidanteId);
-  await updateDoc(doc(db, 'sfide', sfida.id), { fase: 'conclusa', nonPresentatoId: sfida.sfidanteId, vincitoreId: sfida.sfidatoId, risultatoUfficiale: 'Vinta a Tavolino', conclusaIl: serverTimestamp() });
-  await notificaSfidaConRitentativi(sfida.sfidanteId, 'Il circolo ha registrato la tua mancata presentazione: sei congelato dalle sfide per 7 giorni.', sfida.circoloId);
-  await notificaSfidaConRitentativi(sfida.sfidatoId, 'Il circolo ha confermato: il tuo avversario non si è presentato.', sfida.circoloId);
+  const chiama = httpsCallable(functions, 'concludiSfidaAdmin');
+  await chiama({ sfidaId: sfida.id, modo: 'nonPresentatoSfidante' });
 }
 
-export async function nonPresentatoSfidato(sfida: Sfida, soci: SocioCircolo[]): Promise<void> {
-  await applicaPerditaPosizione(sfida.sfidatoId, sfida.sfidanteId, soci, sfida.circoloId);
-  await updateDoc(doc(db, 'sfide', sfida.id), { fase: 'conclusa', nonPresentatoId: sfida.sfidatoId, vincitoreId: sfida.sfidanteId, risultatoUfficiale: 'Vinta a Tavolino', conclusaIl: serverTimestamp() });
-  await notificaSfidaConRitentativi(sfida.sfidatoId, 'Il circolo ha registrato la tua mancata presentazione: hai perso la tua posizione in classifica.', sfida.circoloId);
-  await notificaSfidaConRitentativi(sfida.sfidanteId, 'Il circolo ha confermato: il tuo avversario non si è presentato, hai preso la sua posizione.', sfida.circoloId);
+export async function nonPresentatoSfidato(sfida: Sfida, _soci: SocioCircolo[]): Promise<void> {
+  const chiama = httpsCallable(functions, 'concludiSfidaAdmin');
+  await chiama({ sfidaId: sfida.id, modo: 'nonPresentatoSfidato' });
 }
 
 // ---------------- Annullamento manuale (Admin) ----------------

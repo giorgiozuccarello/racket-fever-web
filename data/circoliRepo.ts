@@ -13,7 +13,7 @@ import {
   where, getDocs, writeBatch,
 } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-import { Circolo, Campo, Blocco } from './circoli';
+import { Circolo, Campo, Blocco, StatoCircolo, statoCircolo } from './circoli';
 
 function suUnsub(errore: any) {
   console.warn('Ascolto Firestore interrotto (probabile logout):', errore?.message ?? errore);
@@ -42,8 +42,159 @@ export function ascoltaCircolo(circoloId: string, callback: (c: Circolo | null) 
   );
 }
 
-export async function aggiornaCircolo(circoloId: string, dati: Partial<Omit<Circolo, 'id'>>) {
+// ⚠️ L'ANAGRAFICA DI RETE E' ESCLUSA DAL TIPO, e non e' pedanteria.
+// Finche' la firma accettava un Partial<Circolo> qualunque, una
+// chiamata come aggiornaCircolo(id, { stato: 'attivo' }) compilava
+// senza un lamento e riapriva un circolo chiuso scavalcando la
+// macchina a stati qui sotto. Il compilatore fa la stessa guardia che
+// fanno le regole Firestore, ma la fa a chi scrive il codice.
+export type CampiCircoloModificabili = Partial<Omit<Circolo,
+  'id' | 'stato' | 'creatoIlMs' | 'sospesoIlMs' | 'chiusoIlMs'>>;
+
+export async function aggiornaCircolo(circoloId: string, dati: CampiCircoloModificabili) {
   await updateDoc(doc(db, 'circoli', circoloId), dati as any);
+}
+
+// ============================================================
+// STATO DEL CIRCOLO — solo Super Admin.
+//
+// Tre stati, due gesti. "sospeso" e' reversibile ed e' quello che si
+// usa davvero: il circolo esce dall'elenco di scelta, non accetta piu'
+// nuove tessere ne' nuove prenotazioni, ma tutto il resto resta
+// leggibile — i soci gia' dentro vedono lo storico, la classifica, le
+// chat. "chiuso" e' definitivo e si puo' raggiungere SOLO da sospeso:
+// e' una porta con due maniglie, perche' non esiste un annulla.
+//
+// ⚠️ Non si cancella mai il documento del circolo. Le prenotazioni, le
+// tessere, le sfide e i tornei lo citano per id: cancellarlo lascia
+// centinaia di documenti che puntano al nulla, e nell'app significa
+// schermate vuote senza spiegazione. Un circolo che se ne va diventa
+// "chiuso", non sparisce.
+// ============================================================
+
+export async function sospendiCircolo(circoloId: string) {
+  // Anche questa rilegge lo stato, come le altre due: senza, una
+  // sospensione su un circolo gia' chiuso lo riportava a "sospeso" —
+  // e da li' riattivarlo era di nuovo permesso. Sarebbe stata la
+  // scala di servizio che aggira il "definitivo".
+  const attuale = await leggiCircolo(circoloId);
+  if (!attuale) throw new Error('Circolo non trovato.');
+  if (statoCircolo(attuale) === 'chiuso') {
+    throw new Error('Un circolo chiuso e\' gia\' fuori dalla rete.');
+  }
+  await updateDoc(doc(db, 'circoli', circoloId), {
+    stato: 'sospeso' as StatoCircolo,
+    sospesoIlMs: Date.now(),
+  });
+}
+
+export async function riattivaCircolo(circoloId: string) {
+  const attuale = await leggiCircolo(circoloId);
+  if (!attuale) throw new Error('Circolo non trovato.');
+  // Da "chiuso" non si torna indietro: se si potesse, "definitivo" non
+  // vorrebbe dire niente e il gesto in due passaggi sarebbe teatro.
+  if (statoCircolo(attuale) === 'chiuso') {
+    throw new Error('Un circolo chiuso non puo\' essere riattivato.');
+  }
+  await updateDoc(doc(db, 'circoli', circoloId), {
+    stato: 'attivo' as StatoCircolo,
+    sospesoIlMs: null,
+  });
+  await faiRipartireITimerDelleSfide(circoloId, attuale);
+}
+
+// ⚠️ RIATTIVARE UN CIRCOLO NON BASTA A RIMETTERE IN MOTO LE SFIDE.
+// Durante la sospensione i due timer delle Sfide non possono scadere
+// senza punire chi non c'entra (vedi data/sfide.ts), e l'app li
+// sposta in avanti ogni volta che se ne accorge. Ma se in quei giorni
+// nessuno apre l'applicazione, nessuno li sposta: alla riattivazione
+// il primo che entra trova una scadenza vecchia di giorni, e la
+// penalita' — congelamento o perdita della posizione in classifica —
+// scatta senza che i due soci abbiano mai avuto una finestra utile
+// per rispondere. Le scadenze si rimettono quindi da qui, nel momento
+// esatto in cui il circolo torna operativo.
+//
+// La query e' sul solo circoloId e la fase si filtra in memoria: due
+// uguaglianze su campi diversi vorrebbero un indice composito, e un
+// indice serve a scorrere migliaia di documenti — le sfide aperte di
+// un circolo sono decine.
+async function faiRipartireITimerDelleSfide(circoloId: string, circolo: Circolo) {
+  const durata = circolo.timerSfideVeloce ? 5 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  const adesso = Date.now();
+  try {
+    const istantanea = await getDocs(query(collection(db, 'sfide'), where('circoloId', '==', circoloId)));
+    const batch = writeBatch(db);
+    let quante = 0;
+    istantanea.docs.forEach((d) => {
+      const v = d.data() as { fase?: string; accordoScadenza?: number; prenotazioneScadenza?: number };
+      // Solo le scadenze GIA' passate: una sfida nata poco prima della
+      // sospensione ha ancora il suo tempo, e allungarglielo sarebbe
+      // un regalo che nessuno ha chiesto.
+      if (v.fase === 'accordo' && (v.accordoScadenza ?? 0) < adesso) {
+        batch.update(d.ref, { accordoScadenza: adesso + durata });
+        quante += 1;
+      } else if (v.fase === 'prenotazione' && (v.prenotazioneScadenza ?? 0) < adesso) {
+        batch.update(d.ref, { prenotazioneScadenza: adesso + durata });
+        quante += 1;
+      }
+    });
+    if (quante > 0) await batch.commit();
+  } catch (errore) {
+    // Il circolo e' comunque riattivato: questa e' una rifinitura, non
+    // una condizione. Se fallisce resta la rete di sicurezza lato app,
+    // che rimanda il timer appena qualcuno apre le Sfide.
+    console.warn('Timer delle sfide non riavviati:', errore);
+  }
+}
+
+export async function chiudiCircolo(circoloId: string) {
+  const attuale = await leggiCircolo(circoloId);
+  if (!attuale) throw new Error('Circolo non trovato.');
+  if (statoCircolo(attuale) !== 'sospeso') {
+    throw new Error('Si puo\' chiudere solo un circolo gia\' sospeso.');
+  }
+  await updateDoc(doc(db, 'circoli', circoloId), {
+    stato: 'chiuso' as StatoCircolo,
+    chiusoIlMs: Date.now(),
+  });
+}
+
+// I campi anagrafici che il Super Admin puo' correggere dalla scheda.
+// Elenco chiuso di proposito: passare di qui un Partial<Circolo>
+// qualunque vorrebbe dire poter sovrascrivere per sbaglio il tema, i
+// banner o i limiti che l'Admin del circolo ha impostato.
+export interface AnagraficaCircolo {
+  nome: string;
+  citta: string;
+  sigla: string;
+  regione: string | null;
+  password: string;
+  richiedenteNome: string | null;
+  richiedenteRuolo: string | null;
+  richiedenteEmail: string | null;
+  richiedenteTelefono: string | null;
+  firmatarioNome: string | null;
+  firmatarioRuolo: string | null;
+  firmaIl: string | null;
+  noteInterne: string | null;
+  // ⚠️ L'unico campo di rete che passa di qui, e per un motivo solo:
+  // e' la data d'ingresso dei circoli nati prima che il campo
+  // esistesse, e si scrive UNA VOLTA, a mano. Chi chiama deve
+  // verificare che non ci sia gia' — una data d'ingresso non si
+  // "corregge", e' quando e' successo.
+  creatoIlMs?: number;
+}
+
+export async function aggiornaAnagraficaCircolo(
+  circoloId: string, dati: Partial<AnagraficaCircolo>
+) {
+  const pulito: Record<string, any> = {};
+  Object.keys(dati).forEach((k) => {
+    const v = (dati as any)[k];
+    if (v !== undefined) pulito[k] = v; // Firestore rifiuta undefined
+  });
+  if (Object.keys(pulito).length === 0) return;
+  await updateDoc(doc(db, 'circoli', circoloId), pulito);
 }
 
 // ---------------- Campi (sottocollezione) ----------------

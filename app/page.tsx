@@ -324,16 +324,16 @@ function RichiestaForm() {
         {!inviato ? (
           <form className="form-box reveal" onSubmit={invia}>
             <label htmlFor="nome">Nome del circolo</label>
-            <input id="nome" type="text" placeholder="ASD Tennis Milazzo" value={nome} onChange={(e) => setNome(e.target.value)} required />
+            <input id="nome" type="text" placeholder="ASD Tennis Milazzo" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} required />
             <label htmlFor="citta">Città</label>
-            <input id="citta" type="text" placeholder="Milazzo (ME)" value={citta} onChange={(e) => setCitta(e.target.value)} required />
+            <input id="citta" type="text" placeholder="Milazzo (ME)" value={citta} onChange={(e) => setCitta(e.target.value)} maxLength={120} required />
             <label htmlFor="email">Email del responsabile</label>
-            <input id="email" type="email" placeholder="presidente@circolo.it" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <input id="email" type="email" placeholder="presidente@circolo.it" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={200} required />
             <label htmlFor="msg">Raccontaci il vostro circolo</label>
             <textarea
               id="msg" rows={4}
               placeholder="Quanti campi avete? Quanti soci? Come gestite oggi le prenotazioni?"
-              value={messaggio} onChange={(e) => setMessaggio(e.target.value)}
+              value={messaggio} onChange={(e) => setMessaggio(e.target.value)} maxLength={2000}
             />
             {errore && <p style={{ color: '#B3261E', fontSize: '.85rem', marginTop: '.8rem' }}>{errore}</p>}
             <button className="btn" type="submit" disabled={inviando}>

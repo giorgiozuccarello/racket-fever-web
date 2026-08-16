@@ -17,7 +17,7 @@ import { useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from '../../../lib/firebase';
 import { leggiResponsabile, ProfiloResponsabile } from '../../../data/responsabili';
-import { leggiSessioneCollaboratore } from '../../../data/collaboratori';
+import { leggiSessioneCollaboratore, sessioneScaduta } from '../../../data/collaboratori';
 import { ascoltaCircolo } from '../../../data/circoliRepo';
 import { Circolo } from '../../../data/circoli';
 import {
@@ -358,8 +358,13 @@ export default function PaginaMovimenti() {
       const r = await leggiResponsabile(user.uid);
       if (r) { setResponsabile(r); setCaricando(false); return; }
       // Come nella dashboard: puo' essere un Collaboratore.
+      // ⚠️ Una sessione scaduta NON e' una sessione. Senza questo
+      // controllo la Dashboard si sarebbe aperta lo stesso — il
+      // documento c'e' ancora — e poi ogni singola operazione sarebbe
+      // stata respinta dalle regole, una per una, senza spiegazione.
+      // Meglio dire subito "rientra con la password".
       const sessione = await leggiSessioneCollaboratore(user.uid);
-      if (sessione) {
+      if (sessione && !sessioneScaduta(sessione)) {
         setResponsabile({ nome: 'Collaboratore', cognome: '', email: '', circoloId: sessione.circoloId });
         setCaricando(false);
         return;

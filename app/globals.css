@@ -567,6 +567,19 @@ footer li a:hover{opacity:1;text-decoration:underline}
   font-family:var(--font-spline-mono),monospace;font-size:.82rem;color:var(--terra);
 }
 .superadmin-swatch{width:26px;height:26px;border-radius:13px;flex-shrink:0}
+/* Stato del circolo nella rete. Il verde non serve: "attivo" e' la
+   normalita' e nell'elenco non si scrive nemmeno — si mostra solo
+   cio' che si discosta, cosi' un circolo sospeso salta all'occhio in
+   una lista di cento. */
+.superadmin-stato{
+  display:inline-block;border-radius:6px;padding:.2rem .55rem;
+  font-family:var(--font-spline-mono),monospace;font-size:.66rem;
+  letter-spacing:.06em;text-transform:uppercase;font-weight:700;
+  flex-shrink:0;vertical-align:middle;
+}
+.superadmin-stato-attivo{background:#E6F0EA;color:#1F5C3C}
+.superadmin-stato-sospeso{background:#FBEAD2;color:#8A4B10}
+.superadmin-stato-chiuso{background:#F3E0DF;color:#8F1E18}
 .superadmin-logo-preview{width:84px;height:84px;border-radius:42px;object-fit:cover}
 .admin-list-avatar{width:34px;height:34px;border-radius:17px;flex-shrink:0;object-fit:cover}
 .admin-list-avatar-fallback{
@@ -835,3 +848,141 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .pc-scelta-btn.nuova span{opacity:.7}
 
 .admin-btn-converti{margin-top:.6rem;background:#fff;color:#1F7A45;border:2px solid #1F7A45;border-radius:10px;padding:.5rem .9rem;font-size:.78rem;font-weight:800;cursor:pointer}
+
+/* ============================================================
+   SCHEDA MAESTRO — l'anagrafica dentro la sezione Maestri.
+   ============================================================ */
+.scheda-maestro{
+  border:1.5px solid #E3DECF;border-radius:12px;background:#FBF9F4;
+  padding:1rem;margin:.7rem 0 .4rem;
+}
+/* ⚠️ CONDIVISE CON LA SCHEDA CIRCOLO del pannello Super Admin: non
+   sono annidate sotto .scheda-maestro, quindi ritoccarle qui cambia
+   anche quella. Sono lo stesso oggetto — una casella con numerone ed
+   etichetta — ed è voluto che si somiglino. */
+.scheda-conti{display:flex;gap:.6rem;flex-wrap:wrap}
+.scheda-conto{
+  flex:1;min-width:110px;background:#fff;border:1.5px solid #E9E5D9;border-radius:10px;
+  padding:.6rem .7rem;display:flex;flex-direction:column;gap:.15rem;
+}
+.scheda-conto-n{font-size:1.35rem;font-weight:900;color:var(--inchiostro);line-height:1.1}
+.scheda-conto-et{font-size:.72rem;color:var(--grigio);line-height:1.3}
+.scheda-nota-conti{margin-top:.5rem}
+
+.scheda-gruppo{
+  margin-top:1rem;padding-top:.9rem;border-top:1.5px solid #E9E5D9;
+}
+.scheda-gruppo-titolo{
+  font-family:var(--font-archivo),sans-serif;font-weight:800;font-size:.86rem;
+  text-transform:uppercase;letter-spacing:.03em;color:var(--inchiostro);margin-bottom:.45rem;
+}
+/* Chi legge cosa: due righe che devono distinguersi a colpo d'occhio,
+   perché decidono se un dato personale finisce sotto gli occhi dei
+   soci. Contrasto verificato su fondo chiaro. */
+.scheda-riservato,.scheda-pubblico{
+  /* ⚠️ max-width tolto apposta. .admin-card-hint si ferma a 52ch, che
+     per un paragrafo di servizio va benissimo; questi due pero' hanno
+     un fondo colorato e una barra laterale, e un riquadro che si ferma
+     a meta' della colonna sembra un errore di impaginazione invece di
+     un avviso. */
+  max-width:none;padding:.45rem .65rem;border-radius:0 6px 6px 0;
+}
+.scheda-riservato{color:#7A5800;background:#FDF6E3;border-left:3px solid #C9A94F;margin-top:.5rem}
+.scheda-pubblico{color:#25551B;background:#E8F5EC;border-left:3px solid #1F7A45;margin-bottom:.5rem}
+
+.scheda-foto-riga{display:flex;gap:.9rem;align-items:flex-start;margin-bottom:.6rem}
+.scheda-foto{
+  width:76px;height:76px;border-radius:50%;overflow:hidden;flex-shrink:0;
+  background:#EFEBE0;border:2px solid #E3DECF;
+  display:flex;align-items:center;justify-content:center;
+}
+.scheda-foto img{width:100%;height:100%;object-fit:cover;display:block}
+.scheda-foto-iniziali{font-weight:900;color:var(--grigio);font-size:1.4rem}
+.scheda-foto-comandi{flex:1;min-width:0;display:flex;flex-wrap:wrap;gap:.5rem;align-items:center}
+.scheda-file{position:relative;overflow:hidden;cursor:pointer;display:inline-block}
+.scheda-file input{position:absolute;inset:0;opacity:0;cursor:pointer;width:100%;height:100%}
+.scheda-hint-foto{flex-basis:100%;margin:0}
+
+.scheda-anno-riga{display:flex;gap:.6rem;align-items:center}
+.scheda-anno-riga .admin-input{max-width:120px}
+.scheda-anni{font-size:.8rem;color:var(--grigio)}
+.scheda-contatore{font-size:.72rem;color:var(--grigio);text-align:right;margin-top:.2rem}
+
+/* ============================================================
+   SCHEDA CIRCOLO — la parte in sola lettura, nel pannello Super Admin.
+   ============================================================ */
+.scheda-circolo{
+  border:1.5px solid #E3DECF;border-radius:12px;background:#FBF9F4;
+  padding:1rem;margin-bottom:1.2rem;
+}
+/* Il primo titolo dentro il riquadro non deve disegnare il suo filetto
+   a ridosso del bordo: azzerare il solo margine lasciava una riga
+   orizzontale appiccicata al bordo superiore. */
+.scheda-circolo .superadmin-subtitolo:first-of-type{margin-top:0;padding-top:0;border-top:none}
+.scheda-attesa{color:#7A5800;background:#FDF6E3;border-left:3px solid #C9A94F;
+  padding:.45rem .65rem;border-radius:0 6px 6px 0;max-width:none;margin-top:0}
+.scheda-nota{margin-top:.5rem}
+/* Un dato che chiede attenzione: bordo e numero in ambra scura.
+   Contrasto verificato su fondo bianco. */
+.scheda-conto-allarme{border-color:#C9A94F;background:#FDFBF3}
+.scheda-conto-allarme .scheda-conto-n{color:#8A6200}
+
+/* Il semaforo: sta da solo perché in fila con gli altri si leggerebbe
+   come una statistica, e invece è la domanda "questo circolo è vivo?". */
+.scheda-vivo{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:.2rem .8rem;
+  background:#fff;border:1.5px solid #E9E5D9;border-radius:10px;
+  padding:.7rem .8rem;margin-top:.6rem;
+}
+.scheda-vivo-et{font-size:.72rem;color:var(--grigio);text-transform:uppercase;letter-spacing:.03em;font-weight:800}
+.scheda-vivo-n{font-size:1.05rem;font-weight:800;color:var(--inchiostro)}
+.scheda-vivo-n em{font-style:normal;font-weight:400;color:var(--grigio);font-size:.9rem}
+
+.scheda-due-colonne{display:flex;gap:.8rem;flex-wrap:wrap;margin-top:.8rem}
+.scheda-due-colonne > div{flex:1;min-width:180px}
+.scheda-mini-titolo{font-size:.75rem;font-weight:800;color:var(--grigio);
+  text-transform:uppercase;letter-spacing:.03em;margin-bottom:.35rem}
+.scheda-riga-mini{display:flex;justify-content:space-between;gap:.6rem;
+  font-size:.84rem;color:var(--inchiostro);padding:.3rem 0;border-bottom:1px solid #EFEBE0}
+.scheda-riga-mini:last-child{border-bottom:none}
+
+.scheda-elenco-tasto{
+  width:100%;margin-top:1rem;padding:.7rem;border-radius:9px;
+  border:1.5px solid var(--bordo,#E4E0D5);background:#fff;
+  font-size:.85rem;font-weight:800;color:var(--inchiostro);cursor:pointer;
+}
+.scheda-elenco-tasto:hover{background:#F5F1E6}
+/* La tabella scorre da sola invece di allargare la pagina: con sette
+   colonne su un portatile stretto, senza questo la dashboard intera
+   guadagnava una barra orizzontale. */
+.scheda-tabella-culla{overflow-x:auto;margin-top:.6rem}
+.scheda-tabella{width:100%;border-collapse:collapse;font-size:.82rem;min-width:560px}
+.scheda-tabella th{
+  text-align:left;font-size:.7rem;text-transform:uppercase;letter-spacing:.03em;
+  color:var(--grigio);border-bottom:1.5px solid #E3DECF;padding:.45rem .5rem;white-space:nowrap;
+}
+.scheda-tabella td{padding:.5rem;border-bottom:1px solid #EFEBE0;vertical-align:top}
+.scheda-td-nome{font-weight:700;color:var(--inchiostro)}
+.scheda-td-sub{font-size:.72rem;color:var(--grigio)}
+.scheda-td-debito{color:#B3261E;font-weight:700}
+.scheda-privacy{margin-top:1rem;padding-top:.8rem;border-top:1.5px solid #E9E5D9;max-width:none}
+
+/* La barra della fotografia: quando è stata scattata e il tasto per
+   rifarla. Sta sopra i numeri che descrive, non sotto. */
+.scheda-foto-barra{
+  display:flex;flex-wrap:wrap;gap:.6rem;align-items:center;justify-content:space-between;
+  background:#fff;border:1.5px solid #E9E5D9;border-radius:10px;padding:.6rem .7rem;margin-bottom:.6rem;
+}
+.scheda-foto-quando{font-size:.8rem;color:var(--grigio);flex:1;min-width:200px;line-height:1.45}
+.scheda-foto-tasto{
+  padding:.5rem .9rem;border-radius:8px;border:1.5px solid var(--pino);
+  background:var(--pino);color:#fff;font-size:.78rem;font-weight:800;cursor:pointer;
+}
+.scheda-foto-tasto:hover:not(:disabled){background:var(--pino-scuro)}
+.scheda-foto-tasto:disabled{opacity:.6;cursor:default}
+/* Fotografia mancante o vecchia: la barra passa in ambra. Era grigia
+   come tutto il resto, e "il calcolo notturno non gira da una
+   settimana" — che è l'unico sintomo osservabile del lavoro che muore
+   a metà — non lo notava nessuno. */
+.scheda-foto-barra-allarme{border-color:#C9A94F;background:#FDF6E3}
+.scheda-foto-barra-allarme .scheda-foto-quando{color:#7A5800}

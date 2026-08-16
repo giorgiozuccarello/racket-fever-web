@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { creaCircoloConAdmin } from '../../../data/onboarding';
+import {
+  creaCircoloConAdmin, ONBOARDING_ACCOUNT_ORFANO, ONBOARDING_CIRCOLO_SENZA_ADMIN,
+} from '../../../data/onboarding';
+import { REGIONI_ITALIA } from '../../../data/tornei';
 
 interface Credenziali {
   nomeCircolo: string;
@@ -14,6 +17,7 @@ export default function SezioneOnboarding() {
   const [nomeCircolo, setNomeCircolo] = useState('');
   const [citta, setCitta] = useState('');
   const [sigla, setSigla] = useState('');
+  const [regione, setRegione] = useState('');
   const [passwordCircolo, setPasswordCircolo] = useState('');
   const [nomeAdmin, setNomeAdmin] = useState('');
   const [cognomeAdmin, setCognomeAdmin] = useState('');
@@ -23,15 +27,41 @@ export default function SezioneOnboarding() {
   const [creando, setCreando] = useState(false);
   const [successo, setSuccesso] = useState<Credenziali | null>(null);
 
+  // ---- Anagrafica di rete ----
+  // Sta dietro un interruttore perche' non sempre si sa gia' tutto al
+  // momento della creazione: chi chiede l'adesione spesso non e' chi
+  // firma, e il contratto firmato arriva dopo. Si puo' completare in
+  // qualsiasi momento dalla scheda del circolo.
+  const [anagraficaAperta, setAnagraficaAperta] = useState(false);
+  const [richiedenteNome, setRichiedenteNome] = useState('');
+  const [richiedenteRuolo, setRichiedenteRuolo] = useState('');
+  const [richiedenteEmail, setRichiedenteEmail] = useState('');
+  const [richiedenteTelefono, setRichiedenteTelefono] = useState('');
+  const [firmatarioNome, setFirmatarioNome] = useState('');
+  const [firmatarioRuolo, setFirmatarioRuolo] = useState('');
+  const [firmaIl, setFirmaIl] = useState('');
+  const [noteInterne, setNoteInterne] = useState('');
+
   const reset = () => {
-    setNomeCircolo(''); setCitta(''); setSigla(''); setPasswordCircolo('');
+    setNomeCircolo(''); setCitta(''); setSigla(''); setRegione(''); setPasswordCircolo('');
     setNomeAdmin(''); setCognomeAdmin(''); setEmailAdmin(''); setPasswordAdmin('');
+    setRichiedenteNome(''); setRichiedenteRuolo(''); setRichiedenteEmail(''); setRichiedenteTelefono('');
+    setFirmatarioNome(''); setFirmatarioRuolo(''); setFirmaIl(''); setNoteInterne('');
+    setAnagraficaAperta(false);
   };
 
   const crea = async () => {
     setErrore('');
     if (!nomeCircolo.trim() || !citta.trim() || !sigla.trim() || !passwordCircolo.trim()) {
       setErrore('Compila tutti i campi del circolo.');
+      return;
+    }
+    // ⚠️ La regione e' obbligatoria alla nascita, e non era cosi': i
+    // circoli creati prima ne sono senza, e nella bacheca Tornei —
+    // l'unica cosa che attraversa i circoli — non compaiono a nessuno
+    // finche' non gliela si scrive a mano.
+    if (!regione) {
+      setErrore('Scegli la regione: serve ai Tornei per far trovare il circolo.');
       return;
     }
     if (!nomeAdmin.trim() || !cognomeAdmin.trim() || !emailAdmin.trim() || !passwordAdmin) {
@@ -45,8 +75,10 @@ export default function SezioneOnboarding() {
     setCreando(true);
     try {
       await creaCircoloConAdmin({
-        nomeCircolo, citta, sigla, passwordCircolo,
+        nomeCircolo, citta, sigla, regione, passwordCircolo,
         nomeAdmin, cognomeAdmin, emailAdmin, passwordAdmin,
+        richiedenteNome, richiedenteRuolo, richiedenteEmail, richiedenteTelefono,
+        firmatarioNome, firmatarioRuolo, firmaIl, noteInterne,
       });
       setSuccesso({ nomeCircolo, passwordCircolo, emailAdmin, passwordAdmin });
       reset();
@@ -55,6 +87,18 @@ export default function SezioneOnboarding() {
         setErrore('Esiste già un account con questa email.');
       } else if (err.code === 'auth/weak-password') {
         setErrore('Password troppo debole.');
+      } else if (err.message === ONBOARDING_ACCOUNT_ORFANO) {
+        setErrore(
+          "L'account dell'Admin è stato creato, ma il circolo no. Riprovando con la stessa "
+          + "email otterrai «esiste già un account»: usa un'altra email, oppure fai cancellare "
+          + "quell'account dalla console Firebase prima di riprovare."
+        );
+      } else if (err.message === ONBOARDING_CIRCOLO_SENZA_ADMIN) {
+        setErrore(
+          "Il circolo è stato creato ma l'Admin non è stato collegato: il circolo esiste e "
+          + "nessuno può configurarlo. Aprilo dall'elenco qui sotto e sospendilo, poi segnala "
+          + "il problema prima di ricreare."
+        );
       } else {
         setErrore('Si è verificato un errore. Riprova.');
       }
@@ -105,6 +149,12 @@ export default function SezioneOnboarding() {
         </div>
       </div>
 
+      <label className="admin-label">Regione</label>
+      <select className="admin-select" value={regione} onChange={(e) => setRegione(e.target.value)}>
+        <option value="">— scegli la regione —</option>
+        {REGIONI_ITALIA.map((r) => <option key={r} value={r}>{r}</option>)}
+      </select>
+
       <label className="admin-label">Password d&apos;accesso soci</label>
       <input className="admin-input" value={passwordCircolo} onChange={(e) => setPasswordCircolo(e.target.value)} placeholder="es. esempio2026" />
 
@@ -126,6 +176,61 @@ export default function SezioneOnboarding() {
 
       <label className="admin-label">Password</label>
       <input className="admin-input" type="password" value={passwordAdmin} onChange={(e) => setPasswordAdmin(e.target.value)} placeholder="Almeno 6 caratteri" />
+
+      <div className="superadmin-subtitolo">Contratto di adesione</div>
+      <p className="admin-card-hint">
+        Chi ha chiesto di entrare in rete e chi ha firmato: spesso sono due persone diverse, e
+        sapere quale delle due chiamare quando qualcosa non va è metà del lavoro di
+        assistenza. Si può compilare anche dopo, dalla scheda del circolo.
+      </p>
+      <button
+        className="admin-input" type="button" style={{ cursor: 'pointer', width: 'auto' }}
+        onClick={() => setAnagraficaAperta(!anagraficaAperta)}
+      >
+        {anagraficaAperta ? 'Nascondi i dati del contratto' : '+ Aggiungi i dati del contratto'}
+      </button>
+
+      {anagraficaAperta && (
+        <>
+          <label className="admin-label">Chi ha chiesto l&apos;adesione</label>
+          <div className="admin-row">
+            <div>
+              <input className="admin-input" value={richiedenteNome} onChange={(e) => setRichiedenteNome(e.target.value)} placeholder="Nome e cognome" />
+            </div>
+            <div>
+              <input className="admin-input" value={richiedenteRuolo} onChange={(e) => setRichiedenteRuolo(e.target.value)} placeholder="Ruolo (es. Segretario)" />
+            </div>
+          </div>
+          <div className="admin-row">
+            <div>
+              <input className="admin-input" type="email" value={richiedenteEmail} onChange={(e) => setRichiedenteEmail(e.target.value)} placeholder="Email" />
+            </div>
+            <div>
+              <input className="admin-input" value={richiedenteTelefono} onChange={(e) => setRichiedenteTelefono(e.target.value)} placeholder="Telefono" />
+            </div>
+          </div>
+
+          <label className="admin-label">Chi ha firmato il contratto</label>
+          <div className="admin-row">
+            <div>
+              <input className="admin-input" value={firmatarioNome} onChange={(e) => setFirmatarioNome(e.target.value)} placeholder="Nome e cognome" />
+            </div>
+            <div>
+              <input className="admin-input" value={firmatarioRuolo} onChange={(e) => setFirmatarioRuolo(e.target.value)} placeholder="Ruolo (es. Presidente)" />
+            </div>
+          </div>
+
+          <label className="admin-label">Data della firma</label>
+          <input className="admin-input" type="date" value={firmaIl} onChange={(e) => setFirmaIl(e.target.value)} />
+
+          <label className="admin-label">Note interne</label>
+          <textarea
+            className="admin-input" rows={3} value={noteInterne} onChange={(e) => setNoteInterne(e.target.value)}
+            style={{ resize: 'vertical', fontFamily: 'inherit' }}
+            placeholder="Visibili solo al team Racket Fever"
+          />
+        </>
+      )}
 
       {errore && <div className="admin-error-text">{errore}</div>}
 

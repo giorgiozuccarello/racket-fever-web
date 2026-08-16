@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Campo, Blocco, Circolo, ORARI, fasciaOraria, orarioFineSlot, slotNelPassato } from '../../../data/circoli';
+import { Campo, Blocco, Circolo, ORARI, fasciaOraria, orarioFineSlot, slotNelPassato,
+  circoloOperativo, statoCircolo } from '../../../data/circoli';
 import { SocioCircolo } from '../../../data/users';
 import { calcolaPrezzo } from '../../../data/prezzi';
 import { aggiungiBlocco } from '../../../data/circoliRepo';
 import { prenotaPerSocioDaAdmin, prenotaEsternoDaAdmin } from '../../../data/prenotazioniRepo';
 import { nuovoGruppoId } from '../../../data/movimenti';
-import { collection, doc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
-import { db } from '../../../lib/firebase';
 import { stessaCard } from '../../../data/raggruppamento';
 
 const GIORNI_IT_ESTESO = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
@@ -17,7 +16,6 @@ import { PrenotazioneAdmin, cancellaConRimborso, cancellaConRimborsoDiviso, canc
 import { giocatoriDi, quotaChiPrenota, elencoNomi } from '../../../data/giocatori';
 import { Sfida } from '../../../data/sfide';
 import { creaNotifica } from '../../../data/notifiche';
-import { creaNotificaMaestro } from '../../../data/notificheMaestro';
 
 // Gli avvisi sono un di piu': se falliscono non deve mai sembrare che
 // l'annullamento sia fallito — a quel punto la prenotazione e' gia'
@@ -26,30 +24,13 @@ async function senzaBloccare(fn: () => Promise<unknown>) {
   try { await fn(); } catch (e) { console.warn('Avviso non inviato:', e); }
 }
 
-// ⚠️ Chiude la conversazione di una lezione annullata dal circolo.
-// Senza, al socio spariva la lezione e restava una chat su una cosa
-// che non esiste piu', e al Maestro una riga nel suo elenco.
-// Il modulo delle lezioni vive solo nell'app: qui il giro si fa a
-// mano, e il documento padre va cancellato per ULTIMO e solo a
-// sottocollezione vuota, o resterebbero messaggi orfani che nessuno
-// puo' piu' ne' leggere ne' ripulire.
-async function chiudiConversazioneLezione(cardId: string) {
-  const snap = await getDocs(query(collection(db, 'richieste_lezione'), where('cardId', '==', cardId)));
-  for (const d of snap.docs) {
-    const messaggi = collection(db, 'richieste_lezione', d.id, 'messaggi');
-    for (let giro = 0; giro < 4; giro++) {
-      const msg = await getDocs(messaggi);
-      if (msg.empty) break;
-      let qualcunoTolto = false;
-      for (const m of msg.docs) {
-        try { await deleteDoc(m.ref); qualcunoTolto = true; } catch { /* si riprova */ }
-      }
-      if (!qualcunoTolto) break;
-    }
-    const rimasti = await getDocs(messaggi);
-    if (rimasti.empty) await deleteDoc(doc(db, 'richieste_lezione', d.id));
-  }
-}
+// ⚠️ QUI NON C'E' PIU' NIENTE SULLE LEZIONI, ed e' voluto. C'era una
+// funzione che chiudeva la conversazione quando il circolo annullava
+// l'ultima mezz'ora di una lezione: rimediava a meta' a un problema che
+// non andava rimediato ma tolto. Le lezioni adesso si annullano intere,
+// dalla sezione "Lezioni Prenotate" (data/lezioniAdmin.ts), e da questa
+// griglia sono solo consultabili.
+
 import { formatISO } from '../../../data/settimana';
 import Modal from './Modal';
 
@@ -96,6 +77,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   const [bloccoInfo, setBloccoInfo] = useState<Blocco | null>(null);
   const [sfidaInfo, setSfidaInfo] = useState<Sfida | null>(null);
   const [elaborando, setElaborando] = useState(false);
+  const [erroreAnnullo, setErroreAnnullo] = useState('');
 
   // --- Selezione multipla, prenotazione e riserva dalla griglia ---
   // Stesso meccanismo dell'app mobile: si parte da uno slot libero e
@@ -266,6 +248,20 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   const invioInCorso = useRef(false);
 
   const confermaPrenotazione = async () => {
+    // ⚠️ Su un circolo sospeso o chiuso la scrittura viene respinta
+    // dalle regole Firestore, e l'Admin si prendeva un generico "Non e'
+    // stato possibile completare la prenotazione. Riprova." — un
+    // invito a riprovare qualcosa che non riuscira' mai.
+    if (!circoloOperativo(circolo)) {
+      alert(
+        (statoCircolo(circolo) === 'chiuso'
+          ? 'Il circolo non fa più parte della rete Racket Fever'
+          : 'Il circolo è momentaneamente sospeso dalla rete Racket Fever')
+        + ': non è possibile creare nuove prenotazioni. Le prenotazioni già confermate '
+        + 'restano valide. Per informazioni contatta il team Racket Fever.'
+      );
+      return;
+    }
     if (invioInCorso.current) return;
     if (oreDaPrenotare.length === 0 || !campoSel) return;
     // Ultima barriera prima della scrittura: fra la selezione e la
@@ -381,11 +377,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
 
   const confermaAnnulla = async () => {
     if (!daAnnullare) return;
+    setErroreAnnullo('');
     setElaborando(true);
-    // Si guarda PRIMA di cancellare, mentre l'elenco delle
-    // prenotazioni e' ancora quello di adesso.
-    const ultimaDellaLezione = daAnnullare.tipo === 'lezione' && !!daAnnullare.cardId
-      && !prenotazioni.some((p) => p.cardId === daAnnullare.cardId && p.id !== daAnnullare.id);
     try {
       if (!daAnnullare.utenteId) {
         await cancellaSenzaRimborso(daAnnullare.id);
@@ -464,18 +457,22 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           circolo.id,
         ));
       }
-      const maestroId = daAnnullare.maestroId;
-      if (daAnnullare.tipo === 'lezione' && maestroId) {
-        await senzaBloccare(() => creaNotificaMaestro(
-          maestroId,
-          `Il circolo ha annullato la lezione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}.`,
-          circolo.id,
-        ));
-      }
-      if (ultimaDellaLezione && daAnnullare.cardId) {
-        await senzaBloccare(() => chiudiConversazioneLezione(daAnnullare.cardId as string));
-      }
       setDaAnnullare(null);
+    } catch (e: any) {
+      // ⚠️ Il catch c'e' perche' la cancellazione adesso passa dalla
+      // rete. Finche' era una deleteDoc, un guasto praticamente non
+      // esisteva — la coda offline di Firestore la assorbiva — e un
+      // try/finally senza catch bastava. Adesso e' una chiamata a una
+      // Cloud Function: rete assente, token scaduto, permesso negato,
+      // e il rifiuto non gestito lasciava il pop-up aperto con lo
+      // spinner spento e nessuna spiegazione. Che e' il modo peggiore
+      // di fallire: sembra che non sia successo niente, mentre la
+      // prenotazione e' ancora li'.
+      setErroreAnnullo(
+        e?.message?.includes('termine')
+          ? e.message
+          : 'Annullamento non riuscito: la prenotazione è ancora attiva. Riprova.',
+      );
     } finally {
       setElaborando(false);
     }
@@ -493,7 +490,13 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       <div className="pc-row">
         {giorni.map((d, i) => (
           <button
-            key={i} onClick={() => setSelDay(i)}
+            key={i}
+            /* ⚠️ Cambiando giorno o campo la selezione multipla si
+               azzera. Restando accesa, l'Admin sceglieva 10:00-11:00 su
+               Campo 1, passava a Campo 2 e la barra era ancora lì con
+               "Conferma": premeva, e prenotava quelle ore sul campo
+               sbagliato. La griglia del socio lo fa già da sempre. */
+            onClick={() => { setSelezioneMultipla([]); setSelDay(i); }}
             className={`pc-day ${i === selDay ? 'selected' : ''}`}
           >
             <div className="pc-day-label">{i === 0 ? 'Oggi' : GIORNI_IT_BREVE[d.getDay()]}</div>
@@ -505,7 +508,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       <div className="pc-row">
         {campi.map((c) => (
           <button
-            key={c.id} onClick={() => setSelCampoId(c.id)}
+            key={c.id} onClick={() => { setSelezioneMultipla([]); setSelCampoId(c.id); }}
             className={`pc-court ${c.id === selCampoId ? 'selected' : ''}`}
           >
             {c.nome}
@@ -849,7 +852,28 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           {daAnnullare?.campoNome} · {daAnnullare?.dataLabel} {daAnnullare ? fasciaOraria(daAnnullare.orario) : ''}
           {daAnnullare?.etichetta ? ` · ${daAnnullare.etichetta}` : ''}
         </div>
-        {bloccataInMezzo ? (
+        {daAnnullare?.tipo === 'lezione' ? (
+          <>
+            {/* ⚠️ Le informazioni restano tutte: sparisce solo il tasto
+                di cancellazione, com'e' gia' per la mezz'ora in mezzo e
+                per le Sfide. Una lezione e' un accordo fra due persone,
+                non tre mezz'ore di campo: cancellandone una alla volta i
+                campi tornavano liberi ma la conversazione fra Maestro e
+                allievo restava aperta su una lezione che non esisteva
+                piu', e al socio restava in Home la card "lezione
+                confermata, campi non occupati" finche' il Maestro non
+                chiudeva la chat a mano. */}
+            <p className="mov-nota-bloccata">
+              Le lezioni non si annullano dalla griglia, mezz&apos;ora per mezz&apos;ora: vai
+              nella sezione &quot;Lezioni Prenotate&quot; e annullala per intero. Da lì si
+              chiude anche la conversazione fra Maestro e allievo, che altrimenti resterebbe
+              aperta su una lezione che non c&apos;è più.
+            </p>
+            <div className="admin-modal-btn-row">
+              <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Chiudi</button>
+            </div>
+          </>
+        ) : bloccataInMezzo ? (
           <>
             {/* Le informazioni restano tutte: sparisce solo il pulsante
                 di cancellazione, sostituito dalla spiegazione. */}
@@ -868,18 +892,19 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
               Vuoi annullare questa prenotazione?
             </p>
             {/* Chi viene rimborsato e come: sta SOTTO la domanda perche'
-                riguarda la conseguenza della cancellazione. */}
+                riguarda la conseguenza della cancellazione.
+                ⚠️ Il ramo "e' una lezione" non c'e' piu': da qui le
+                lezioni non passano proprio, le intercetta il blocco
+                sopra. Tenerlo sarebbe stato codice irraggiungibile che
+                racconta una possibilita' che non esiste. */}
             <p className="mov-nota-rimborso">
-              {/* L'importo passa da importoDaRimborsare: per una lezione
-                  vale sempre zero, perche' non c'e' stato addebito. */}
               {!daAnnullare?.utenteId || importoDaRimborsare(daAnnullare) === 0
-                ? daAnnullare?.tipo === 'lezione'
-                  ? 'Nessun rimborso: le lezioni non hanno addebito.'
-                  : 'Non è previsto rimborso per questa cancellazione.'
+                ? 'Non è previsto rimborso per questa cancellazione.'
                 : daAnnullare && giocatoriDi(daAnnullare).length > 0
                   ? `Saranno rimborsati ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome} (€ ${quotaChiPrenota(daAnnullare).toFixed(2)}) e ${elencoNomi(giocatoriDi(daAnnullare))}, ognuno per la sua quota.`
                   : `Il credito sarà rimborsato a ${daAnnullare?.utenteNome} ${daAnnullare?.utenteCognome}: € ${importoDaRimborsare(daAnnullare).toFixed(2)}.`}
             </p>
+            {erroreAnnullo && <div className="admin-error-text">{erroreAnnullo}</div>}
             <div className="admin-modal-btn-row">
               <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Indietro</button>
               <button className="admin-modal-btn-confirm danger" onClick={confermaAnnulla} disabled={elaborando}>

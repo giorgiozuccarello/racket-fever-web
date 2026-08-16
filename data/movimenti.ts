@@ -20,7 +20,7 @@ import {
   collection, doc, query, where, onSnapshot, getDocs,
   setDoc, serverTimestamp, Transaction,
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 
 export type TipoMovimento =
   | 'apertura'         // prima riga: saldo di partenza della tessera
@@ -169,13 +169,35 @@ export function nuovoGruppoId(): string {
   return `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
+// ⚠️ LA FIRMA LA METTE IL REGISTRO, NON CHI CHIAMA.
+// `eseguitoDaUid` deve essere l'identificativo di chi ha
+// materialmente premuto il tasto, e finora lo passava ogni singolo
+// chiamante — con il risultato che era sbagliato in mezzo posto: una
+// lezione prenotata dal Maestro risultava firmata dal SOCIO, una
+// Sfida chiusa dallo Sfidato risultava firmata dallo Sfidante, e in
+// un punto della Dashboard ci finiva perfino l'identificativo del
+// circolo. Non se n'era accorto nessuno perche' nessuno lo legge: a
+// schermo compaiono `eseguitoDaNome` e `eseguitoDaRuolo`.
+//
+// Adesso conta: le regole Firestore pretendono che la firma sia
+// quella di chi scrive, ed e' cio' che impedisce di registrare una
+// ricarica da 500 euro a nome di un operatore di segreteria vero. Con
+// la firma presa da qui il vincolo e' soddisfatto per costruzione, e
+// soprattutto il registro dice la verita'.
+//
+// ⚠️ Non e' "per conto di chi": quello resta il campo `uid`. Qui c'e'
+// chi ha agito.
+function firmaDiChiScrive(): string | null {
+  return auth.currentUser?.uid ?? null;
+}
+
 export function registraMovimentoInTransazione(tx: Transaction, dati: DatiMovimento): void {
   const rif = doc(collection(db, 'movimenti'));
   tx.set(rif, {
     ...dati,
     socioNome: dati.socioNome ?? null,
     socioRuolo: dati.socioRuolo ?? 'socio_tesserato',
-    eseguitoDaUid: dati.eseguitoDaUid ?? null,
+    eseguitoDaUid: firmaDiChiScrive(),
     eseguitoDaNome: dati.eseguitoDaNome ?? null,
     prenotazioneId: dati.prenotazioneId ?? null,
     gruppoId: dati.gruppoId ?? null,
@@ -205,7 +227,7 @@ export async function registraMovimentoSemplice(dati: DatiMovimento): Promise<vo
       ...dati,
       socioNome: dati.socioNome ?? null,
       socioRuolo: dati.socioRuolo ?? 'socio_tesserato',
-      eseguitoDaUid: dati.eseguitoDaUid ?? null,
+      eseguitoDaUid: firmaDiChiScrive(),
       eseguitoDaNome: dati.eseguitoDaNome ?? null,
       prenotazioneId: dati.prenotazioneId ?? null,
       gruppoId: dati.gruppoId ?? null,
@@ -398,7 +420,10 @@ export async function creaAperturePerCircolo(circoloId: string): Promise<number>
         saldoDopo: credito,
         debitoPrima: debito,
         debitoDopo: debito,
-        eseguitoDaUid: null,
+        // La riga la scrive un programma, ma a farlo partire e' stato
+        // qualcuno: le regole vogliono sapere chi, e il registro anche.
+        // Il ruolo resta 'sistema', che e' quello che si legge a schermo.
+        eseguitoDaUid: firmaDiChiScrive(),
         eseguitoDaNome: null,
         eseguitoDaRuolo: 'sistema',
         prenotazioneId: null,
@@ -665,4 +690,20 @@ export function testoPasso(p: PassoStoria): string {
 export function intervalloDelPasso(p: PassoStoria): string {
   if (!p.intervalloDopo) return 'Prenotazione cancellata';
   return `Prenotazione dalle ${p.intervalloDopo.inizio} alle ${p.intervalloDopo.fine}`;
+}
+
+// ⚠️ IL SERVER ADESSO SA COSE CHE IL TELEFONO NON SA — quanto Fido
+// resta davvero, se il termine di disdetta e' passato, se il circolo
+// e' sospeso — e le dice in italiano. Ingoiarle tutte dentro un
+// "Riprova" generico vuol dire lasciare l'utente a riprovare
+// all'infinito una cosa che non riuscira' mai.
+export function messaggioDalServer(e: any, ripiego: string): string {
+  const codice = String(e?.code ?? '');
+  const testo = String(e?.message ?? '').trim();
+  const utile = codice.includes('failed-precondition')
+    || codice.includes('invalid-argument')
+    || codice.includes('permission-denied')
+    || codice.includes('not-found');
+  if (utile && testo && !testo.toLowerCase().startsWith('internal')) return testo;
+  return ripiego;
 }

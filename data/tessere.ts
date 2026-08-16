@@ -20,9 +20,11 @@ import {
   doc, getDoc, setDoc, updateDoc, collection, query, where,
   onSnapshot, getDocs, serverTimestamp, deleteField, deleteDoc,
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, functions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { creaAperturePerCircolo } from './movimenti';
 import { raggruppaConsecutive } from './raggruppamento';
+import { chiudiConversazioneLezione } from './conversazioneLezione';
 
 export type StatoTessera = 'in_attesa' | 'approvata' | 'sospesa' | 'chiusa' | 'rifiutata';
 
@@ -84,11 +86,26 @@ export function ascoltaTessereUtente(uid: string, callback: (tessere: Tessera[])
 // Soci tesserati e ospiti stanno insieme — per prenotazioni,
 // classifica e sfide sono la stessa cosa; il ruolo serve solo a
 // distinguerli visivamente e per il costo di attivazione.
-export function ascoltaTessereCircolo(circoloId: string, callback: (tessere: Tessera[]) => void) {
+// ⚠️ onErrore non e' un lusso. Un ascolto respinto e un ascolto lento
+// si assomigliano troppo: senza distinguerli, una schermata mostra
+// "0 tessere" — che e' un'informazione, e sbagliata — invece di dire
+// che il dato non e' arrivato. Sulla Scheda Circolo del Super Admin
+// quel numero serve a giudicare un circolo, quindi la differenza
+// conta due volte.
+export function ascoltaTessereCircolo(
+  circoloId: string,
+  callback: (tessere: Tessera[]) => void,
+  onErrore?: () => void,
+) {
   const q = query(collection(db, 'tessere'), where('circoloId', '==', circoloId));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map((d) => normalizza(d.id, d.data())));
-  });
+  return onSnapshot(
+    q,
+    (snap) => callback(snap.docs.map((d) => normalizza(d.id, d.data()))),
+    (errore) => {
+      console.warn('Ascolto tessere del circolo interrotto:', errore?.message ?? errore);
+      onErrore?.();
+    },
+  );
 }
 
 function normalizza(id: string, v: Record<string, unknown>): Tessera {
@@ -201,6 +218,21 @@ export async function cambiaStatoTessera(uid: string, circoloId: string, stato: 
   await updateDoc(doc(db, 'tessere', idTessera(uid, circoloId)), { stato });
 }
 
+// ⚠️ QUESTA FUNZIONE NON E' COLLEGATA A NIENTE, E OGGI NON
+// FUNZIONEREBBE. Nessuna schermata la chiama — verificato su
+// entrambi i progetti — e le regole Firestore la respingerebbero in
+// due punti: la query cerca fra le tessere di TUTTI i circoli (un
+// Admin puo' leggere solo quelle del proprio, e una query che
+// potrebbe restituire documenti non leggibili viene rifiutata
+// interamente), e il declassamento scrive sulla tessera di un ALTRO
+// circolo, che nessuna regola consente.
+//
+// Non e' un difetto da tappare aprendo permessi: il gesto e'
+// intrinsecamente fra due circoli, e nessuno dei due Admin ha titolo
+// per agire dentro l'altro. Va rifatto come Cloud Function, che
+// scavalca le regole perche' e' il server. Finche' non lo e', resta
+// qui come specifica di cosa deve fare — non chiamarla.
+//
 // L'admin del NUOVO circolo assegna a sé la tessera principale
 // (l'utente ha rifatto il tesseramento FITP altrove). Toglie il flag
 // dalla vecchia principale, così ne resta sempre una sola.
@@ -240,19 +272,24 @@ export async function assegnaTesseraPrincipale(uid: string, circoloId: string): 
 
 // ---------- PORTAFOGLIO (per circolo) ----------
 
+// ⚠️ IL PORTAFOGLIO NON LO SCRIVE PIU' IL CLIENT.
+// Queste tre restano perche' qualcuno potrebbe chiamarle, ma il
+// lavoro lo fa la Cloud Function: le regole Firestore adesso vietano a
+// qualunque client di aumentare il valore netto di una tessera, quindi
+// una updateDoc diretta verrebbe respinta comunque.
 export async function ricaricaCreditoTessera(uid: string, circoloId: string, importo: number): Promise<void> {
-  const ref = doc(db, 'tessere', idTessera(uid, circoloId));
-  const snap = await getDoc(ref);
-  const attuale = (snap.data()?.credito as number) ?? 0;
-  await updateDoc(ref, { credito: attuale + importo });
+  const chiama = httpsCallable(functions, 'movimentoCredito');
+  await chiama({ tipo: 'ricarica', uid, circoloId, importo });
 }
 
 export async function azzeraCreditoTessera(uid: string, circoloId: string): Promise<void> {
-  await updateDoc(doc(db, 'tessere', idTessera(uid, circoloId)), { credito: 0 });
+  const chiama = httpsCallable(functions, 'movimentoCredito');
+  await chiama({ tipo: 'azzeramento', uid, circoloId });
 }
 
 export async function azzeraSosTessera(uid: string, circoloId: string): Promise<void> {
-  await updateDoc(doc(db, 'tessere', idTessera(uid, circoloId)), { sosUtilizzato: 0 });
+  const chiama = httpsCallable(functions, 'movimentoCredito');
+  await chiama({ tipo: 'saldoDebito', uid, circoloId });
 }
 
 export async function impostaLimiteSosTessera(uid: string, circoloId: string, limite: number): Promise<void> {
@@ -345,10 +382,15 @@ export function ascoltaPendenzeUtente(uid: string, callback: (t: Tessera[]) => v
 }
 
 // Saldo regolato in segreteria: azzera i contatori della tessera.
+// ⚠️ "Saldato" vuol dire due cose in una: il socio ha pagato il debito
+// e ha ritirato il credito residuo. Una sola chiamata e una sola
+// transazione lato server, e una sola riga nel registro — erano due
+// chiamate separate, e se la seconda non andava il socio usciva dalla
+// segreteria con il debito incassato e il credito ancora scritto.
 export async function saldaTessera(uid: string, circoloId: string): Promise<void> {
+  const chiama = httpsCallable(functions, 'movimentoCredito');
+  await chiama({ tipo: 'saldoChiusura', uid, circoloId });
   await updateDoc(doc(db, 'tessere', idTessera(uid, circoloId)), {
-    credito: 0,
-    sosUtilizzato: 0,
     saldataIl: serverTimestamp(),
   });
 }
@@ -655,6 +697,15 @@ export async function rimuoviSocioDaCircolo(params: {
   // iniziale intero. E fermarsi su QUELLA prenotazione, non su tutte,
   // permette comunque di liberare i campi delle altre.
   let prenotazioniCancellate = 0;
+  // ⚠️ Le lezioni cancellate qui vanno chiuse anche come CONVERSAZIONE.
+  // Rimuovendo un socio si cancellano anche le sue lezioni future, e
+  // finche' si cancellavano e basta il risultato era quello che la
+  // sezione "Lezioni Prenotate" esiste per evitare: campi liberi, ma
+  // richiesta ancora 'confermata' e chat viva nell'elenco del Maestro,
+  // su una lezione con un socio che non e' piu' del circolo. Si
+  // raccolgono qui le card toccate e si chiudono dopo, quando i campi
+  // sono gia' liberi.
+  const cardLezioniToccate = new Set<string>();
   for (const gruppo of raggruppaConsecutive(future)) {
     for (const p of [...gruppo].reverse()) {
       try {
@@ -671,11 +722,21 @@ export async function rimuoviSocioDaCircolo(params: {
           orario: p.orario,
         });
         prenotazioniCancellate++;
+        if (p.tipo === 'lezione' && p.cardId) cardLezioniToccate.add(p.cardId);
       } catch (e) {
         console.warn('Prenotazione non cancellata durante la rimozione:', p.id, e);
         break;
       }
     }
+  }
+
+  // ⚠️ Non deve far fallire la rimozione: i campi a questo punto sono
+  // gia' liberi e la tessera va chiusa comunque. Una conversazione
+  // rimasta aperta e' un fastidio; una rimozione interrotta a meta'
+  // lascia un socio meta' dentro e meta' fuori.
+  for (const cardId of cardLezioniToccate) {
+    try { await chiudiConversazioneLezione(cardId); }
+    catch (e) { console.warn('Conversazione della lezione non chiusa:', cardId, e); }
   }
 
   // Classifica: chi stava sotto risale di una posizione, altrimenti

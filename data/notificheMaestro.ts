@@ -34,10 +34,20 @@ export function ascoltaNotificheMaestro(maestroId: string, callback: (n: Notific
   );
 }
 
-export async function creaNotificaMaestro(maestroId: string, testo: string, circoloId?: string) {
+export async function creaNotificaMaestro(maestroId: string, testo: string, circoloId: string) {
+  // ⚠️ SI RINUNCIA ALL'AVVISO PIUTTOSTO CHE SCRIVERLO SENZA CIRCOLO.
+  // Prima il campo si aggiungeva "se c'era", ed era pure facoltativo
+  // nella firma. Un avviso senza non e' solo incompleto: e' spazzatura
+  // permanente. Tutte le regole che permettono di cancellarlo dal lato
+  // circolo passano da quel campo, quindi un documento nato senza non
+  // lo puo' piu' togliere nessuno — nemmeno il Super Admin — e lo si
+  // continua a pagare per sempre. Adesso le regole lo pretendono.
+  if (!circoloId) {
+    console.warn('Avviso al Maestro non inviato: manca il circolo.');
+    return;
+  }
   await addDoc(collection(db, 'notifiche_maestro'), {
-    maestroId, testo, letta: false,
-    ...(circoloId ? { circoloId } : {}),
+    maestroId, testo, letta: false, circoloId,
     creataIl: serverTimestamp(),
   });
 }

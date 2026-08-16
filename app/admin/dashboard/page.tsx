@@ -6,7 +6,7 @@ import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { auth } from '../../../lib/firebase';
 import { allineaProfiliCircolo } from '../../../data/tessere';
 import { leggiResponsabile, ProfiloResponsabile } from '../../../data/responsabili';
-import { leggiSessioneCollaboratore } from '../../../data/collaboratori';
+import { leggiSessioneCollaboratore, sessioneScaduta } from '../../../data/collaboratori';
 import { ascoltaSociCircolo, SocioCircolo } from '../../../data/users';
 import { Circolo, Campo, Blocco } from '../../../data/circoli';
 import { ascoltaCircolo, ascoltaCampi, ascoltaBlocchi } from '../../../data/circoliRepo';
@@ -41,6 +41,10 @@ import { ascoltaMaestriCircolo, MaestroConUid } from '../../../data/maestriRepo'
 export default function AdminDashboard() {
   const router = useRouter();
   const [responsabile, setResponsabile] = useState<ProfiloResponsabile | null>(null);
+  // Quando finisce la sessione Collaboratore. Nullo per l'Admin vero,
+  // che non ha scadenza: il suo accesso e' un account, non un permesso
+  // a tempo.
+  const [scadenzaSessione, setScadenzaSessione] = useState<number | null>(null);
   const [circolo, setCircolo] = useState<Circolo | null>(null);
   const [campi, setCampi] = useState<Campo[]>([]);
   const [blocchi, setBlocchi] = useState<Blocco[]>([]);
@@ -69,9 +73,15 @@ export default function AdminDashboard() {
           .catch(() => {});
         return;
       }
+      // ⚠️ Una sessione scaduta NON e' una sessione. Senza questo
+      // controllo la Dashboard si sarebbe aperta lo stesso — il
+      // documento c'e' ancora — e poi ogni singola operazione sarebbe
+      // stata respinta dalle regole, una per una, senza spiegazione.
+      // Meglio dire subito "rientra con la password".
       const sessione = await leggiSessioneCollaboratore(user.uid);
-      if (sessione) {
+      if (sessione && !sessioneScaduta(sessione)) {
         setResponsabile({ nome: 'Collaboratore', cognome: '', email: '', circoloId: sessione.circoloId });
+        setScadenzaSessione(sessione.scadeIlMs ?? null);
         setCaricando(false);
         return;
       }
@@ -107,10 +117,29 @@ export default function AdminDashboard() {
       .filter((sf) => !sfideScaduteTentate.current.has(sf.id))
       .forEach((sf) => {
         sfideScaduteTentate.current.add(sf.id);
-        if (sf.fase === 'accordo') risolviTimerAccordo(sf, soci);
-        else risolviTimerPrenotazione(sf, soci);
+        if (sf.fase === 'accordo') risolviTimerAccordo(sf, soci, circolo);
+        else risolviTimerPrenotazione(sf, soci, circolo);
       });
-  }, [sfide, soci]);
+  }, [sfide, soci, circolo]);
+
+  // ⚠️ LA SCADENZA VA CONTROLLATA ANCHE MENTRE SI LAVORA.
+  // Il controllo all'apertura non basta: una Dashboard su un PC di
+  // segreteria resta aperta tutto il giorno, e alla dodicesima ora
+  // tutti gli ascolti cominciavano a fallire in silenzio — dati
+  // congelati a schermo e ogni operazione respinta con un "Riprova"
+  // che non poteva riuscire. Peggio: una sequenza non transazionale
+  // interrotta a meta' lasciava le cose a meta'. Un giro al minuto
+  // costa niente e permette di dire la cosa giusta.
+  useEffect(() => {
+    if (scadenzaSessione == null) return;
+    const controllo = setInterval(async () => {
+      if (Date.now() < scadenzaSessione) return;
+      clearInterval(controllo);
+      await signOut(auth);
+      router.replace('/admin/login?scaduta=1');
+    }, 60000);
+    return () => clearInterval(controllo);
+  }, [scadenzaSessione, router]);
 
   const logout = async () => {
     await signOut(auth);
@@ -218,8 +247,8 @@ export default function AdminDashboard() {
         <SezioneCollassabile id="debiti" titolo="Debiti dei Soci/Tesserati e Ospiti" descrizione="Soci/Tesserati e Ospiti con credito negativo o Fido da saldare">
           <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="maestri" titolo="Maestri" descrizione="Account e accesso dei maestri del circolo">
-          <SezioneMaestri circoloId={circolo.id} maestri={maestri} />
+        <SezioneCollassabile id="maestri" titolo="Maestri" descrizione="Anagrafica, account e accesso dei maestri del circolo">
+          <SezioneMaestri circoloId={circolo.id} maestri={maestri} prenotazioni={prenotazioni} />
         </SezioneCollassabile>
         <SezioneCollassabile id="classifica" titolo="Classifica Sociale" descrizione="Ranking dei soci e gestione posizioni">
           <SezioneClassificaSociale circolo={circolo} soci={soci} sfide={sfide} />
@@ -240,7 +269,11 @@ export default function AdminDashboard() {
           <SezioneNotePrenotazioni prenotazioni={prenotazioni} />
         </SezioneCollassabile>
         <SezioneCollassabile id="lezioni" titolo="Lezioni Prenotate" descrizione="Calendario riepilogativo delle lezioni con i maestri">
-          <SezioneLezioniPrenotate prenotazioni={prenotazioni} />
+          <SezioneLezioniPrenotate
+            prenotazioni={prenotazioni}
+            circoloId={circolo.id}
+            nomeEsecutore={`${responsabile.nome} ${responsabile.cognome}`}
+          />
         </SezioneCollassabile>
       </main>
     </div>

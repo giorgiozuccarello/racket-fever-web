@@ -1,12 +1,41 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MaestroConUid, creaMaestro, rimuoviMaestro, impostaAccessoAdmin } from '../../../data/maestriRepo';
+import { contiDelMaestro, PrenotazioneDaContare } from '../../../data/contiMaestro';
+import { ascoltaLezioniAnnullate, LezioneAnnullata } from '../../../data/lezioniAnnullate';
+import SchedaMaestro from './SchedaMaestro';
 
-export default function SezioneMaestri({ circoloId, maestri }: {
-  circoloId: string; maestri: MaestroConUid[];
+export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
+  circoloId: string;
+  maestri: MaestroConUid[];
+  prenotazioni: PrenotazioneDaContare[];
 }) {
+  // ⚠️ L'ascolto delle lezioni annullate sta QUI e non nella pagina.
+  // Quei documenti servono soltanto ai conteggi dentro la scheda di un
+  // Maestro, e questa sezione è collassata: tenendo l'ascolto più su si
+  // scaricava, a ogni apertura della dashboard, l'intero storico delle
+  // disdette del circolo per non mostrarlo a nessuno. La collezione non
+  // ha scadenza: cresce e basta.
+  //
+  // ⚠️ E la query NON si può limitare per data o con un limit: i
+  // conteggi sono storici, e un elenco tagliato darebbe un numero
+  // sbagliato con l'aria di essere giusto.
+  const [annullate, setAnnullate] = useState<LezioneAnnullata[]>([]);
+  const [annullateArrivate, setAnnullateArrivate] = useState(false);
+  useEffect(() => {
+    setAnnullateArrivate(false);
+    return ascoltaLezioniAnnullate(
+      circoloId,
+      (elenco) => { setAnnullate(elenco); setAnnullateArrivate(true); },
+      () => { setAnnullate([]); setAnnullateArrivate(false); },
+    );
+  }, [circoloId]);
+
   const [formAperto, setFormAperto] = useState(false);
+  // Una scheda aperta per volta: sono lunghe, e due aperte insieme
+  // costringono a scorrere per capire quale si sta compilando.
+  const [schedaAperta, setSchedaAperta] = useState<string | null>(null);
   const [nome, setNome] = useState('');
   const [cognome, setCognome] = useState('');
   const [email, setEmail] = useState('');
@@ -16,6 +45,26 @@ export default function SezioneMaestri({ circoloId, maestri }: {
   const [creando, setCreando] = useState(false);
   const [datiCreati, setDatiCreati] = useState<{ nome: string; email: string; password: string } | null>(null);
   const [aggiornandoUid, setAggiornandoUid] = useState<string | null>(null);
+  const [erroreRimozione, setErroreRimozione] = useState('');
+
+  // ⚠️ rimuoviMaestro adesso puo' FALLIRE apposta: se non riesce a
+  // togliere l'accesso Admin gemello o la scheda privata si ferma,
+  // invece di lasciare in giro un permesso non piu' revocabile o un
+  // numero di telefono irraggiungibile. Senza questo blocco l'errore
+  // sarebbe finito solo nella console del browser, e all'Admin
+  // sarebbe sembrato che non fosse successo niente.
+  const rimuovi = async (m: MaestroConUid) => {
+    setErroreRimozione('');
+    try {
+      await rimuoviMaestro(m);
+    } catch (e: any) {
+      setErroreRimozione(
+        e?.message === 'ACCESSO_ADMIN_NON_REVOCATO'
+          ? `${m.nome} ${m.cognome} non è stato rimosso: non è stato possibile togliergli l'accesso Admin. Riprova — se si cancellasse ora, quell'accesso resterebbe attivo e non sarebbe più revocabile.`
+          : `${m.nome} ${m.cognome} non è stato rimosso. Riprova.`,
+      );
+    }
+  };
 
   const reset = () => { setNome(''); setCognome(''); setEmail(''); setPassword(''); setConsentiAdmin(false); setErrore(''); };
 
@@ -45,8 +94,18 @@ export default function SezioneMaestri({ circoloId, maestri }: {
 
   const toggleAccessoAdmin = async (m: MaestroConUid) => {
     setAggiornandoUid(m.uid);
+    setErroreRimozione('');
     try {
       await impostaAccessoAdmin(m, !m.puoAccedereAdmin);
+    } catch {
+      // ⚠️ Una revoca fallita non puo' restare muta. La casella torna
+      // da sola allo stato vero (lo decide l'ascolto su Firestore),
+      // quindi senza un messaggio l'Admin vede la spunta rimettersi
+      // dov'era e pensa a un tocco andato a vuoto — mentre l'accesso
+      // Admin di quella persona e' ancora acceso.
+      setErroreRimozione(
+        `Non è stato possibile ${m.puoAccedereAdmin ? 'togliere' : 'concedere'} l'accesso Admin a ${m.nome} ${m.cognome}. Riprova.`,
+      );
     } finally {
       setAggiornandoUid(null);
     }
@@ -70,9 +129,19 @@ export default function SezioneMaestri({ circoloId, maestri }: {
           <div className="admin-list-row">
             <div style={{ flex: 1 }}>
               <div className="admin-list-main">{m.nome} {m.cognome}</div>
-              <div className="admin-list-sub">{m.email}</div>
+              <div className="admin-list-sub">
+                {m.email}
+                {m.qualifica ? ` · ${m.qualifica}` : ''}
+              </div>
             </div>
-            <button className="admin-icon-btn danger" onClick={() => rimuoviMaestro(m)} aria-label="Rimuovi">🗑</button>
+            <button
+              className="admin-icon-btn"
+              aria-expanded={schedaAperta === m.uid}
+              onClick={() => setSchedaAperta(schedaAperta === m.uid ? null : m.uid)}
+            >
+              {schedaAperta === m.uid ? 'Chiudi scheda' : 'Scheda'}
+            </button>
+            <button className="admin-icon-btn danger" onClick={() => rimuovi(m)} aria-label="Rimuovi">🗑</button>
           </div>
           <label className="admin-checkbox-row">
             <input
@@ -81,8 +150,23 @@ export default function SezioneMaestri({ circoloId, maestri }: {
             />
             <span>{aggiornandoUid === m.uid ? 'Aggiornamento…' : 'Può accedere anche come Admin Circolo'}</span>
           </label>
+          {/* ⚠️ Montata solo da aperta, e con key sull'identificativo:
+              la scheda tiene in memoria quello che si sta scrivendo, e
+              riusando lo stesso componente per un altro Maestro i campi
+              gia' compilati resterebbero a schermo — con il rischio di
+              salvare il telefono di uno sulla scheda di un altro. */}
+          {schedaAperta === m.uid && (
+            <SchedaMaestro
+              key={m.uid}
+              maestro={m}
+              conti={contiDelMaestro(m.uid, prenotazioni, annullate)}
+              contiIncerti={!annullateArrivate}
+            />
+          )}
         </div>
       ))}
+
+      {erroreRimozione && <div className="admin-error-text">{erroreRimozione}</div>}
 
       {datiCreati && (
         <>

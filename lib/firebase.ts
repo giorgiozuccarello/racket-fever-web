@@ -15,6 +15,7 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getFunctions } from 'firebase/functions';
 
 const firebaseConfig = {
   apiKey: 'AIzaSyBWoZ7tkJyMDQqYgPMNEdkgDY5RD1Y2ta0',
@@ -30,3 +31,13 @@ const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 export const auth = getAuth(app);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
+
+// ============================================================
+// CLOUD FUNCTIONS — la regione conta.
+// Le funzioni girano a europe-west1 (Belgio): senza indicarlo qui,
+// l'SDK le cercherebbe a us-central1 e ogni chiamata risponderebbe
+// "funzione non trovata". La latenza verso l'Italia e' circa un terzo
+// di quella americana, e su una cancellazione si aspetta la risposta
+// prima di poter dire al socio com'e' andata.
+// ============================================================
+export const functions = getFunctions(app, 'europe-west1');

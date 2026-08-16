@@ -6,8 +6,9 @@
 // due, così credito e prenotazioni non si disallineano mai.
 // ============================================================
 
-import { runTransaction, doc, updateDoc, deleteDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { runTransaction, doc, updateDoc, collection, addDoc, serverTimestamp, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { db, functions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { registraMovimentoInTransazione, registraMovimentoSemplice } from './movimenti';
 import { idTessera } from './tessere';
 import { orarioFineSlot } from './circoli';
@@ -671,126 +672,41 @@ export async function aggiornaGiocatori(params: {
   prenotazioniIds: string[];
   chiPrenotaUid: string;
   chiPrenotaNome: string;
-  // ⚠️ Il nome di OGNI persona toccata dal cambio. Senza, le righe del
-  // registro nascevano con il nome vuoto: in segreteria comparivano
-  // come "nome non registrato" e — peggio — sparivano dal filtro per
-  // socio, cioe' un addebito reale non era piu' rintracciabile.
   nomiPerUid?: Record<string, string>;
   modifica: ModificaGiocatori;
   gruppoId?: string | null;
   cardId?: string | null;
 }): Promise<void> {
   if (params.prenotazioniIds.length === 0) return;
-  const rifPrenotazioni = params.prenotazioniIds.map((id) => doc(db, 'prenotazioni', id));
-
-  await runTransaction(db, async (tx) => {
-    // --- 1. leggo le mezz'ore e calcolo il nuovo elenco di ciascuna ---
-    const snapPrenotazioni: any[] = [];
-    for (const rif of rifPrenotazioni) snapPrenotazioni.push(await tx.get(rif));
-    if (snapPrenotazioni.some((x) => !x.exists())) throw new Error('PRENOTAZIONE_NON_TROVATA');
-
-    const delta = new Map<string, number>();
-    const nuoviElenchi: Giocatore[][] = [];
-    let riferimento: { data: string; dataLabel: string; campoId: string; campoNome: string; orario: string } | null = null;
-
-    snapPrenotazioni.forEach((snap) => {
-      const dati = snap.data() as any;
-      if (dati.utenteId !== params.chiPrenotaUid) throw new Error('NON_E_TUA');
-      const prezzo = (dati.prezzo as number) ?? 0;
-      const prima = giocatoriDi(dati);
-      const dopo = applicaModifica(prima, prezzo, params.modifica);
-      if (dopo.length > MAX_GIOCATORI_AGGIUNTI) throw new Error('TROPPI_GIOCATORI');
-      if (new Set(dopo.map((g) => g.uid)).size !== dopo.length) throw new Error('GIOCATORE_DUPLICATO');
-      if (dopo.some((g) => g.uid === params.chiPrenotaUid)) throw new Error('GIOCATORE_DUPLICATO');
-      nuoviElenchi.push(dopo);
-      for (const [uid, v] of differenzeQuote(prima, dopo, prezzo, params.chiPrenotaUid)) {
-        delta.set(uid, Math.round(((delta.get(uid) ?? 0) + v) * 100) / 100);
-      }
-      if (!riferimento) {
-        riferimento = {
-          data: dati.data, dataLabel: dati.dataLabel, campoId: dati.campoId,
-          campoNome: dati.campoNome, orario: dati.orario,
-        };
-      }
+  // ⚠️ TOGLIERE UN GIOCATORE VUOL DIRE RIMBORSARLO, e un rimborso e'
+  // denaro che rientra: le regole non lo concedono piu' a nessun
+  // client. Questa operazione girava sul telefono e da oggi non
+  // potrebbe piu' funzionare — sta sul server per intero, compreso il
+  // controllo della lista compagni che prima facevano le regole.
+  const chiama = httpsCallable(functions, 'aggiornaGiocatoriPrenotazione');
+  try {
+    await chiama({
+      circoloId: params.circoloId,
+      prenotazioniIds: params.prenotazioniIds,
+      modifica: params.modifica,
+      nomiPerUid: params.nomiPerUid ?? {},
+      gruppoId: params.gruppoId ?? null,
+      cardId: params.cardId ?? null,
     });
-
-    // --- 2. leggo i portafogli toccati (tutte le letture prima) ---
-    const coinvolti = [...delta.entries()].filter(([, v]) => v !== 0);
-    const rifTessere = coinvolti.map(([uid]) => doc(db, 'tessere', idTessera(uid, params.circoloId)));
-    const snapTessere: any[] = [];
-    for (const rif of rifTessere) snapTessere.push(await tx.get(rif));
-
-    // --- 3. scritture ---
-    const rif = riferimento as any;
-    coinvolti.forEach(([uid, importo], i) => {
-      const snap = snapTessere[i];
-      if (!snap.exists()) throw new Error('UTENTE_NON_TROVATO');
-      const credito = (snap.data()!.credito as number) ?? 0;
-      const sos = (snap.data()!.sosUtilizzato as number) ?? 0;
-      let saldoDopo = credito;
-      let debitoDopo = sos;
-      if (importo > 0) {
-        const addebito = calcolaAddebitoConSOS(credito, importo);
-        saldoDopo = credito - addebito.daCredito;
-        debitoDopo = sos + addebito.daSOS;
-        tx.update(rifTessere[i], {
-          credito: saldoDopo,
-          ...(addebito.daSOS > 0 ? { sosUtilizzato: debitoDopo } : {}),
-        });
-      } else {
-        // Un rimborso estingue prima il debito S.O.S., come ovunque.
-        const dopo = applicaRimborso(credito, sos, -importo);
-        saldoDopo = dopo.credito;
-        debitoDopo = dopo.sosUtilizzato;
-        tx.update(rifTessere[i], dopo);
-      }
-      registraMovimentoInTransazione(tx, {
-        circoloId: params.circoloId, uid,
-        socioNome: uid === params.chiPrenotaUid
-          ? params.chiPrenotaNome
-          : (params.nomiPerUid?.[uid] ?? null),
-        tipo: importo > 0 ? 'addebito' : 'rimborso',
-        gruppoId: params.gruppoId ?? null, cardId: params.cardId ?? null,
-        dataISO: rif?.data ?? null, campoId: rif?.campoId ?? null,
-        campoNome: rif?.campoNome ?? null, dataLabel: rif?.dataLabel ?? null,
-        orario: rif?.orario ?? null, orarioFine: rif?.orario ? orarioFineSlot(rif.orario) : null,
-        // ⚠️ UNA riga sola per tutta la partita, non una per mezz'ora:
-        // cambiare un giocatore su un'ora e mezza avrebbe riempito lo
-        // storico di tre righe identiche da pochi centesimi l'una.
-        // Negativo quando esce dal portafoglio, positivo quando ci
-        // rientra: e' la convenzione di tutto il registro.
-        importo: -importo,
-        saldoPrima: credito, saldoDopo,
-        debitoPrima: sos, debitoDopo,
-        eseguitoDaUid: params.chiPrenotaUid, eseguitoDaNome: params.chiPrenotaNome,
-        eseguitoDaRuolo: uid === params.chiPrenotaUid ? 'socio' : 'compagno',
-        // Con chi ha giocato: e' cio' che fa comparire nel registro la
-        // riga "Aggiunto da …" invece di un addebito senza spiegazione.
-        compagnoNome: uid === params.chiPrenotaUid ? null : params.chiPrenotaNome,
-        sonoCompagno: uid !== params.chiPrenotaUid,
-        prenotazioneId: params.prenotazioniIds[0],
-        descrizione: uid === params.chiPrenotaUid
-          ? 'Cambio giocatori nella tua prenotazione'
-          : (importo > 0
-            ? `Sei stato aggiunto da ${params.chiPrenotaNome}`
-            : `${params.chiPrenotaNome} ti ha tolto dalla prenotazione`),
-      });
-    });
-
-    rifPrenotazioni.forEach((rifP, i) => {
-      tx.update(rifP, {
-        giocatori: nuoviElenchi[i],
-        giocatoriIds: nuoviElenchi[i].map((g) => g.uid),
-        costoDiviso: nuoviElenchi[i].length > 0,
-        // I vecchi campi si spengono: da qui in poi comanda l'elenco.
-        // Lasciarli scritti avrebbe fatto comparire in Home e nelle
-        // dashboard non aggiornate una persona che non c'e' piu'.
-        compagnoId: null, compagnoNome: null, compagnoCognome: null,
-      });
-    });
-  });
+  } catch (e: any) {
+    // ⚠️ I messaggi che la schermata riconosce vanno rilanciati COSI'
+    // COME SONO. GestioneGiocatori distingue "questa prenotazione non
+    // c'e' piu'" da "l'elenco e' cambiato sotto le mani" e da un
+    // errore qualunque, e lo fa confrontando il testo: incartandolo in
+    // un errore generico, all'utente resterebbe solo "riprova".
+    const dentro = e?.details?.message ?? e?.message ?? '';
+    for (const noto of ['PRENOTAZIONE_NON_TROVATA', 'ELENCO_CAMBIATO', 'NON_E_TUA',
+      'TROPPI_GIOCATORI', 'GIOCATORE_DUPLICATO', 'UTENTE_NON_TROVATO']) {
+      if (String(dentro).includes(noto)) throw new Error(noto);
+    }
+    throw e;
+  }
 }
-
 // Prenota una LEZIONE: stessa identica logica di pagamento di
 // prenotaConCredito (il socio paga solo il normale costo del
 // campo — la lezione vera si accorda direttamente con il maestro,
@@ -998,27 +914,38 @@ export function importoDaRimborsare(
 // Maestro annulla una lezione: in tutti i casi va rimborsato
 // esattamente il prezzo pagato allora (non il prezzo attuale della
 // tariffa, che potrebbe essere cambiato).
+// ============================================================
+// ⚠️ DA QUI IN GIU' IL DENARO LO MUOVE IL SERVER.
+//
+// Le firme di queste funzioni sono rimaste IDENTICHE apposta: sono
+// chiamate da diciotto punti fra app e dashboard, e cambiarle tutte
+// avrebbe voluto dire diciotto occasioni di sbagliare in una tornata
+// in cui l'unica cosa che conta e' non rompere niente. Quello che e'
+// cambiato e' il corpo: al posto della transazione locale c'e' una
+// chiamata alla Cloud Function, che fa lo stesso lavoro dove nessuno
+// puo' suggerirle un prezzo.
+//
+// ⚠️ I PARAMETRI DI SOLA APPARENZA NON SI MANDANO PIU'. Prezzo, quote,
+// nomi, campo, data: il server li rilegge tutti dal documento della
+// prenotazione. Prima li mandava il telefono, e bastava cambiare il
+// numero del prezzo per farsi restituire piu' di quanto si era
+// pagato. Restano accettati nella firma perche' i chiamanti li
+// passano ancora — semplicemente non servono piu' a niente, e non
+// vanno tolti finche' non si ripuliscono i chiamanti con calma.
+// ============================================================
 export async function cancellaConRimborso(params: {
   uid: string;
   circoloId: string;
   prenotazioneId: string;
   prezzo: number;
-  // Chi ha cancellato: puo' essere il socio stesso, il COMPAGNO di
-  // gioco, l'admin o il maestro. Nel registro la differenza conta.
   eseguitoDaUid?: string | null;
   eseguitoDaNome?: string | null;
   eseguitoDaRuolo?: 'socio' | 'compagno' | 'admin' | 'maestro';
   descrizione?: string;
-  // Nome del socio, per rendere il registro leggibile lato Admin.
   socioNome?: string;
   compagnoNome?: string;
   gruppoId?: string;
-  // Identificativo della prenotazione cancellata: il rimborso deve
-  // finire sulla SUA card, non su quella che risulta aperta in quel
-  // momento nel registro.
   cardId?: string;
-  // Dati della prenotazione cancellata, per rendere il rimborso
-  // riconoscibile nel registro anche a distanza di mesi.
   campoNome?: string;
   dataLabel?: string;
   dataISO?: string;
@@ -1026,62 +953,22 @@ export async function cancellaConRimborso(params: {
   orario?: string;
   parziale?: boolean;
 }): Promise<void> {
-  const utenteRef = doc(db, 'tessere', idTessera(params.uid, params.circoloId));
-  const prenotazioneRef = doc(db, 'prenotazioni', params.prenotazioneId);
-
-  await runTransaction(db, async (tx) => {
-    const utenteSnap = await tx.get(utenteRef);
-    const creditoAttuale = utenteSnap.exists() ? ((utenteSnap.data().credito as number) ?? 0) : 0;
-    const debitoAttuale = utenteSnap.exists() ? ((utenteSnap.data().sosUtilizzato as number) ?? 0) : 0;
-
-    const dopo = applicaRimborso(creditoAttuale, debitoAttuale, params.prezzo);
-    tx.update(utenteRef, dopo);
-
-    registraMovimentoInTransazione(tx, {
-      circoloId: params.circoloId,
-      uid: params.uid,
-      socioNome: params.socioNome ?? null,
-      tipo: 'rimborso',
-      gruppoId: params.gruppoId ?? null,
-      cardId: params.cardId ?? null,
-      dataISO: params.dataISO ?? null,
-      campoId: params.campoId ?? null,
-      campoNome: params.campoNome ?? null,
-      dataLabel: params.dataLabel ?? null,
-      orario: params.orario ?? null,
-      orarioFine: params.orario ? orarioFineSlot(params.orario) : null,
-      parziale: !!params.parziale,
-      importo: params.prezzo,
-      saldoPrima: creditoAttuale,
-      saldoDopo: dopo.credito,
-      debitoPrima: debitoAttuale,
-      debitoDopo: dopo.sosUtilizzato,
-      eseguitoDaUid: params.eseguitoDaUid ?? null,
-      eseguitoDaNome: params.eseguitoDaNome ?? null,
-      eseguitoDaRuolo: params.eseguitoDaRuolo ?? 'socio',
-      prenotazioneId: params.prenotazioneId,
-      descrizione: params.descrizione ?? 'Rimborso per cancellazione prenotazione',
-    });
-    tx.delete(prenotazioneRef);
+  const chiama = httpsCallable(functions, 'annullaPrenotazione');
+  await chiama({
+    prenotazioneId: params.prenotazioneId,
+    parziale: !!params.parziale,
+    descrizione: params.descrizione ?? null,
   });
 }
 
-// Cancella una prenotazione con costo diviso: rimborsa metà a ciascuno
-// dei due soci coinvolti, in un'unica transazione (o vanno a buon fine
-// entrambi gli accrediti, o nessuno dei due). Va usata SOLO quando
-// costoDiviso è davvero true — se il compagno non aveva pagato nulla
-// (credito insufficiente al momento della prenotazione), la cancellazione
-// resta quella normale a carico del solo socio che ha prenotato.
+// Stessa Function della cancellazione singola: il server guarda il
+// documento e capisce da solo se il costo era diviso e fra quanti —
+// era gia' scritto li' dentro, e chiederlo al telefono era solo un
+// modo per farselo raccontare da chi aveva interesse a raccontarlo
+// diversamente.
 export async function cancellaConRimborsoDiviso(params: {
   utenteId: string;
-  // ⚠️ Vuoto quando i giocatori sono piu' di uno: in quel caso comanda
-  // `giocatori`, e questo campo esiste solo per le Sfide e per le
-  // prenotazioni fatte con il vecchio modello.
   compagnoId: string;
-  // I giocatori con la loro quota, letti dal documento. Quando c'e',
-  // ognuno riceve indietro ESATTAMENTE quello che aveva pagato — che
-  // dopo un cambio giocatore non e' piu' detto sia una divisione in
-  // parti uguali. Senza, si torna al vecchio meta' e meta'.
   giocatori?: Giocatore[];
   circoloId: string;
   prenotazioneId: string;
@@ -1090,16 +977,10 @@ export async function cancellaConRimborsoDiviso(params: {
   eseguitoDaNome?: string | null;
   eseguitoDaRuolo?: 'socio' | 'compagno' | 'admin' | 'maestro';
   descrizione?: string;
-  // Nome del socio, per rendere il registro leggibile lato Admin.
   socioNome?: string;
   compagnoNome?: string;
   gruppoId?: string;
-  // Identificativo della prenotazione cancellata: il rimborso deve
-  // finire sulla SUA card, non su quella che risulta aperta in quel
-  // momento nel registro.
   cardId?: string;
-  // Dati della prenotazione cancellata, per rendere il rimborso
-  // riconoscibile nel registro anche a distanza di mesi.
   campoNome?: string;
   dataLabel?: string;
   dataISO?: string;
@@ -1107,108 +988,30 @@ export async function cancellaConRimborsoDiviso(params: {
   orario?: string;
   parziale?: boolean;
 }): Promise<void> {
-  const utenteRef = doc(db, 'tessere', idTessera(params.utenteId, params.circoloId));
-  // Da uno a tre. Se non arriva l'elenco si ricade sul vecchio
-  // compagno singolo con meta' del prezzo: e' il caso delle Sfide e
-  // delle prenotazioni scritte prima di questa versione.
-  const altri: Giocatore[] = params.giocatori && params.giocatori.length > 0
-    ? params.giocatori
-    : [{
-      uid: params.compagnoId,
-      nome: params.compagnoNome ?? '',
-      cognome: '',
-      quota: Math.round((params.prezzoTotale / 2) * 100) / 100,
-    }];
-  const rifAltri = altri.map((g) => doc(db, 'tessere', idTessera(g.uid, params.circoloId)));
-  const prenotazioneRef = doc(db, 'prenotazioni', params.prenotazioneId);
-  // Quello che torna a chi ha prenotato e' cio' che resta: cosi' la
-  // somma dei rimborsi fa esattamente il prezzo pagato, anche quando le
-  // quote sono diseguali per via di un cambio giocatore.
-  const miaQuota = Math.round(
-    (params.prezzoTotale - altri.reduce((t, g) => t + g.quota, 0)) * 100,
-  ) / 100;
-
-  await runTransaction(db, async (tx) => {
-    const utenteSnap = await tx.get(utenteRef);
-    const snapAltri: any[] = [];
-    for (const rif of rifAltri) snapAltri.push(await tx.get(rif));
-    const creditoUtente = utenteSnap.exists() ? ((utenteSnap.data().credito as number) ?? 0) : 0;
-    const debitoUtente = utenteSnap.exists() ? ((utenteSnap.data().sosUtilizzato as number) ?? 0) : 0;
-
-    const dopoUtente = applicaRimborso(creditoUtente, debitoUtente, miaQuota);
-    tx.update(utenteRef, dopoUtente);
-
-    // Un movimento per portafoglio: ciascuno deve poter leggere il
-    // proprio registro e ritrovarci la propria quota.
-    const chiHaCancellato = params.eseguitoDaRuolo ?? 'socio';
-    const descr = params.descrizione ?? 'Rimborso della tua quota per cancellazione prenotazione condivisa';
-    registraMovimentoInTransazione(tx, {
-      circoloId: params.circoloId,
-      uid: params.utenteId,
-      socioNome: params.socioNome ?? null,
-      tipo: 'rimborso',
-      gruppoId: params.gruppoId ?? null,
-      cardId: params.cardId ?? null,
-      dataISO: params.dataISO ?? null,
-      campoId: params.campoId ?? null,
-      campoNome: params.campoNome ?? null,
-      dataLabel: params.dataLabel ?? null,
-      orario: params.orario ?? null,
-      orarioFine: params.orario ? orarioFineSlot(params.orario) : null,
-      parziale: !!params.parziale,
-      importo: miaQuota,
-      saldoPrima: creditoUtente,
-      saldoDopo: dopoUtente.credito,
-      debitoPrima: debitoUtente,
-      debitoDopo: dopoUtente.sosUtilizzato,
-      eseguitoDaUid: params.eseguitoDaUid ?? null,
-      eseguitoDaNome: params.eseguitoDaNome ?? null,
-      eseguitoDaRuolo: chiHaCancellato,
-      prenotazioneId: params.prenotazioneId,
-      descrizione: descr,
-    });
-    altri.forEach((g, i) => {
-      const snap = snapAltri[i];
-      const credito = snap.exists() ? ((snap.data().credito as number) ?? 0) : 0;
-      const debito = snap.exists() ? ((snap.data().sosUtilizzato as number) ?? 0) : 0;
-      const dopo = applicaRimborso(credito, debito, g.quota);
-      tx.update(rifAltri[i], dopo);
-      registraMovimentoInTransazione(tx, {
-        circoloId: params.circoloId,
-        uid: g.uid,
-        socioNome: `${g.nome} ${g.cognome}`.trim() || params.compagnoNome || null,
-        tipo: 'rimborso',
-        gruppoId: params.gruppoId ?? null,
-        cardId: params.cardId ?? null,
-        dataISO: params.dataISO ?? null,
-        campoId: params.campoId ?? null,
-        campoNome: params.campoNome ?? null,
-        dataLabel: params.dataLabel ?? null,
-        orario: params.orario ?? null,
-        orarioFine: params.orario ? orarioFineSlot(params.orario) : null,
-        parziale: !!params.parziale,
-        importo: g.quota,
-        saldoPrima: credito,
-        saldoDopo: dopo.credito,
-        debitoPrima: debito,
-        debitoDopo: dopo.sosUtilizzato,
-        eseguitoDaUid: params.eseguitoDaUid ?? null,
-        eseguitoDaNome: params.eseguitoDaNome ?? null,
-        eseguitoDaRuolo: chiHaCancellato,
-        prenotazioneId: params.prenotazioneId,
-        descrizione: descr,
-      });
-    });
-
-    tx.delete(prenotazioneRef);
+  const chiama = httpsCallable(functions, 'annullaPrenotazione');
+  await chiama({
+    prenotazioneId: params.prenotazioneId,
+    parziale: !!params.parziale,
+    descrizione: params.descrizione ?? null,
   });
 }
 
 // Cancella una lezione con un allievo NON socio: nessun wallet da cui
 // era stato scalato nulla in origine (vedi prenotaLezioneEsterno), quindi
 // qui non c'è alcun rimborso da fare — solo la rimozione dello slot.
+//
+// ⚠️ MA PASSA DALLA FUNCTION LO STESSO, e non per il denaro: qui di
+// denaro non ce n'è. Cancellando direttamente il documento, la lezione
+// spariva senza lasciare traccia in lezioni_annullate — che è proprio
+// la collezione nata per contare le disdette degli allievi ESTERNI,
+// gli unici che il registro dei movimenti non copre. Il conteggio
+// sulla scheda del Maestro avrebbe detto "0 annullate" per un Maestro
+// che lavora solo con allievi esterni: un numero falso, e credibile.
+// Nessun client può scrivere quella traccia — le regole la vietano —
+// quindi l'unica strada è questa.
 export async function cancellaSenzaRimborso(prenotazioneId: string): Promise<void> {
-  await deleteDoc(doc(db, 'prenotazioni', prenotazioneId));
+  const chiama = httpsCallable(functions, 'annullaPrenotazione');
+  await chiama({ prenotazioneId, parziale: false, descrizione: null });
 }
 
 // Ricarica del wallet da parte della segreteria/Admin Circolo.
@@ -1219,28 +1022,11 @@ export async function ricaricaCredito(
   uid: string, circoloId: string, importo: number,
   eseguitoDa?: { uid: string; nome: string }, socioNome?: string
 ): Promise<void> {
-  const utenteRef = doc(db, 'tessere', idTessera(uid, circoloId));
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(utenteRef);
-    const attuale = snap.exists() ? ((snap.data().credito as number) ?? 0) : 0;
-    const debito = snap.exists() ? ((snap.data().sosUtilizzato as number) ?? 0) : 0;
-    const dopo = applicaRimborso(attuale, debito, importo);
-    tx.update(utenteRef, dopo);
-    registraMovimentoInTransazione(tx, {
-      circoloId, uid,
-      socioNome: socioNome ?? null,
-      tipo: 'ricarica',
-      importo,
-      saldoPrima: attuale, saldoDopo: dopo.credito,
-      debitoPrima: debito, debitoDopo: dopo.sosUtilizzato,
-      eseguitoDaUid: eseguitoDa?.uid ?? null,
-      eseguitoDaNome: eseguitoDa?.nome ?? null,
-      eseguitoDaRuolo: 'admin',
-      descrizione: debito > 0
-        ? `Ricarica in segreteria — parte usata per estinguere il debito`
-        : `Ricarica in segreteria`,
-    });
-  });
+  // Chi esegue e come si chiama li ricava il server da chi ha chiamato:
+  // erano due campi che il telefono poteva scrivere a piacere, ed e'
+  // la firma con cui una riga finisce nel registro contabile.
+  const chiama = httpsCallable(functions, 'movimentoCredito');
+  await chiama({ tipo: 'ricarica', uid, circoloId, importo });
 }
 
 // Azzera del tutto il credito di un socio — per i casi in cui smette
@@ -1249,55 +1035,21 @@ export async function ricaricaCredito(
 export async function azzeraCredito(
   uid: string, circoloId: string, eseguitoDa?: { uid: string; nome: string }, socioNome?: string
 ): Promise<void> {
-  const rif = doc(db, 'tessere', idTessera(uid, circoloId));
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(rif);
-    const attuale = snap.exists() ? ((snap.data().credito as number) ?? 0) : 0;
-    const debito = snap.exists() ? ((snap.data().sosUtilizzato as number) ?? 0) : 0;
-    tx.update(rif, { credito: 0 });
-    registraMovimentoInTransazione(tx, {
-      circoloId, uid,
-      socioNome: socioNome ?? null,
-      tipo: 'azzeramento',
-      importo: -attuale,
-      saldoPrima: attuale, saldoDopo: 0,
-      debitoPrima: debito, debitoDopo: debito,
-      eseguitoDaUid: eseguitoDa?.uid ?? null,
-      eseguitoDaNome: eseguitoDa?.nome ?? null,
-      eseguitoDaRuolo: 'admin',
-      descrizione: 'Azzeramento credito da parte del circolo',
-    });
-  });
+  const chiama = httpsCallable(functions, 'movimentoCredito');
+  await chiama({ tipo: 'azzeramento', uid, circoloId });
 }
 
 // Ricarica col Fido, self-service del socio: aggiorna credito E il
 // contatore di quanto Fido è stato consumato, in un'unica
 // transazione atomica (le due cose devono sempre restare coerenti).
 export async function ricaricaSOS(uid: string, circoloId: string, importo: number, socioNome?: string): Promise<void> {
-  const utenteRef = doc(db, 'tessere', idTessera(uid, circoloId));
-  await runTransaction(db, async (tx) => {
-    const snap = await tx.get(utenteRef);
-    const creditoAttuale = snap.exists() ? ((snap.data().credito as number) ?? 0) : 0;
-    const sosAttuale = snap.exists() ? ((snap.data().sosUtilizzato as number) ?? 0) : 0;
-    tx.update(utenteRef, {
-      credito: creditoAttuale + importo,
-      sosUtilizzato: sosAttuale + importo,
-    });
-    registraMovimentoInTransazione(tx, {
-      circoloId, uid,
-      socioNome: socioNome ?? null,
-      tipo: 'sos',
-      importo,
-      saldoPrima: creditoAttuale, saldoDopo: creditoAttuale + importo,
-      debitoPrima: sosAttuale, debitoDopo: sosAttuale + importo,
-      eseguitoDaUid: uid,
-      eseguitoDaNome: null,
-      eseguitoDaRuolo: 'socio',
-      descrizione: 'Ricarica con il Fido — da saldare in segreteria',
-    });
-  });
+  // ⚠️ Il TETTO del Fido lo controlla il server. Prima lo guardava solo
+  // la schermata: un client modificato poteva prestarsi quanto voleva —
+  // non denaro inventato, ma un debito verso il circolo che il circolo
+  // non aveva acconsentito a concedere.
+  const chiama = httpsCallable(functions, 'ricaricaFido');
+  await chiama({ circoloId, importo });
 }
-
 // ---------------- Vista Admin: tutte le prenotazioni del circolo ----------------
 
 export interface PrenotazioneAdmin {
@@ -1377,9 +1129,21 @@ export async function contaPartiteSocio(circoloId: string, uid: string): Promise
   return raggruppaConsecutive(righe as any).length;
 }
 
+// ⚠️ QUESTO ASCOLTO NON HA UN LIMITE E NON HA UN FILTRO DI DATA: porta
+// nel dispositivo TUTTE le prenotazioni del circolo, comprese quelle di
+// due anni fa, e la collezione non viene mai potata. Lo aprono la
+// griglia del socio, la dashboard Admin e quella del Maestro — cioe'
+// le schermate piu' usate dell'applicazione.
+//
+// Non e' un difetto di questa funzione: e' il modo in cui la griglia e'
+// costruita, e finche' mostra "chi ha prenotato cosa" le serve tutto.
+// Ma e' la lettura piu' cara del progetto, ed e' quella da affrontare
+// quando i circoli cresceranno — la Scheda Circolo del Super Admin, che
+// aveva lo stesso problema, adesso legge una fotografia calcolata a
+// notte dal server e non passa piu' di qui.
 export function ascoltaPrenotazioniCircolo(
   circoloId: string,
-  callback: (p: PrenotazioneAdmin[]) => void
+  callback: (p: PrenotazioneAdmin[]) => void,
 ) {
   const q = query(collection(db, 'prenotazioni'), where('circoloId', '==', circoloId));
   return onSnapshot(
@@ -1421,7 +1185,7 @@ export function ascoltaPrenotazioniCircolo(
       elenco.sort((a, b) => (a.data + a.orario).localeCompare(b.data + b.orario));
       callback(elenco);
     },
-    (errore) => console.warn('Ascolto prenotazioni interrotto (probabile logout):', errore?.message ?? errore)
+    (errore) => console.warn('Ascolto prenotazioni interrotto (probabile logout):', errore?.message ?? errore),
   );
 }
 
