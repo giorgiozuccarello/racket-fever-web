@@ -133,18 +133,34 @@ export const LEZIONE_ANNULLATA_A_META = 'LEZIONE_ANNULLATA_A_META';
 // schermate importano da questo file.
 export { CONVERSAZIONE_NON_CHIUSA };
 
-// Annulla una lezione intera: tutte le sue mezz'ore, poi la
-// conversazione, poi gli avvisi.
+// Annulla una lezione intera: tutte le sue mezz'ore, poi gli avvisi, e
+// PER ULTIMA la conversazione.
+//
+// ⚠️ Questo commento diceva l'ordine opposto — «poi la conversazione,
+// poi gli avvisi» — ed era quello vero, ed e' quello che ha causato un
+// guasto in produzione: la chiusura della chat falliva per un permesso
+// mancante, e socio e Maestro non sapevano di una lezione gia'
+// annullata. E' rimasto scritto qui per tre righe anche dopo che il
+// codice era stato ribaltato: in un progetto dove il commento e' il
+// presidio principale, e' esattamente la riga che il prossimo lettore
+// userebbe per "rimettere a posto" il codice.
 //
 // ⚠️ L'ORDINE NON È INTERCAMBIABILE. La conversazione si chiude SOLO
 // se tutte le mezz'ore sono andate: chiudendola prima, o dopo un
 // annullamento riuscito a metà, si otterrebbe il contrario esatto del
 // difetto che questo file corregge — campi ancora occupati e nessun
 // posto dove parlarne.
+// Restituisce l'elenco di chi NON e' stato avvisato. Vuoto = tutto a
+// posto.
+// ⚠️ Non e' un dettaglio da log: da quando gli avvisi sono stati
+// spostati prima della chat, sono l'unico canale con cui socio e
+// Maestro scoprono che la lezione non c'e' piu'. Se non partono, chi ha
+// annullato deve saperlo — altrimenti vede "fatto" e i due interessati
+// scoprono il campo libero per caso.
 export async function annullaLezioneIntera(
   lezione: RigaLezione,
   eseguitoDaNome: string,
-): Promise<void> {
+): Promise<{ nonAvvisati: string[] }> {
   // ⚠️ IL try STA DENTRO IL CICLO, e non è una finezza. Con il solo
   // await, la prima mezz'ora che falliva faceva uscire dalla funzione:
   // il controllo "ne ho fatte quante ne dovevo" scritto dopo il ciclo
@@ -179,29 +195,45 @@ export async function annullaLezioneIntera(
   }
 
   if (fatte !== lezione.slotIds.length || lezione.slotIds.length === 0) {
-    // ⚠️ Il termine di disdetta e gli altri rifiuti del server vanno
-    // riportati com'erano: sono frasi scritte per essere lette, e
-    // sostituirle con un codice interno le butterebbe via.
-    const messaggio = (primoErrore as Error)?.message;
-    if (messaggio && messaggio.includes('termine')) throw primoErrore;
-    throw new Error(`${LEZIONE_ANNULLATA_A_META}:${fatte}:${lezione.slotIds.length}`);
+    // ⚠️ LA CAUSA VERA NON SI BUTTA VIA. La prima versione la
+    // sostituiva con un codice interno e basta: quando NON si annullava
+    // niente, all'Admin arrivava «annullate 0 di 2, riprova per
+    // completare» — un invito a ripremere all'infinito, senza nessun
+    // indizio. Lo scenario non e' teorico: una sessione Collaboratore
+    // scaduta dopo dodici ore fa rispondere al server «non puoi
+    // annullare questa prenotazione», e bastava ridigitare la password.
+    console.warn('Lezione non annullata del tutto:', primoErrore);
+
+    // I rifiuti motivati del server sono frasi scritte per essere
+    // lette: si riportano com'erano invece di coprirle.
+    const codice = String((primoErrore as { code?: string })?.code ?? '');
+    if (codice.includes('failed-precondition')) throw primoErrore;
+
+    throw new Error(
+      `${LEZIONE_ANNULLATA_A_META}:${fatte}:${lezione.slotIds.length}:${codice}`,
+    );
   }
 
-  // ⚠️ Solo se c'è una card: una lezione senza (quelle nate prima che
-  // il cardId esistesse) non ha nessuna conversazione collegata, e
-  // cercarla per identificativo di prenotazione non troverebbe mai
-  // niente. Chiamarla lo stesso avrebbe fatto credere di aver chiuso
-  // qualcosa.
-  if (lezione.conCard) await chiudiConversazioneLezione(lezione.cardId);
-
-  // Gli avvisi sono un di più: se falliscono non deve mai sembrare che
-  // l'annullamento sia fallito — a quel punto la lezione è già sparita.
+  // ⚠️ GLI AVVISI PARTONO PRIMA DELLA CHAT, e l'ordine è stato
+  // corretto dopo un caso vero. Stavano in fondo, dopo la chiusura
+  // della conversazione: quando quella è fallita — un permesso che
+  // mancava — la lezione era già annullata, i campi già liberi, e né il
+  // socio né il Maestro hanno saputo niente. La lezione è annullata nel
+  // momento in cui l'ultima mezz'ora se ne va: da lì in poi avvisare
+  // non dipende più da nient'altro.
+  //
+  // Restano non bloccanti: un avviso che non parte non deve far
+  // sembrare fallito un annullamento riuscito.
   const orario = lezione.orari.length > 0 ? lezione.orari[0] : '';
   const testo = `Il circolo ha annullato la lezione: ${lezione.campoNome}, ${lezione.dataLabel}`
     + (orario ? ` alle ${orario}` : '') + '.';
+  const nonAvvisati: string[] = [];
   if (lezione.allievoUid) {
     try { await creaNotifica(lezione.allievoUid, testo, 'lezione', lezione.circoloId); }
-    catch (e) { console.warn('Avviso al socio non inviato:', e); }
+    catch (e) {
+      console.warn('Avviso al socio non inviato:', e);
+      nonAvvisati.push(lezione.allievoNome);
+    }
   }
   if (lezione.maestroId) {
     try {
@@ -210,6 +242,23 @@ export async function annullaLezioneIntera(
         `${testo} Annullata da ${eseguitoDaNome}.`,
         lezione.circoloId,
       );
-    } catch (e) { console.warn('Avviso al Maestro non inviato:', e); }
+    } catch (e) {
+      console.warn('Avviso al Maestro non inviato:', e);
+      nonAvvisati.push(`il Maestro ${lezione.maestroNome}`.trim());
+    }
   }
+
+  // ⚠️ Solo se c'è una card: una lezione senza (quelle nate prima che
+  // il cardId esistesse) non ha nessuna conversazione collegata, e
+  // cercarla per identificativo di prenotazione non troverebbe mai
+  // niente. Chiamarla lo stesso avrebbe fatto credere di aver chiuso
+  // qualcosa.
+  //
+  // ⚠️ E sta per ULTIMA. Se fallisce, quello che è già successo resta
+  // fatto e detto: campi liberi, socio e Maestro avvisati. L'unica cosa
+  // che manca è la conversazione, ed è l'unica cosa che il messaggio
+  // d'errore deve nominare.
+  if (lezione.conCard) await chiudiConversazioneLezione(lezione.cardId);
+
+  return { nonAvvisati };
 }

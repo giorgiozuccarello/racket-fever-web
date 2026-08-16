@@ -61,8 +61,16 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
     setErrore('');
     setElaborando(true);
     try {
-      await annullaLezioneIntera(daAnnullare, nomeEsecutore);
-      setDaAnnullare(null);
+      const { nonAvvisati } = await annullaLezioneIntera(daAnnullare, nomeEsecutore);
+      // ⚠️ Riuscito, ma non del tutto: la lezione e' annullata e la chat
+      // chiusa, e pero' qualcuno non l'ha saputo. Chiudere il pop-up in
+      // silenzio avrebbe lasciato all'Admin l'impressione che fossero
+      // stati avvisati tutti.
+      if (nonAvvisati.length > 0) {
+        setErrore(`Lezione annullata, ma l'avviso non è arrivato a ${nonAvvisati.join(' e ')}. Avvisali tu.`);
+      } else {
+        setDaAnnullare(null);
+      }
     } catch (e: any) {
       // ⚠️ Un annullamento riuscito a metà va detto per quello che è: le
       // mezz'ore liberate sono libere davvero, ma la lezione è ancora lì
@@ -74,14 +82,40 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
       // opposte per chi legge: la prima invita a riprovare, la seconda
       // dice che riprovare da qui non serve — la riga è già sparita.
       if (messaggio.startsWith(CONVERSAZIONE_NON_CHIUSA)) {
-        setErrore('Le mezz\'ore sono state liberate, ma la conversazione fra Maestro e allievo non si è chiusa. Chiedi al Maestro di chiuderla dalla sua dashboard: da qui la lezione non compare più.');
+        // ⚠️ Riprovare da qui FUNZIONA: le mezz'ore già cancellate
+        // rispondono "già fatto" e si ritenta la chiusura. Costa una
+        // seconda coppia di avvisi, quindi si dice, invece di
+        // scoraggiarlo come faceva la prima versione.
+        setErrore('Le mezz\'ore sono state liberate e i due sono stati avvisati, ma la conversazione non si è chiusa. Puoi ritentare da questa riga finché c\'è, oppure chiedere al Maestro di chiuderla dalla sua dashboard.');
       } else if (messaggio.startsWith(LEZIONE_ANNULLATA_A_META)) {
-        const [, fatte, totali] = messaggio.split(':');
-        setErrore(`Annullate ${fatte} di ${totali} mezz'ore: riprova per completare. La conversazione non è stata chiusa.`);
-      } else if (messaggio.includes('termine')) {
+        const [, fatte, totali, codice] = messaggio.split(':');
+        const coda = codice ? ` (${codice})` : '';
+        // ⚠️ «Zero su due» e «una su due» sono due situazioni diverse:
+        // nella prima non è successo niente e il problema è a monte —
+        // tipicamente una sessione scaduta — nella seconda metà lezione
+        // è già stata liberata e riprovare completa davvero.
+        setErrore(
+          fatte === '0'
+            ? `Nessuna mezz'ora è stata annullata${coda}: la lezione è ancora al suo posto. Se sei entrato con la password di segreteria, la sessione potrebbe essere scaduta — rientra e riprova.`
+            : `Annullate ${fatte} di ${totali} mezz'ore${coda}: riprova per completare. La conversazione non è stata chiusa.`,
+        );
+      } else if (String(e?.code ?? '').includes('failed-precondition')) {
+        // Un rifiuto motivato del server: la frase è già scritta per
+        // essere letta.
         setErrore(messaggio);
       } else {
-        setErrore('Annullamento non riuscito. Riprova.');
+        // ⚠️ Il codice dell'errore si mostra, non si butta. Con il solo
+        // «annullamento non riuscito» un permesso mancante e una rete
+        // caduta erano indistinguibili, e la frase diceva la cosa più
+        // sbagliata di tutte: che non fosse successo niente, mentre le
+        // mezz'ore erano già state liberate.
+        const codice = String(e?.code ?? '');
+        console.warn('Annullamento lezione: errore non riconosciuto', e);
+        setErrore(
+          codice
+            ? `Le mezz'ore sono state liberate, ma qualcosa dopo non è riuscito (${codice}). Controlla la chat fra Maestro e allievo.`
+            : 'Le mezz\'ore sono state liberate, ma qualcosa dopo non è riuscito. Controlla la chat fra Maestro e allievo.',
+        );
       }
     } finally {
       setElaborando(false);
