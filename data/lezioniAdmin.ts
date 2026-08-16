@@ -128,9 +128,12 @@ export function raggruppaLezioni(
 export const LEZIONE_ANNULLATA_A_META = 'LEZIONE_ANNULLATA_A_META';
 // Le mezz'ore sono andate tutte, la conversazione no. È uno stato
 // diverso e va detto diversamente: i campi sono liberi davvero, e
-// riprovare da qui non serve perché la riga non c'è più. Il codice lo
-// alza data/conversazioneLezione.ts; qui si ri-esporta perché le
-// schermate importano da questo file.
+// riprovare da qui invece FUNZIONA — le mezz'ore già cancellate
+// rispondono «già fatto» e la chiusura si ritenta. (Questa riga diceva
+// il contrario, «riprovare non serve perché la riga non c'è più»: la
+// riga sparisce dall'elenco, ma il popup resta aperto ed è da lì che si
+// ritenta.) Il codice lo alza data/conversazioneLezione.ts; qui si
+// ri-esporta perché le schermate importano da questo file.
 export { CONVERSAZIONE_NON_CHIUSA };
 
 // Annulla una lezione intera: tutte le sue mezz'ore, poi gli avvisi, e
@@ -258,7 +261,26 @@ export async function annullaLezioneIntera(
   // fatto e detto: campi liberi, socio e Maestro avvisati. L'unica cosa
   // che manca è la conversazione, ed è l'unica cosa che il messaggio
   // d'errore deve nominare.
-  if (lezione.conCard) await chiudiConversazioneLezione(lezione.cardId);
+  //
+  // ⚠️ Ritentare da capo FUNZIONA: le mezz'ore già cancellate rispondono
+  // «già fatto» senza errore e senza secondo movimento di credito, e la
+  // chiusura si ritenta. Costa però una seconda coppia di avvisi a socio
+  // e Maestro: chi mostra l'errore lo deve dire.
+  if (lezione.conCard) {
+    try {
+      await chiudiConversazioneLezione(lezione.cardId, lezione.circoloId);
+    } catch (e) {
+      // ⚠️ Chi non e' stato avvisato viaggia INSIEME all'errore. Senza,
+      // se cadeva la rete un avviso e la chiusura della chat cadevano
+      // spesso insieme — stessa causa — e l'Admin leggeva solo «la
+      // conversazione non si e' chiusa», restando convinto che socio e
+      // Maestro sapessero. Non lo sapevano.
+      if (nonAvvisati.length > 0 && e instanceof Error) {
+        (e as Error & { nonAvvisati?: string[] }).nonAvvisati = nonAvvisati;
+      }
+      throw e;
+    }
+  }
 
   return { nonAvvisati };
 }

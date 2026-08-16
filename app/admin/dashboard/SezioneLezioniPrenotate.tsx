@@ -79,14 +79,29 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
       const messaggio = String(e?.message ?? '');
       // ⚠️ Tre esiti diversi, tre frasi diverse. «Non è riuscito» e
       // «i campi sono liberi ma la chat è rimasta aperta» sono cose
-      // opposte per chi legge: la prima invita a riprovare, la seconda
-      // dice che riprovare da qui non serve — la riga è già sparita.
+      // opposte per chi legge: la prima dice che non è successo niente,
+      // la seconda che manca solo l'ultimo pezzo.
       if (messaggio.startsWith(CONVERSAZIONE_NON_CHIUSA)) {
+        // ⚠️ IL CODICE SI MOSTRA. data/conversazioneLezione.ts lo
+        // attacca al marcatore apposta, e la prima versione di questa
+        // riga lo buttava via: restava «permesso negato» senza sapere
+        // quale, che è esattamente la diagnosi impossibile per cui
+        // questa tornata è nata. Due giri di prove sul telefono di
+        // qualcun altro sono costati così.
+        const [, codice] = messaggio.split(':');
+        const coda = codice && codice !== 'sconosciuto' ? ` (${codice})` : '';
+        // ⚠️ Se anche un avviso non era partito, si dice QUI: l'errore
+        // se lo porta dietro proprio perché altrimenti l'Admin resta
+        // convinto che socio e Maestro sappiano.
+        const mancati: string[] = Array.isArray(e?.nonAvvisati) ? e.nonAvvisati : [];
+        const avvisi = mancati.length > 0
+          ? ` L'avviso non è arrivato a ${mancati.join(' e ')}: avvisali tu.`
+          : ' Socio e Maestro sono stati avvisati.';
         // ⚠️ Riprovare da qui FUNZIONA: le mezz'ore già cancellate
         // rispondono "già fatto" e si ritenta la chiusura. Costa una
         // seconda coppia di avvisi, quindi si dice, invece di
         // scoraggiarlo come faceva la prima versione.
-        setErrore('Le mezz\'ore sono state liberate e i due sono stati avvisati, ma la conversazione non si è chiusa. Puoi ritentare da questa riga finché c\'è, oppure chiedere al Maestro di chiuderla dalla sua dashboard.');
+        setErrore(`Le mezz'ore sono state liberate, ma la conversazione non si è chiusa${coda}.${avvisi} Puoi ritentare dal popup: il ritentativo rimanda gli avvisi a entrambi. Oppure chiedi al Maestro di chiuderla dalla sua dashboard.`);
       } else if (messaggio.startsWith(LEZIONE_ANNULLATA_A_META)) {
         const [, fatte, totali, codice] = messaggio.split(':');
         const coda = codice ? ` (${codice})` : '';

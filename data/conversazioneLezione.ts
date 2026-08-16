@@ -1,58 +1,48 @@
 // ============================================================
-// CHIUDERE LA CONVERSAZIONE DI UNA LEZIONE.
+// CHIUDERE LA CONVERSAZIONE DI UNA LEZIONE — la chiede il server.
 //
-// Sta in un file suo, minuscolo e senza dipendenze, per un motivo
-// preciso: lo chiamano due posti che non possono importarsi a vicenda —
-// data/lezioniAdmin.ts (il circolo annulla una lezione) e
-// data/tessere.ts (il circolo rimuove un socio, e le sue lezioni
-// future se ne vanno con lui). Mettendolo in uno dei due si sarebbe
-// creato un giro di importazioni fra tessere, prenotazioni e lezioni.
+// ⚠️ QUESTO GIRO NON SI FA PIU' DAL BROWSER, e la ragione è un caso
+// vero, costato due tornate. Farlo qui voleva dire tre permessi larghi
+// sull'Admin: CERCARE fra le conversazioni del circolo, LEGGERE i
+// messaggi di due persone, CANCELLARLI. Tre permessi su dati che il
+// progetto ha deciso altrove di non far leggere nemmeno al team Racket
+// Fever — e ogni volta che uno dei tre non tornava, il risultato era lo
+// stesso, «permesso negato», senza modo di sapere quale. Ci abbiamo
+// perso due giri interi, con la lezione annullata e la chat viva.
 //
-// ⚠️ E soprattutto: deve esserci UNA sola versione di questo giro. Il
-// progetto ne ha già avute tre, e quella che stava dentro la griglia
-// dell'Admin era l'unica che, se restavano messaggi, non lo diceva a
-// nessuno.
+// Adesso lo fa una Cloud Function con l'Admin SDK, che le regole le
+// scavalca: quei tre permessi non servono più a nessuno, e il controllo
+// è uno solo e in un posto solo — che chi chiama comandi davvero su
+// quel circolo. È lo stesso ragionamento per cui il denaro è passato di
+// là: la regola difende, il server esegue.
+//
+// ⚠️ Il file resta a sé, minuscolo, perché lo chiamano due posti che
+// non possono importarsi a vicenda: data/lezioniAdmin.ts (il circolo
+// annulla una lezione) e data/tessere.ts (il circolo rimuove un socio,
+// e le sue lezioni future se ne vanno con lui).
 // ============================================================
 
-import { collection, deleteDoc, doc, getDocs, query, where } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../lib/firebase';
 
-// I messaggi sono rimasti: la richiesta non è stata cancellata, e la
-// conversazione è ancora aperta. Chi chiama deve poterlo dire.
+// La conversazione non si è chiusa. È diverso da «la lezione non si è
+// annullata», e chi chiama deve poterlo dire.
 export const CONVERSAZIONE_NON_CHIUSA = 'CONVERSAZIONE_NON_CHIUSA';
 
-// ⚠️ Il documento padre si cancella per ULTIMO e solo a
-// sottocollezione vuota: le regole per arrivare ai messaggi passano dal
-// padre, quindi senza padre quei messaggi non li può più né leggere né
-// cancellare nessuno — nemmeno il Super Admin.
-//
-// Il giro sui messaggi si ripete qualche volta perché una singola
-// cancellazione può fallire da sola, non perché ne arrivino di nuovi.
-export async function chiudiConversazioneLezione(cardId: string): Promise<void> {
-  if (!cardId) return;
-  const snap = await getDocs(query(collection(db, 'richieste_lezione'), where('cardId', '==', cardId)));
-  for (const d of snap.docs) {
-    const messaggi = collection(db, 'richieste_lezione', d.id, 'messaggi');
-    for (let giro = 0; giro < 4; giro++) {
-      const msg = await getDocs(messaggi);
-      if (msg.empty) break;
-      let qualcunoTolto = false;
-      for (const m of msg.docs) {
-        try { await deleteDoc(m.ref); qualcunoTolto = true; } catch { /* si riprova */ }
-      }
-      if (!qualcunoTolto) break;
-    }
-    const rimasti = await getDocs(messaggi);
-    // ⚠️ SI ALZA LA VOCE. La versione che stava dentro la griglia
-    // dell'Admin qui non faceva niente: se restavano messaggi, la
-    // richiesta non veniva cancellata e la funzione rispondeva comunque
-    // "fatto". Il pop-up si chiudeva, la riga spariva dall'elenco — che
-    // è fatto di prenotazioni, e quelle erano già state cancellate — e
-    // la conversazione restava aperta per sempre, senza nessuna
-    // schermata da cui riprovare. Silenzioso e irreversibile.
-    if (!rimasti.empty) {
-      throw new Error(`${CONVERSAZIONE_NON_CHIUSA}:${rimasti.size}`);
-    }
-    await deleteDoc(doc(db, 'richieste_lezione', d.id));
+export async function chiudiConversazioneLezione(cardId: string, circoloId: string): Promise<void> {
+  // Senza uno dei due non c'è niente da chiudere: una lezione senza
+  // card non ha una conversazione collegata.
+  if (!cardId || !circoloId) return;
+  try {
+    const chiama = httpsCallable(functions, 'chiudiConversazioneLezione');
+    await chiama({ cardId, circoloId });
+  } catch (e) {
+    // ⚠️ Il codice vero viaggia INSIEME al marcatore, non al posto suo.
+    // La prima versione lo sostituiva, e per capire perché una chat non
+    // si chiudeva sono serviti due giri di prove sul telefono di
+    // qualcun altro.
+    const codice = (e as { code?: string })?.code ?? 'sconosciuto';
+    console.warn('Conversazione della lezione non chiusa:', e);
+    throw new Error(`${CONVERSAZIONE_NON_CHIUSA}:${codice}`);
   }
 }

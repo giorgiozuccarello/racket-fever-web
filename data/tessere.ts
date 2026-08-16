@@ -735,7 +735,7 @@ export async function rimuoviSocioDaCircolo(params: {
   // rimasta aperta e' un fastidio; una rimozione interrotta a meta'
   // lascia un socio meta' dentro e meta' fuori.
   for (const cardId of cardLezioniToccate) {
-    try { await chiudiConversazioneLezione(cardId); }
+    try { await chiudiConversazioneLezione(cardId, circoloId); }
     catch (e) { console.warn('Conversazione della lezione non chiusa:', cardId, e); }
   }
 
