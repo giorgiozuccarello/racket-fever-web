@@ -17,7 +17,7 @@ import { aggiornaCircolo } from '../../../data/circoliRepo';
 import {
   Torneo, TIPOLOGIE_TORNEO, REGIONI_ITALIA, MACROAREE, TUTTA_ITALIA,
   statoTorneo, etichettaStato, periodoTorneo, torneoDaMostrare, ordinaTornei,
-  SportTorneo, sportDi,
+  SportTorneo, sportDi, provinceDi,
 } from '../../../data/tornei';
 import { creaTorneo, rimuoviTorneo, ascoltaTorneiCircolo } from '../../../data/torneiRepo';
 
@@ -30,6 +30,7 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
   const [scadenza, setScadenza] = useState('');
   const [link, setLink] = useState('');
   const [luogo, setLuogo] = useState('');
+  const [provincia, setProvincia] = useState('');
   const [note, setNote] = useState('');
   const [regioni, setRegioni] = useState<string[]>(circolo.regione ? [circolo.regione] : []);
   const [nazionale, setNazionale] = useState(false);
@@ -37,6 +38,15 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
   const [errore, setErrore] = useState('');
   const [miei, setMiei] = useState<Torneo[]>([]);
   const [daRimuovere, setDaRimuovere] = useState<Torneo | null>(null);
+
+  // ⚠️ La provincia cade quando cambia la regione del circolo. Senza,
+  // chi sceglieva Messina e poi correggeva la regione in Lombardia
+  // pubblicava un torneo con una provincia siciliana — e nel menu a
+  // tendina non lo vedeva nemmeno, perche' un valore che non e' fra le
+  // voci disponibili si mostra come casella vuota.
+  useEffect(() => {
+    if (provincia && !provinceDi(circolo.regione).includes(provincia)) setProvincia('');
+  }, [circolo.regione, provincia]);
 
   useEffect(() => ascoltaTorneiCircolo(circolo.id, setMiei), [circolo.id]);
 
@@ -69,6 +79,9 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
         circoloId: circolo.id,
         circoloNome: circolo.nome,
         luogo: luogo.trim() || undefined,
+        // Vuota = campo assente: `ripulisci` scarta gli undefined, e una
+        // stringa vuota sul documento sarebbe una provincia inesistente.
+        provincia: provincia || undefined,
         nome: nome.trim(),
         tipologia,
         sport,
@@ -86,7 +99,7 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
         note: note.trim() || undefined,
       });
       setNome(''); setDataInizio(''); setDataFine(''); setScadenza('');
-      setLink(''); setLuogo(''); setNote('');
+      setLink(''); setLuogo(''); setNote(''); setProvincia('');
     } catch (e: any) {
       setErrore(e?.message ?? 'Non sono riuscito a pubblicare. Riprova.');
     } finally {
@@ -129,6 +142,22 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
           su tutta Italia invece che su quello che hanno vicino.
         </p>
       )}
+
+      {/* ⚠️ LA PROVINCIA E' DEL TORNEO, non del circolo, e sta qui
+          sotto la regione perche' e' da quella che l'elenco si accorcia:
+          scelta la Sicilia si scelgono nove province, non centosette. */}
+      <div className="admin-row" style={{ alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
+        <span style={{ fontWeight: 700, fontSize: '.9rem' }}>Provincia del torneo:</span>
+        <select
+          className="admin-input"
+          style={{ maxWidth: 260 }}
+          value={provincia}
+          onChange={(e) => setProvincia(e.target.value)}
+        >
+          <option value="">— non indicata —</option>
+          {provinceDi(circolo.regione).map((pr) => <option key={pr} value={pr}>{pr}</option>)}
+        </select>
+      </div>
 
       <input
         className="admin-input" value={nome} onChange={(e) => setNome(e.target.value)}

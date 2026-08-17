@@ -2,11 +2,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import {
-  Circolo, immaginiSponsor, MAX_IMMAGINI_SPONSOR, INTERVALLI_SPONSOR,
+  Circolo, immaginiSponsor, MAX_IMMAGINI_SPONSOR, MIN_IMMAGINI_SPONSOR, slotBanner, INTERVALLI_SPONSOR,
   durateSponsor, sponsorFisso, DURATA_SPONSOR_MINIMA,
 } from '../../../data/circoli';
 import { aggiornaCircolo } from '../../../data/circoliRepo';
-import { caricaLogoCircolo, caricaSponsorSfide, rimuoviImmagineSponsor, impostaDurataSponsor , spostaImmagineSponsor} from '../../../data/storage';
+import { caricaLogoCircolo, caricaSponsorSfide, rimuoviImmagineSponsor, impostaDurataSponsor, spostaImmagineSponsor, impostaSlotBanner } from '../../../data/storage';
 
 export default function SezionePersonalizzaApp({ circolo }: { circolo: Circolo }) {
   return (
@@ -53,7 +53,27 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
   // finirebbe comunque nel primo posto libero e comparirebbe sotto
   // l'etichetta di un'altra riga.
   const [rigaExtra, setRigaExtra] = useState(false);
-  const righe = Math.min(MAX_IMMAGINI_SPONSOR, Math.max(1, immagini.length + (rigaExtra ? 1 : 0)));
+  // ⚠️ QUANTE RIGHE LE DECIDE L'ADMIN, con il selettore qui sotto.
+  // Prima erano «quelle piene piu' una»: un conto che si spiegava da
+  // solo finche' il tetto era cinque, ma che non lasciava dire «io ne
+  // voglio otto» a chi sta vendendo otto spazi.
+  const slot = slotBanner(circolo);
+  const righe = Math.min(MAX_IMMAGINI_SPONSOR, Math.max(slot, immagini.length + (rigaExtra ? 1 : 0)));
+  const [cambiandoSlot, setCambiandoSlot] = useState(false);
+
+  const cambiaSlot = async (quanti: number) => {
+    if (quanti === slot) return;
+    setErrore('');
+    setCambiandoSlot(true);
+    try {
+      await impostaSlotBanner(circolo.id, quanti);
+      setRigaExtra(false);
+    } catch (e: any) {
+      setErrore(e?.message ?? 'Non sono riuscito a cambiare il numero di banner.');
+    } finally {
+      setCambiandoSlot(false);
+    }
+  };
   // La riga vuota si chiude da sola quando l'immagine e' arrivata: non
   // alla fine del caricamento, ma quando il dato aggiornato torna
   // indietro, o per un attimo la riga sparirebbe e ricomparirebbe.
@@ -80,8 +100,10 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
     setInCarico(indice);
     try {
       await caricaSponsorSfide(circolo.id, file, indice);
-    } catch {
-      setErrore('Errore durante il caricamento. Riprova.');
+    } catch (e: any) {
+      // Il messaggio vero, quando c'e': «questa GIF pesa 6,2 MB» dice
+      // cosa fare, «errore durante il caricamento» no.
+      setErrore(e?.message ?? 'Errore durante il caricamento. Riprova.');
     } finally {
       setInCarico(null);
       if (inputRef.current) inputRef.current.value = '';
@@ -157,6 +179,48 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
         tempo che le dai qui sotto. Le frecce spostano lo sponsor nell&apos;ordine di
         rotazione — il Main Sponsor va in cima.
       </p>
+      <p className="admin-card-hint">
+        Vanno bene JPEG, PNG, WebP e GIF, anche animate. Una GIF non viene ritagliata:
+        entra così com&apos;è e il riquadro le taglia i bordi, quindi tieni logo e
+        scritte al centro. Massimo 4 MB.
+      </p>
+
+      {/* Il selettore: quanti riquadri voglio vedere. Non scende sotto
+          quelli già pieni — quei banner girano davanti ai soci, e
+          nasconderli qui vorrebbe dire non poterli più togliere. */}
+      <div className="admin-row" style={{ alignItems: 'center', gap: '.5rem', margin: '.6rem 0 .2rem' }}>
+        <span style={{ fontWeight: 700, fontSize: '.9rem' }}>Quanti banner:</span>
+        {Array.from(
+          { length: MAX_IMMAGINI_SPONSOR - MIN_IMMAGINI_SPONSOR + 1 },
+          (_, i) => i + MIN_IMMAGINI_SPONSOR,
+        ).map((quanti) => (
+          <button
+            key={quanti}
+            type="button"
+            className={quanti === slot ? 'admin-btn-full' : 'admin-input'}
+            // ⚠️ `flex` e `minWidth` vanno spenti a mano: `.admin-row > *`
+            // impone `flex:1; min-width:140px` a tutti i figli, e senza
+            // questi tre valori le dieci pillole diventavano dieci
+            // bottoni da centoquaranta punti su quattro righe. E
+            // `marginTop:0` perche' `admin-btn-full` ne porta mezzo rem:
+            // il numero acceso stava otto punti piu' in basso degli altri.
+            style={{
+              flex: '0 0 auto', minWidth: 0, marginTop: 0,
+              width: 'auto', padding: '.3rem .65rem', fontSize: '.85rem', cursor: 'pointer',
+            }}
+            disabled={quanti < immagini.length || cambiandoSlot}
+            onClick={() => cambiaSlot(quanti)}
+          >
+            {quanti}
+          </button>
+        ))}
+      </div>
+      {immagini.length > MIN_IMMAGINI_SPONSOR && (
+        <p className="admin-card-hint">
+          Per scendere sotto {immagini.length} riquadri togli prima un banner: finché è
+          caricato resta in rotazione davanti ai soci.
+        </p>
+      )}
 
       {iFisso >= 0 && (
         <div className="sponsor-nota-fisso">
@@ -265,7 +329,7 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
       {errore && <div className="admin-error-text">{errore}</div>}
 
       <input
-        ref={inputRef} type="file" accept="image/*"
+        ref={inputRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif"
         onChange={gestisciFile} style={{ display: 'none' }}
       />
 

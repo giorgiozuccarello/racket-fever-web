@@ -23,7 +23,7 @@ import {
   ordinaAvvisi, avvisoDaMostrare, giorniAllaScadenza, cosaMancaPerPubblicare,
   GIORNI_AVVISO_PREDEFINITI,
 } from '../../../data/bacheca';
-import { pubblicaAvviso, aggiornaAvviso, rimuoviAvviso, ascoltaBachecaAdmin } from '../../../data/bachecaRepo';
+import { pubblicaAvviso, aggiornaAvviso, rimuoviAvviso, ascoltaBachecaAdmin, spostaAvviso } from '../../../data/bachecaRepo';
 import { caricaVolantino, rimuoviVolantino } from '../../../data/storage';
 import { oggiIso, fraGiorni, dataNumerica } from '../../../data/giorni';
 
@@ -34,9 +34,12 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
   const [volantino, setVolantino] = useState<string | null>(null);
   const [link, setLink] = useState('');
   const [fino, setFino] = useState(scadenzaPredefinita());
-  const [inEvidenza, setInEvidenza] = useState(false);
   const [caricando, setCaricando] = useState(false);
   const [salvando, setSalvando] = useState(false);
+  // ⚠️ Bloccato mentre una freccia lavora: ogni spostamento rinumera
+  // l'elenco intero, e due che si accavallano rinumerano ciascuno la
+  // versione letta prima — uno dei due movimenti sparisce.
+  const [spostando, setSpostando] = useState(false);
   const [errore, setErrore] = useState('');
   const [archivio, setArchivio] = useState<Avviso[]>([]);
   const [daRimuovere, setDaRimuovere] = useState<Avviso | null>(null);
@@ -96,12 +99,11 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
         testo: testo.trim() || undefined,
         volantinoUrl: volantino ?? undefined,
         link: link.trim() || undefined,
-        inEvidenza,
         visibileFinoA: fino,
         autoreNome,
       });
       setTitolo(''); setTesto(''); setLink('');
-      setVolantino(null); setInEvidenza(false);
+      setVolantino(null);
       setFino(scadenzaPredefinita());
     } catch (e: any) {
       setErrore(e?.message ?? 'Non sono riuscito a pubblicare. Riprova.');
@@ -111,6 +113,22 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
   };
 
   const elenco = ordinaAvvisi(archivio);
+  const idsInOrdine = elenco.map((a) => a.id);
+
+  const sposta = async (indice: number, verso: -1 | 1) => {
+    setErrore('');
+    setSpostando(true);
+    try {
+      await spostaAvviso(idsInOrdine, indice, verso);
+    } catch (e: any) {
+      // Il messaggio vero, quando c'e': «si riordina fra i primi 60» e
+      // «qualcuno ha tolto questo avviso» dicono due cose diverse, e si
+      // curano in modo diverso da «riprova».
+      setErrore(e?.message ?? 'Non sono riuscito a spostare l’avviso. Riprova.');
+    } finally {
+      setSpostando(false);
+    }
+  };
 
   return (
     <div className="admin-card">
@@ -199,14 +217,13 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
           {GIORNI_AVVISO_PREDEFINITI} giorni
         </button>
       </div>
-      <label style={{ display: 'flex', alignItems: 'center', gap: '.5rem', marginTop: '.6rem' }}>
-        <input type="checkbox" checked={inEvidenza} onChange={(e) => setInEvidenza(e.target.checked)} />
-        <span style={{ fontWeight: 700 }}>Tienilo in cima alla bacheca</span>
-      </label>
+      {/* ⚠️ QUI C'ERA «Tienilo in cima alla bacheca», sparita insieme
+          al pin: la posizione non si sceglie piu' scrivendo l'avviso,
+          si sistema dopo con le frecce nell'elenco. */}
       <p className="admin-card-hint">
-        Il &laquo;in cima&raquo; decide la posizione, la data decide la vita: anche un avviso in
-        cima scade, e qui sotto vedi quando. È quello che evita di ritrovarsi a dicembre il
-        foglio appeso a marzo.
+        L&apos;ordine lo decidi qui sotto con le frecce, la data decide la vita: anche il
+        primo avviso della bacheca scade, e qui sotto vedi quando. È quello che evita di
+        ritrovarsi a dicembre il foglio appeso a marzo.
       </p>
 
       {!!errore && <div className="admin-error-text" style={{ marginTop: '.6rem' }}>{errore}</div>}
@@ -224,9 +241,13 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
         </div>
       )}
       {!archivioRotto && elenco.length === 0 && <p className="admin-card-hint">La bacheca è ancora vuota.</p>}
-      {elenco.map((a) => {
+      {elenco.map((a, indice) => {
         const c = categoriaDi(a.categoria);
         const vivo = avvisoDaMostrare(a);
+        // ⚠️ Il numero conta SOLO gli avvisi ancora appesi: qui dentro
+        // ci sono anche gli scaduti, che il socio non vede, e
+        // numerandoli tutti «1» poteva finire su un foglio sparito.
+        const posizioneViva = elenco.slice(0, indice + 1).filter((x) => avvisoDaMostrare(x)).length;
         const giorni = giorniAllaScadenza(a);
         return (
           <div key={a.id} className="admin-list-row">
@@ -239,7 +260,7 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
             />
             <div style={{ flex: 1 }}>
               <div className="admin-list-main">
-                {a.inEvidenza ? '📌 ' : ''}{a.titolo}
+                <span className="admin-list-pos">{vivo ? posizioneViva : '—'}</span> {a.titolo}
               </div>
               <div className="admin-list-sub">
                 {c.nome}
@@ -265,17 +286,35 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
             >
               +30
             </button>
-            <button
-              className="admin-icon-btn"
-              title={a.inEvidenza ? 'Togli dalla cima' : 'Tieni in cima'}
-              onClick={() => {
-                setErrore('');
-                aggiornaAvviso(a.id, { inEvidenza: !a.inEvidenza })
-                  .catch(() => setErrore('Non sono riuscito a cambiare la posizione dell’avviso. Riprova.'));
-              }}
-            >
-              📌
-            </button>
+            {/* ⚠️ Le frecce hanno preso il posto della puntina, e non
+                e' lo stesso gesto con un'altra faccia: la puntina era
+                un si'/no, e fra due avvisi appuntati decideva la data.
+                Il numero accanto al titolo dice la posizione, e il
+                primo e' quello che i soci vedono a tutta larghezza. */}
+            {elenco.length > 1 && (
+              <>
+                <button
+                  type="button"
+                  className="admin-icon-btn"
+                  title="Sposta più in alto"
+                  aria-label="Sposta questo avviso più in alto"
+                  disabled={spostando || indice === 0}
+                  onClick={() => sposta(indice, -1)}
+                >
+                  ↑
+                </button>
+                <button
+                  type="button"
+                  className="admin-icon-btn"
+                  title="Sposta più in basso"
+                  aria-label="Sposta questo avviso più in basso"
+                  disabled={spostando || indice >= elenco.length - 1}
+                  onClick={() => sposta(indice, 1)}
+                >
+                  ↓
+                </button>
+              </>
+            )}
             <button className="admin-icon-btn danger" onClick={() => setDaRimuovere(a)} aria-label="Rimuovi">🗑</button>
           </div>
         );

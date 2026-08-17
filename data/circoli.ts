@@ -34,6 +34,11 @@ export interface Circolo {
   // sponsorSfideUrls. 0 = quel banner e' l'unico visibile e resta
   // fisso.
   sponsorSfideDurate?: number[] | null;
+  // Quanti riquadri di caricamento vuole vedere l'Admin, da
+  // MIN_IMMAGINI_SPONSOR a MAX_IMMAGINI_SPONSOR. Assente = non ha
+  // ancora scelto. Per leggerlo usare sempre slotBanner(), che tiene
+  // conto anche delle immagini gia' caricate.
+  bannerSlot?: number | null;
   // Quante ore prima dell'inizio dello slot un socio puo' ancora
   // disdire un CAMPO. 0 o assente = nessun limite, si cancella fino
   // all'ora di gioco. Il massimo e' ORE_LIMITE_CANCELLAZIONE_MAX (vedi
@@ -185,7 +190,13 @@ export const FONDO_BOX_SOCIO_CHIARI: Record<string, string> = {
 // Quante immagini puo' caricare un circolo, e i tempi ammessi sul
 // cursore. Lo zero non e' un tempo: vuol dire "questo banner e'
 // l'unico visibile, e resta fisso". Vedi durateSponsor().
-export const MAX_IMMAGINI_SPONSOR = 5;
+// ⚠️ DA 5 A 10, e sotto c'e' un minimo. Quanti riquadri vede l'Admin
+// non e' piu' un numero fisso: lo sceglie lui con un selettore, fra
+// MIN e MAX. Questi due restano il tetto e il pavimento di quella
+// scelta — nessun circolo puo' andare oltre, e nessuno puo' scendere
+// sotto due, che e' il minimo perche' una rotazione sia una rotazione.
+export const MAX_IMMAGINI_SPONSOR = 10;
+export const MIN_IMMAGINI_SPONSOR = 2;
 export const INTERVALLI_SPONSOR = [0, 5, 10, 15, 20, 25, 30];
 // L'elenco vero delle immagini sponsor di un circolo. Unico punto in
 // cui si guarda il campo vecchio a immagine singola: tutto il resto
@@ -200,6 +211,30 @@ export function immaginiSponsor(circolo?: {
     return elenco.filter((u) => typeof u === 'string' && u.length > 0).slice(0, MAX_IMMAGINI_SPONSOR);
   }
   return circolo.sponsorSfideUrl ? [circolo.sponsorSfideUrl] : [];
+}
+
+// Quanti riquadri di caricamento mostrare, per questo circolo.
+//
+// ⚠️ NON PUO' SCENDERE SOTTO LE IMMAGINI GIA' CARICATE, ed e' la
+// regola che conta. Un banner che sparisce dai riquadri sarebbe un
+// banner che nessuno puo' piu' togliere ne' sostituire, ma che
+// continua a girare in Home davanti ai soci: uno sponsor invisibile
+// all'Admin e visibile a tutti gli altri. Per scendere si toglie
+// prima un banner, e allora il pavimento si abbassa da solo.
+export function slotBanner(circolo?: {
+  bannerSlot?: number | null;
+  sponsorSfideUrls?: string[] | null;
+  sponsorSfideUrl?: string | null;
+} | null): number {
+  const caricate = immaginiSponsor(circolo).length;
+  const pavimento = Math.max(MIN_IMMAGINI_SPONSOR, caricate);
+  const scelto = circolo?.bannerSlot;
+  const voluto = typeof scelto === 'number' && Number.isFinite(scelto)
+    ? Math.round(scelto)
+    // Chi non ha ancora scelto parte dal pavimento: due riquadri, uno
+    // pieno e uno vuoto, si spiegano da soli meglio di cinque vuoti.
+    : pavimento;
+  return Math.min(MAX_IMMAGINI_SPONSOR, Math.max(pavimento, voluto));
 }
 
 // ⚠️ LA DURATA E' PER SINGOLO BANNER, non piu' una sola per tutti.

@@ -175,6 +175,10 @@ export interface Promemoria {
   quando: Date;
   titolo: string;
   corpo: string;
+  // ⚠️ Il Maestro legge un altro testo: il corpo del socio dice «con il
+  // Maestro Mario Rossi», che per lui e' il proprio nome. Si compone
+  // qui insieme all'altro perche' i due devono restare allineati.
+  corpoMaestro?: string;
 }
 
 export interface DatiPromemoria {
@@ -184,6 +188,9 @@ export interface DatiPromemoria {
   tipo?: 'campo' | 'lezione';
   maestroNome?: string;
   maestroCognome?: string;
+  // Chi fa la lezione: il nome che va nell'avviso DEL MAESTRO.
+  allievoNome?: string;
+  allievoCognome?: string;
 }
 
 // I tre promemoria di una prenotazione, gia' ordinati e gia' ripuliti
@@ -201,21 +208,32 @@ export function promemoriaPrenotazione(
 ): Promemoria[] {
   const inizio = istanteSlot(p.data, p.orario);
   const limite = limiteCancellazione(p.data, p.orario, oreLimite);
-  const dove = p.tipo === 'lezione' && p.maestroNome
+  const eLezione = p.tipo === 'lezione';
+  const dove = eLezione && p.maestroNome
     ? `${p.campoNome} con il Maestro ${p.maestroNome} ${p.maestroCognome ?? ''}`.trim()
     : p.campoNome;
+  // Lo stesso campo visto dall'altra parte della rete.
+  const allievo = `${p.allievoNome ?? ''} ${p.allievoCognome ?? ''}`.trim();
+  const doveMaestro = allievo ? `${p.campoNome} con ${allievo}` : p.campoNome;
   const quandoTesto = `${dataEstesa(inizio)} alle ${oraBreve(inizio)}`;
+  // ⚠️ Una lezione non e' una partita: «Domani giochi» arrivava anche a
+  // chi la lezione la tiene.
+  const verbo = eLezione ? 'hai lezione' : 'giochi';
 
   // La riga sulla cancellazione si calcola sull'istante in cui
   // l'avviso ARRIVA, non su quello in cui viene composto: altrimenti
   // il promemoria del giorno prima direbbe "puoi disdire entro le
   // 18:00" a un socio che lo legge alle 18:00 di quel giorno.
-  const componi = (chiave: ChiavePromemoria, quando: Date, titolo: string): Promemoria => ({
-    chiave,
-    quando,
-    titolo,
-    corpo: `${dove} — ${quandoTesto}.\n${testoLimiteCancellazione(p.data, p.orario, oreLimite, quando, p.tipo === 'lezione')}`,
-  });
+  const componi = (chiave: ChiavePromemoria, quando: Date, titolo: string): Promemoria => {
+    const coda = testoLimiteCancellazione(p.data, p.orario, oreLimite, quando, eLezione);
+    return {
+      chiave,
+      quando,
+      titolo,
+      corpo: `${dove} — ${quandoTesto}.\n${coda}`,
+      ...(eLezione ? { corpoMaestro: `${doveMaestro} — ${quandoTesto}.\n${coda}` } : {}),
+    };
+  };
 
   // Senza limite di cancellazione questa non e' piu' "l'ultima
   // chiamata per disdire": diventa l'avviso di un'ora prima della
@@ -223,9 +241,9 @@ export function promemoriaPrenotazione(
   const ultimaChiamata = new Date((limite ?? inizio).getTime() - 3600_000);
 
   return [
-    componi('due-giorni', new Date(inizio.getTime() - 48 * 3600_000), 'Fra due giorni giochi'),
-    componi('un-giorno', new Date(inizio.getTime() - 24 * 3600_000), 'Domani giochi'),
-    componi('ultima-chiamata', ultimaChiamata, limite ? 'Ultima ora per cancellare' : 'Fra un\u2019ora giochi'),
+    componi('due-giorni', new Date(inizio.getTime() - 48 * 3600_000), `Fra due giorni ${verbo}`),
+    componi('un-giorno', new Date(inizio.getTime() - 24 * 3600_000), `Domani ${verbo}`),
+    componi('ultima-chiamata', ultimaChiamata, limite ? 'Ultima ora per cancellare' : `Fra un\u2019ora ${verbo}`),
   ]
     // Chi prenota per stasera non ha un "due giorni prima": quell'istante
     // e' nel passato e l'avviso semplicemente non esiste.

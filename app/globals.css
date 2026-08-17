@@ -415,6 +415,12 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-list-row:last-child{border-bottom:none}
 .admin-list-main{font-size:.92rem;font-weight:700;color:var(--inchiostro)}
 .admin-list-sub{font-size:.78rem;color:var(--grigio);margin-top:.15rem}
+/* Il numero di posizione in bacheca: dice a colpo d'occhio chi e' il
+   primo, cioe' quello che il socio vede a tutta larghezza in cima. */
+.admin-list-pos{display:inline-flex;align-items:center;justify-content:center;
+  min-width:1.35rem;height:1.35rem;padding:0 .25rem;margin-right:.15rem;
+  border-radius:999px;background:var(--riga,#F5F1E6);color:var(--grigio);
+  font-size:.72rem;font-weight:800;vertical-align:middle}
 /* Dicitura accanto al nome negli elenchi: corsivo e tono leggero, per
    distinguere gli Ospiti dai Soci/Tesserati senza appesantire. */
 .admin-etichetta-ospite{font-style:italic;font-weight:400;color:#8A8478;font-size:.8rem}

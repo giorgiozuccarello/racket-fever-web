@@ -94,6 +94,17 @@ export interface Avviso {
   // Il PIN "per sempre" sembra comodo per mezz'ora: poi il regolamento
   // appeso a marzo e' ancora li' a dicembre, e a forza di stare li' ha
   // insegnato a tutti a non guardare piu' la bacheca.
+  // ⚠️ IL PIN NON C'E' PIU', al suo posto c'e' un ORDINE. Erano due
+  // gruppi — appuntati e non — e dentro ogni gruppo comandava la data:
+  // fra due avvisi appuntati l'Admin non aveva nessun modo di dire
+  // quale contasse di piu'. Adesso l'ordine e' un numero e lo decide
+  // lui, con le frecce, come per i banner degli sponsor.
+  ordine?: number;
+  // ⚠️ RESTA SOLO PER GLI AVVISI VECCHI. Non lo scrive piu' nessuno e
+  // non si mostra piu' da nessuna parte: serve unicamente a non
+  // rimescolare, il giorno dell'aggiornamento, una bacheca in cui
+  // qualcosa era stato appuntato. Si puo' togliere quando non ci sara'
+  // piu' in giro nessun avviso di prima — durano trenta giorni.
   inEvidenza?: boolean;
   // 'YYYY-MM-DD', l'ultimo giorno in cui il socio lo vede.
   // ⚠️ Scritto sul documento e non ricavato a ogni lettura, perche' e'
@@ -140,10 +151,24 @@ export function giorniAllaScadenza(
 // dove "in evidenza" e' una scelta del singolo socio e sta sul suo
 // profilo, qui il PIN sta sull'AVVISO: lo decide l'Admin, e vale per
 // tutti. Sono due cose con lo stesso nome e due padroni diversi.
-export function ordinaAvvisi<T extends { inEvidenza?: boolean; creatoIlMs?: number }>(
+// ⚠️ TRE CRITERI IN CASCATA, e servono tutti e tre.
+// 1. L'ordine scritto dall'Admin, quando c'e'.
+// 2. Il vecchio pin, per gli avvisi appesi prima che l'ordine
+//    esistesse: senza, il giorno dell'aggiornamento quello che il
+//    circolo aveva messo in cima sarebbe scivolato in mezzo agli altri
+//    senza che nessuno avesse toccato niente.
+// 3. La data, che decide fra pari.
+// Chi non ha ordine sta DOPO chi ce l'ha, e non prima: un numero
+// mancante non e' uno zero.
+const SENZA_ORDINE = Number.MAX_SAFE_INTEGER;
+
+export function ordinaAvvisi<T extends { ordine?: number; inEvidenza?: boolean; creatoIlMs?: number }>(
   avvisi: T[],
 ): T[] {
   return [...avvisi].sort((a, b) => {
+    const oa = typeof a.ordine === 'number' && Number.isFinite(a.ordine) ? a.ordine : SENZA_ORDINE;
+    const ob = typeof b.ordine === 'number' && Number.isFinite(b.ordine) ? b.ordine : SENZA_ORDINE;
+    if (oa !== ob) return oa - ob;
     const pa = a.inEvidenza ? 0 : 1;
     const pb = b.inEvidenza ? 0 : 1;
     if (pa !== pb) return pa - pb;

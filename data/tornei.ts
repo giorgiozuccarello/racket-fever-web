@@ -66,6 +66,55 @@ export type Regione = (typeof REGIONI_ITALIA)[number];
 // elenco delle regioni, non in un campo a parte. Cosi' la domanda "chi
 // lo vede?" resta una sola interrogazione — "l'elenco contiene la mia
 // regione oppure il segnaposto?" — invece di due da unire a mano.
+// ---- Le province ----
+// ⚠️ ELENCO CHIUSO, e non testo libero. La provincia serve a FILTRARE:
+// scritta a mano diventerebbe "Messina", "messina", "ME", "Messina (ME)"
+// — quattro province diverse per il filtro, e un socio che cerca la sua
+// non trova il torneo che ha sotto casa. L'elenco costa mille byte e
+// toglie il problema alla radice.
+//
+// ⚠️ Sono raggruppate per regione perche' e' cosi' che si scelgono:
+// chi pubblica ha gia' detto in che regione sta il circolo, e vedersi
+// scorrere centosette voci per sceglierne una delle nove della Sicilia
+// e' il modo migliore per sbagliarla.
+export const PROVINCE_PER_REGIONE: Record<string, string[]> = {
+  'Abruzzo': ["L'Aquila", 'Chieti', 'Pescara', 'Teramo'],
+  'Basilicata': ['Matera', 'Potenza'],
+  'Calabria': ['Catanzaro', 'Cosenza', 'Crotone', 'Reggio Calabria', 'Vibo Valentia'],
+  'Campania': ['Avellino', 'Benevento', 'Caserta', 'Napoli', 'Salerno'],
+  'Emilia-Romagna': ['Bologna', 'Ferrara', 'Forlì-Cesena', 'Modena', 'Parma', 'Piacenza', 'Ravenna', 'Reggio Emilia', 'Rimini'],
+  'Friuli-Venezia Giulia': ['Gorizia', 'Pordenone', 'Trieste', 'Udine'],
+  'Lazio': ['Frosinone', 'Latina', 'Rieti', 'Roma', 'Viterbo'],
+  'Liguria': ['Genova', 'Imperia', 'La Spezia', 'Savona'],
+  'Lombardia': ['Bergamo', 'Brescia', 'Como', 'Cremona', 'Lecco', 'Lodi', 'Mantova', 'Milano', 'Monza e Brianza', 'Pavia', 'Sondrio', 'Varese'],
+  'Marche': ['Ancona', 'Ascoli Piceno', 'Fermo', 'Macerata', 'Pesaro e Urbino'],
+  'Molise': ['Campobasso', 'Isernia'],
+  'Piemonte': ['Alessandria', 'Asti', 'Biella', 'Cuneo', 'Novara', 'Torino', 'Verbano-Cusio-Ossola', 'Vercelli'],
+  'Puglia': ['Bari', 'Barletta-Andria-Trani', 'Brindisi', 'Foggia', 'Lecce', 'Taranto'],
+  'Sardegna': ['Cagliari', 'Nuoro', 'Oristano', 'Sassari', 'Sud Sardegna'],
+  'Sicilia': ['Agrigento', 'Caltanissetta', 'Catania', 'Enna', 'Messina', 'Palermo', 'Ragusa', 'Siracusa', 'Trapani'],
+  'Toscana': ['Arezzo', 'Firenze', 'Grosseto', 'Livorno', 'Lucca', 'Massa-Carrara', 'Pisa', 'Pistoia', 'Prato', 'Siena'],
+  'Trentino-Alto Adige': ['Bolzano', 'Trento'],
+  'Umbria': ['Perugia', 'Terni'],
+  "Valle d'Aosta": ['Aosta'],
+  'Veneto': ['Belluno', 'Padova', 'Rovigo', 'Treviso', 'Venezia', 'Verona', 'Vicenza'],
+};
+
+// Tutte le province, in ordine alfabetico: e' quello che si mostra
+// quando non c'e' una regione da cui partire.
+export const TUTTE_LE_PROVINCE: string[] = Object.values(PROVINCE_PER_REGIONE)
+  .flat()
+  .sort((a, b) => a.localeCompare(b, 'it'));
+
+// Le province fra cui scegliere, data una regione. Senza regione — o
+// con una regione che non conosciamo, perche' scritta prima che questo
+// elenco esistesse — si torna a tutte: meglio un elenco lungo che un
+// elenco vuoto, che sembrerebbe un guasto.
+export function provinceDi(regione?: string | null): string[] {
+  if (!regione) return TUTTE_LE_PROVINCE;
+  return PROVINCE_PER_REGIONE[regione] ?? TUTTE_LE_PROVINCE;
+}
+
 export const TUTTA_ITALIA = 'ITALIA';
 
 // Scorciatoie per selezionare mezza penisola con un tocco: senza,
@@ -110,6 +159,10 @@ export interface Torneo {
   // Le regioni in cui il torneo si vede, piu' eventualmente il
   // segnaposto della copertura nazionale.
   regioni: string[];
+  // Dove si GIOCA, che e' un'altra cosa da `regioni` — quella dice
+  // dove il torneo si VEDE. Facoltativa: i tornei pubblicati prima che
+  // questo campo esistesse non ce l'hanno, e devono restare validi.
+  provincia?: string;
   note?: string;
   // L'ultimo giorno in cui la card si vede: fine del torneo piu' i
   // quindici di coda. E' scritto sul documento e non ricavato ogni
