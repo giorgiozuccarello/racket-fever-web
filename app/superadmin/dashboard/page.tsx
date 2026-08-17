@@ -8,6 +8,7 @@ import { leggiSuperAdmin, ProfiloSuperAdmin } from '../../../data/superadmin';
 import SezioneOnboarding from './SezioneOnboarding';
 import SezioneRichieste from './SezioneRichieste';
 import SezioneCircoli from './SezioneCircoli';
+import SezioneBannerRete from './SezioneBannerRete';
 
 export default function SuperAdminDashboard() {
   const router = useRouter();
@@ -63,6 +64,7 @@ export default function SuperAdminDashboard() {
         <SezioneOnboarding />
         <SezioneRichieste />
         <SezioneCircoli />
+        <SezioneBannerRete />
       </main>
     </div>
   );

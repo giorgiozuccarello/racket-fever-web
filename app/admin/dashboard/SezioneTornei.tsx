@@ -30,7 +30,9 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
   const [scadenza, setScadenza] = useState('');
   const [link, setLink] = useState('');
   const [luogo, setLuogo] = useState('');
-  const [provincia, setProvincia] = useState('');
+  // Parte dalla provincia del circolo: quasi tutti i tornei si giocano
+  // in casa, e chi fa diversamente cambia una voce.
+  const [provincia, setProvincia] = useState(circolo.provincia ?? '');
   const [note, setNote] = useState('');
   const [regioni, setRegioni] = useState<string[]>(circolo.regione ? [circolo.regione] : []);
   const [nazionale, setNazionale] = useState(false);
@@ -99,7 +101,7 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
         note: note.trim() || undefined,
       });
       setNome(''); setDataInizio(''); setDataFine(''); setScadenza('');
-      setLink(''); setLuogo(''); setNote(''); setProvincia('');
+      setLink(''); setLuogo(''); setNote(''); setProvincia(circolo.provincia ?? '');
     } catch (e: any) {
       setErrore(e?.message ?? 'Non sono riuscito a pubblicare. Riprova.');
     } finally {
@@ -142,6 +144,27 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
           su tutta Italia invece che su quello che hanno vicino.
         </p>
       )}
+
+      {/* ⚠️ LA PROVINCIA DEL CIRCOLO, che e' un'altra cosa da quella del
+          torneo qui sotto: questa dice dove sta il circolo, quella dove
+          si gioca. Sta qui accanto alla regione perche' e' la stessa
+          anagrafica e si compila una volta sola. */}
+      <div className="admin-row" style={{ alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
+        <span style={{ fontWeight: 700, fontSize: '.9rem' }}>Provincia del circolo:</span>
+        <select
+          className="admin-input"
+          style={{ maxWidth: 260 }}
+          value={circolo.provincia ?? ''}
+          onChange={async (e) => {
+            const pr = e.target.value;
+            if (!pr) return;
+            try { await aggiornaCircolo(circolo.id, { provincia: pr }); } catch { /* lo dira' il prossimo tentativo */ }
+          }}
+        >
+          <option value="">— da scegliere —</option>
+          {provinceDi(circolo.regione).map((pr) => <option key={pr} value={pr}>{pr}</option>)}
+        </select>
+      </div>
 
       {/* ⚠️ LA PROVINCIA E' DEL TORNEO, non del circolo, e sta qui
           sotto la regione perche' e' da quella che l'elenco si accorcia:

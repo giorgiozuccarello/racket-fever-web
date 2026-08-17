@@ -34,11 +34,6 @@ export interface Circolo {
   // sponsorSfideUrls. 0 = quel banner e' l'unico visibile e resta
   // fisso.
   sponsorSfideDurate?: number[] | null;
-  // Quanti riquadri di caricamento vuole vedere l'Admin, da
-  // MIN_IMMAGINI_SPONSOR a MAX_IMMAGINI_SPONSOR. Assente = non ha
-  // ancora scelto. Per leggerlo usare sempre slotBanner(), che tiene
-  // conto anche delle immagini gia' caricate.
-  bannerSlot?: number | null;
   // Quante ore prima dell'inizio dello slot un socio puo' ancora
   // disdire un CAMPO. 0 o assente = nessun limite, si cancella fino
   // all'ora di gioco. Il massimo e' ORE_LIMITE_CANCELLAZIONE_MAX (vedi
@@ -54,6 +49,13 @@ export interface Circolo {
   // spuntata quando pubblica. Senza, non c'e' modo di sapere dove sta
   // un circolo — l'indirizzo non e' mai stato chiesto.
   regione?: string | null;
+  // ⚠️ SERVE AI BANNER DI RETE, oltre che all'anagrafica: uno sponsor
+  // venduto su una provincia arriva ai circoli che stanno in quella
+  // provincia, e senza questo campo un circolo non ci sta per
+  // definizione — resterebbe raggiungibile solo da un banner
+  // nazionale o regionale. Elenco chiuso, come per i tornei: scritta a
+  // mano, «Messina» e «ME» sarebbero due province diverse.
+  provincia?: string | null;
   limiteSfidaPosizioni?: number; // 0/assente = usa il default (5): quante posizioni sopra si può sfidare
   // Solo web: sfumatura scelta dall'admin per la classifica sociale.
   // Non esiste nel mobile, va conservata quando si allineano i file.
@@ -190,14 +192,19 @@ export const FONDO_BOX_SOCIO_CHIARI: Record<string, string> = {
 // Quante immagini puo' caricare un circolo, e i tempi ammessi sul
 // cursore. Lo zero non e' un tempo: vuol dire "questo banner e'
 // l'unico visibile, e resta fisso". Vedi durateSponsor().
-// ⚠️ DA 5 A 10, e sotto c'e' un minimo. Quanti riquadri vede l'Admin
-// non e' piu' un numero fisso: lo sceglie lui con un selettore, fra
-// MIN e MAX. Questi due restano il tetto e il pavimento di quella
-// scelta — nessun circolo puo' andare oltre, e nessuno puo' scendere
-// sotto due, che e' il minimo perche' una rotazione sia una rotazione.
+// ⚠️ DA 5 A 10. Il circolo carica i suoi banner uno alla volta con
+// «aggiungi immagine», come sempre: nessun numero da scegliere prima.
+// A questi si aggiungono i banner di rete del Super Admin, che il
+// circolo non vede e non gestisce — quindi la fascia puo' arrivare a
+// venti in tutto. Vedi data/bannerRete.ts.
 export const MAX_IMMAGINI_SPONSOR = 10;
-export const MIN_IMMAGINI_SPONSOR = 2;
-export const INTERVALLI_SPONSOR = [0, 5, 10, 15, 20, 25, 30];
+// ⚠️ IL MASSIMO SCENDE A 20 SECONDI. Con i banner di rete che si
+// intercalano a quelli del circolo la fascia si e' allungata, e
+// mezzo minuto fermi sullo stesso sponsor voleva dire che gli ultimi
+// della fila non li vedeva quasi nessuno. Lo zero resta e non e' un
+// tempo: vuol dire «questo si prende la scena», e vale solo fra i
+// banner del circolo.
+export const INTERVALLI_SPONSOR = [0, 5, 10, 15, 20];
 // L'elenco vero delle immagini sponsor di un circolo. Unico punto in
 // cui si guarda il campo vecchio a immagine singola: tutto il resto
 // dell'app passa da qui e non deve sapere che esiste.
@@ -213,29 +220,6 @@ export function immaginiSponsor(circolo?: {
   return circolo.sponsorSfideUrl ? [circolo.sponsorSfideUrl] : [];
 }
 
-// Quanti riquadri di caricamento mostrare, per questo circolo.
-//
-// ⚠️ NON PUO' SCENDERE SOTTO LE IMMAGINI GIA' CARICATE, ed e' la
-// regola che conta. Un banner che sparisce dai riquadri sarebbe un
-// banner che nessuno puo' piu' togliere ne' sostituire, ma che
-// continua a girare in Home davanti ai soci: uno sponsor invisibile
-// all'Admin e visibile a tutti gli altri. Per scendere si toglie
-// prima un banner, e allora il pavimento si abbassa da solo.
-export function slotBanner(circolo?: {
-  bannerSlot?: number | null;
-  sponsorSfideUrls?: string[] | null;
-  sponsorSfideUrl?: string | null;
-} | null): number {
-  const caricate = immaginiSponsor(circolo).length;
-  const pavimento = Math.max(MIN_IMMAGINI_SPONSOR, caricate);
-  const scelto = circolo?.bannerSlot;
-  const voluto = typeof scelto === 'number' && Number.isFinite(scelto)
-    ? Math.round(scelto)
-    // Chi non ha ancora scelto parte dal pavimento: due riquadri, uno
-    // pieno e uno vuoto, si spiegano da soli meglio di cinque vuoti.
-    : pavimento;
-  return Math.min(MAX_IMMAGINI_SPONSOR, Math.max(pavimento, voluto));
-}
 
 // ⚠️ LA DURATA E' PER SINGOLO BANNER, non piu' una sola per tutti.
 // Serve perche' gli sponsor non pagano tutti uguale: un Main Sponsor
@@ -269,8 +253,15 @@ export function durateSponsor(circolo?: {
   // secondi, senza che nessuno avesse toccato niente. Quindi lo zero
   // di prima diventa lo zero di adesso, sul primo banner.
   const eraFisso = vecchioUnico === 0;
+  // ⚠️ Anche il valore EREDITATO va riportato nella scala: un circolo
+  // fermo al vecchio tempo unico di 30 secondi non ha nessuna durata
+  // scritta per banner, quindi il tetto messo sul ramo qui sotto non lo
+  // toccava — e il cursore del pannello si ritrovava lo stesso un
+  // valore fuori scala. Se ne accorge solo una prova che parte dal
+  // campo vecchio, ed e' esattamente quella che l'ha trovato.
+  const massimoDurata = INTERVALLI_SPONSOR[INTERVALLI_SPONSOR.length - 1];
   const ereditata = typeof vecchioUnico === 'number' && vecchioUnico >= DURATA_SPONSOR_MINIMA
-    ? vecchioUnico
+    ? Math.min(massimoDurata, vecchioUnico)
     : DURATA_SPONSOR_PREDEFINITA;
   return Array.from({ length: quante }, (_, i) => {
     const v = Array.isArray(salvate) ? salvate[i] : undefined;
@@ -281,7 +272,14 @@ export function durateSponsor(circolo?: {
     // Fra zero e il minimo non c'e' niente: un banner che gira dopo
     // due secondi non lo legge nessuno.
     if (v <= 0) return 0;
-    return Math.max(DURATA_SPONSOR_MINIMA, v);
+    // ⚠️ E ANCHE UN TETTO, da quando il massimo e' sceso da 30 a 20.
+    // I circoli che avevano scelto 25 o 30 quel numero ce l'hanno
+    // ancora scritto: senza questo limite il cursore non lo trovava
+    // nella scala, `indexOf` rispondeva -1, e il pannello mostrava
+    // quel banner come «Fisso» — cioe' l'esatto contrario di quello
+    // che fa. Riportarlo dentro la scala e' anche l'unico modo perche'
+    // il primo salvataggio successivo lo sistemi davvero.
+    return Math.min(massimoDurata, Math.max(DURATA_SPONSOR_MINIMA, v));
   });
 }
 

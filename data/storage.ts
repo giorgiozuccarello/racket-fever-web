@@ -14,7 +14,7 @@ import { doc, updateDoc, getDoc, runTransaction } from 'firebase/firestore';
 import { storage, db } from '../lib/firebase';
 import { formatoBanner, FormatoBanner } from './formatoBanner';
 import {
-  Circolo, immaginiSponsor, MAX_IMMAGINI_SPONSOR, MIN_IMMAGINI_SPONSOR,
+  Circolo, immaginiSponsor, MAX_IMMAGINI_SPONSOR,
   durateSponsor, DURATA_SPONSOR_MINIMA, DURATA_SPONSOR_PREDEFINITA,
 } from './circoli';
 
@@ -133,6 +133,54 @@ export async function rimuoviFotoMaestro(url?: string | null): Promise<void> {
 // un circolo pieno di GIF si scaricava mezza pubblicita' del circolo.
 const PESO_MASSIMO_ANIMATA = 2 * 1024 * 1024;
 
+// Un banner di rete: l'immagine dello sponsor venduto da Racket Fever.
+//
+// ⚠️ Passa dalla stessa strada dei banner del circolo — quattro
+// formati, animate intatte, ferme ritagliate 3:1 — perche' finisce
+// nella stessa fascia: se qui si ri-codificasse tutto in JPEG, una GIF
+// nazionale arriverebbe ferma solo perche' e' nostra. L'unica
+// differenza e' dove va a finire il file, e che qui non c'e' nessun
+// documento di circolo da aggiornare.
+export async function caricaBannerRete(file: File): Promise<string> {
+  const formato = formatoBanner(file.name, file.type);
+  let blob: Blob = file;
+  if (!formato.animabile) {
+    const img = await caricaImmagine(file);
+    const proporzione = SPONSOR_LARGHEZZA / SPONSOR_ALTEZZA;
+    let larghezza = img.width;
+    let altezza = larghezza / proporzione;
+    if (altezza > img.height) {
+      altezza = img.height;
+      larghezza = altezza * proporzione;
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = SPONSOR_LARGHEZZA;
+    canvas.height = SPONSOR_ALTEZZA;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error("Impossibile elaborare l'immagine");
+    ctx.drawImage(
+      img,
+      (img.width - larghezza) / 2, (img.height - altezza) / 2, larghezza, altezza,
+      0, 0, SPONSOR_LARGHEZZA, SPONSOR_ALTEZZA,
+    );
+    blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (b) => (b ? resolve(b) : reject(new Error('Errore di conversione'))),
+        formato.tipo,
+        formato.estensione === 'png' ? 1 : 0.85,
+      );
+    });
+  } else if (file.size > PESO_MASSIMO_ANIMATA) {
+    const mb = (file.size / (1024 * 1024)).toFixed(1);
+    throw new Error(
+      `Questa ${formato.estensione.toUpperCase()} pesa ${mb} MB: il massimo è ${PESO_MASSIMO_ANIMATA / (1024 * 1024)} MB.`,
+    );
+  }
+  const riferimento = ref(storage, `banner_rete/banner_${Date.now()}.${formato.estensione}`);
+  await uploadBytes(riferimento, blob, { contentType: formato.tipo });
+  return await getDownloadURL(riferimento);
+}
+
 // Sponsor mostrato in cima alla Classifica Sfide, lato pannello web.
 export async function caricaSponsorSfide(circoloId: string, file: File, indice: number): Promise<string> {
   const formato = formatoBanner(file.name, file.type);
@@ -248,31 +296,6 @@ async function salvaBannerSponsor(
 
 // Toglie l'immagine in una posizione. Le successive scalano di uno: la
 // lista non deve avere buchi, o la rotazione mostrerebbe il vuoto.
-// Quanti riquadri di caricamento vuole vedere l'Admin.
-//
-// ⚠️ NON SCENDE SOTTO LE IMMAGINI GIA' CARICATE, e il controllo sta
-// qui e non solo nel selettore: un banner escluso dai riquadri
-// resterebbe a girare in Home senza che nessuno possa piu' toglierlo —
-// invisibile a chi comanda, visibile a tutti gli altri.
-export async function impostaSlotBanner(circoloId: string, quanti: number): Promise<void> {
-  const riferimentoCircolo = doc(db, 'circoli', circoloId);
-  const istantanea = await getDoc(riferimentoCircolo);
-  const dati = istantanea.data() as Circolo | undefined;
-  const caricate = immaginiSponsor(dati).length;
-  const pavimento = Math.max(MIN_IMMAGINI_SPONSOR, caricate);
-  const voluto = Math.round(quanti);
-  if (voluto < pavimento) {
-    throw new Error(
-      caricate > MIN_IMMAGINI_SPONSOR
-        ? `Hai ${caricate} banner caricati: per scendere sotto ${caricate} riquadri togline prima uno.`
-        : `Il minimo è ${MIN_IMMAGINI_SPONSOR} riquadri.`,
-    );
-  }
-  await updateDoc(riferimentoCircolo, {
-    bannerSlot: Math.min(MAX_IMMAGINI_SPONSOR, voluto),
-  });
-}
-
 export async function rimuoviImmagineSponsor(circoloId: string, indice: number): Promise<void> {
   const riferimentoCircolo = doc(db, 'circoli', circoloId);
   await runTransaction(db, async (tx) => {
