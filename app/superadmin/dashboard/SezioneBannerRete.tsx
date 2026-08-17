@@ -27,6 +27,7 @@ import {
   ascoltaNoteRete, scriviNotaRete, rimuoviNotaRete,
 } from '../../../data/bannerReteRepo';
 import { caricaBannerRete } from '../../../data/storage';
+import { normalizzaLinkBanner, nomeSitoLink, erroreLink, MAX_LUNGHEZZA_LINK } from '../../../data/linkBanner';
 import { Circolo, statoCircolo } from '../../../data/circoli';
 // ⚠️ La data di oggi si chiede a data/giorni, non si ricalcola qui: e'
 // lo stesso «oggi» che usa il repo per decidere se un banner e' in
@@ -59,6 +60,10 @@ export default function SezioneBannerRete() {
   const [daGiorno, setDaGiorno] = useState('');
   const [aGiorno, setAGiorno] = useState('');
   const [nota, setNota] = useState('');
+  // L'indirizzo del sito dello sponsor. E' l'unico campo di questo
+  // modulo che finisce su un telefono come qualcosa da APRIRE, e per
+  // questo si controlla prima di salvare e si ricontrolla nell'app.
+  const [link, setLink] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => ascoltaTuttiBannerRete(setBanner, () => setErrore('Non riesco a leggere i banner.')), []);
@@ -151,12 +156,13 @@ export default function SezioneBannerRete() {
     setDaGiorno(b.daGiorno ?? '');
     setAGiorno(b.aGiorno ?? '');
     setNota(note[b.id] ?? '');
+    setLink(b.link ?? '');
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const azzeraModulo = () => {
     setInModifica(null);
-    setImmagineUrl(''); setNota(''); setDaGiorno(''); setAGiorno('');
+    setImmagineUrl(''); setNota(''); setDaGiorno(''); setAGiorno(''); setLink('');
     setRegioni([]); setProvince([]); setCopertura('italia');
     setDurata(DURATA_BANNER_RETE_PREDEFINITA);
   };
@@ -169,6 +175,13 @@ export default function SezioneBannerRete() {
       return;
     }
     if (daGiorno && aGiorno && aGiorno < daGiorno) { setErrore('La data di fine viene prima di quella di inizio.'); return; }
+    // ⚠️ Un indirizzo scritto male FERMA la pubblicazione, non si
+    // salva a vuoto. Salvandolo vuoto in silenzio, il banner sarebbe
+    // andato in rotazione su mezza Italia senza il link che lo sponsor
+    // ha pagato, e ce ne saremmo accorti dalla sua telefonata.
+    const linkBuono = normalizzaLinkBanner(link);
+    const problemaLink = erroreLink(link);
+    if (problemaLink) { setErrore(problemaLink); return; }
     setSalvando(true);
     try {
       // ⚠️ `undefined` e non `null` sui facoltativi. `ripulisci` scarta
@@ -189,6 +202,14 @@ export default function SezioneBannerRete() {
         regioni: copertura === 'regioni' ? regioni : (inModifica ? null : undefined),
         province: copertura === 'province' ? province : (inModifica ? null : undefined),
         zone,
+        // ⚠️ SEMPRE UNA STRINGA, anche vuota, e qui non vale la regola
+        // dell'undefined usata per gli altri facoltativi: svuotando il
+        // campo in modifica, un undefined avrebbe lasciato sul
+        // documento il link di prima — cioe' il banner avrebbe
+        // continuato a mandare i soci sul sito di uno sponsor che non
+        // paga piu'. La stringa vuota e' un valore, e le regole la
+        // accettano apposta: vuol dire «questo banner non si tocca».
+        link: linkBuono,
         daGiorno: daGiorno || (inModifica ? null : undefined),
         aGiorno: aGiorno || (inModifica ? null : undefined),
       };
@@ -323,6 +344,14 @@ export default function SezioneBannerRete() {
         </div>
       </div>
 
+      <label className="admin-card-hint" htmlFor="rete-link" style={{ display: 'block', marginTop: '.6rem' }}>
+        Sito dello sponsor (facoltativo) — toccando il banner il socio viene avvisato che
+        sta uscendo dall’app, e poi si apre il browser del telefono. Vuoto: il banner non si tocca.
+      </label>
+      <input id="rete-link" className="admin-input" type="url" value={link}
+        onChange={(e) => setLink(e.target.value)} maxLength={MAX_LUNGHEZZA_LINK}
+        placeholder="sponsordelcircolo.it" />
+
       <input className="admin-input" style={{ marginTop: '.6rem' }} value={nota}
         onChange={(e) => setNota(e.target.value)} maxLength={2000}
         placeholder="Nota interna: sponsor, importo, referente (non esce da qui)" />
@@ -363,6 +392,7 @@ export default function SezioneBannerRete() {
               <div className="admin-list-sub">
                 {b.durata}s · {inCorso ? 'in rotazione' : 'fuori periodo, non si vede'}
                 {b.daGiorno || b.aGiorno ? ` · ${b.daGiorno || '…'} → ${b.aGiorno || '…'}` : ''}
+                {nomeSitoLink(b.link) ? ` · ${nomeSitoLink(b.link)}` : ''}
                 {note[b.id] ? ` · ${note[b.id]}` : ''}
               </div>
             </div>
@@ -377,7 +407,7 @@ export default function SezioneBannerRete() {
               {DURATE_BANNER_RETE.map((d) => <option key={d} value={d}>{d}s</option>)}
             </select>
             <button className="admin-icon-btn" onClick={() => apriModifica(b)} aria-label="Modifica"
-              title="Cambia immagine, zona o periodo">✎</button>
+              title="Cambia immagine, zona, periodo o sito">✎</button>
             <button className="admin-icon-btn danger" onClick={() => setDaRimuovere(b)} aria-label="Rimuovi">🗑</button>
           </div>
         );

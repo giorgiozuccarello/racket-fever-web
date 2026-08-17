@@ -4,6 +4,8 @@
 // qualche utility che non dipende dal backend.
 // ============================================================
 
+import { allineaLink } from './linkBanner';
+
 export interface Circolo {
   id: string;
   nome: string;
@@ -34,6 +36,16 @@ export interface Circolo {
   // sponsorSfideUrls. 0 = quel banner e' l'unico visibile e resta
   // fisso.
   sponsorSfideDurate?: number[] | null;
+  // L'indirizzo del sito dello sponsor, uno per immagine e allineato a
+  // sponsorSfideUrls come le durate. Stringa vuota o assente = quel
+  // banner non si tocca, resta un cartellone.
+  //
+  // ⚠️ NON SI LEGGE MAI DA QUI. Si passa da linkSponsor(), che allunga
+  // l'elenco fino al numero delle immagini e ricontrolla ogni
+  // indirizzo: i circoli di prima questo campo non ce l'hanno, e un
+  // elenco piu' corto avrebbe mandato il socio che tocca lo sponsor 3
+  // sul sito dello sponsor 4.
+  sponsorSfideLink?: (string | null)[] | null;
   // Quante ore prima dell'inizio dello slot un socio puo' ancora
   // disdire un CAMPO. 0 o assente = nessun limite, si cancella fino
   // all'ora di gioco. Il massimo e' ORE_LIMITE_CANCELLAZIONE_MAX (vedi
@@ -304,6 +316,22 @@ export function sponsorFisso(circolo?: {
   sponsorSfideIntervallo?: number | null;
 } | null): number {
   return durateSponsor(circolo).findIndex((d) => d === 0);
+}
+
+// ============================================================
+// I LINK DEGLI SPONSOR — uno per immagine, nello stesso ordine.
+//
+// Unico punto da cui si leggono, esattamente come immaginiSponsor() e
+// durateSponsor(): la lunghezza torna sempre uguale al numero delle
+// immagini, e ogni indirizzo e' gia' passato dal controllo. Una casella
+// vuota vuol dire «questo banner non si tocca».
+// ============================================================
+export function linkSponsor(circolo?: {
+  sponsorSfideUrls?: string[] | null;
+  sponsorSfideUrl?: string | null;
+  sponsorSfideLink?: (string | null)[] | null;
+} | null): string[] {
+  return allineaLink(circolo?.sponsorSfideLink, immaginiSponsor(circolo).length);
 }
 
 export const TEMI_APP: Record<string, TemaApp> = {

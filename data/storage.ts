@@ -16,7 +16,9 @@ import { formatoBanner, FormatoBanner } from './formatoBanner';
 import {
   Circolo, immaginiSponsor, MAX_IMMAGINI_SPONSOR,
   durateSponsor, DURATA_SPONSOR_MINIMA, DURATA_SPONSOR_PREDEFINITA,
+  linkSponsor,
 } from './circoli';
+import { normalizzaLinkBanner } from './linkBanner';
 
 const LATO = 512;
 // Lo sponsor delle Sfide e' una fascia 3:1: nel browser non c'e' un
@@ -279,6 +281,20 @@ async function salvaBannerSponsor(
   const nuoveDurate = [...durateAttuali];
   while (nuoveDurate.length < nuovo.length) nuoveDurate.push(DURATA_SPONSOR_PREDEFINITA);
   modifiche.sponsorSfideDurate = nuoveDurate.slice(0, MAX_IMMAGINI_SPONSOR);
+  // ⚠️ E I LINK VIAGGIANO CON LE IMMAGINI, alla stessa maniera. Non
+  // allineandoli qui, il primo banner aggiunto in fondo avrebbe avuto
+  // un elenco di link piu' corto di uno: da li' in poi, tolto un
+  // banner in mezzo, ogni sponsor avrebbe portato al sito di un altro.
+  //
+  // Su una posizione GIA' ESISTENTE il link resta quello che c'era, ed
+  // e' voluto: cambiare l'immagine di un banner vuol dire quasi sempre
+  // che lo stesso sponsor ha rinnovato la creativita', non che ne e'
+  // arrivato un altro. Se e' un altro, l'Admin riscrive il link — che
+  // e' un gesto in piu' molto meno grave del contrario, cioe' un
+  // indirizzo perso senza dirlo.
+  const nuoviLink = [...linkSponsor(dati)];
+  while (nuoviLink.length < nuovo.length) nuoviLink.push('');
+  modifiche.sponsorSfideLink = nuoviLink.slice(0, MAX_IMMAGINI_SPONSOR);
   await updateDoc(riferimentoCircolo, modifiche);
 
   // Il file sostituito non serve piu' a nessuno. Si cancella DOPO aver
@@ -307,10 +323,15 @@ export async function rimuoviImmagineSponsor(circoloId: string, indice: number):
     // La durata se ne va insieme alla sua immagine, o da qui in poi
     // ogni banner erediterebbe il tempo di quello prima.
     const nuoveDurate = durateSponsor(dati).filter((_, i) => i !== indice);
+    // Il link se ne va con la sua immagine, per la stessa ragione della
+    // durata: restando, da questa posizione in poi ogni banner avrebbe
+    // aperto il sito dello sponsor precedente.
+    const nuoviLink = linkSponsor(dati).filter((_, i) => i !== indice);
     tx.update(riferimentoCircolo, {
       sponsorSfideUrls: nuovo,
       sponsorSfideUrl: null,
       sponsorSfideDurate: nuoveDurate,
+      sponsorSfideLink: nuoviLink,
     });
   });
 }
@@ -362,12 +383,74 @@ export async function spostaImmagineSponsor(
 
     const urls = [...elenco];
     const durate = durateSponsor(dati);
+    const link = linkSponsor(dati);
     [urls[indice], urls[destinazione]] = [urls[destinazione], urls[indice]];
     [durate[indice], durate[destinazione]] = [durate[destinazione], durate[indice]];
+    // ⚠️ Anche il link si scambia. Immagine, durata e indirizzo sono lo
+    // STESSO sponsor in tre campi diversi: spostandone due su tre, la
+    // freccia che manda in cima il Main Sponsor gli avrebbe messo
+    // sotto il sito di quello che ha scavalcato.
+    [link[indice], link[destinazione]] = [link[destinazione], link[indice]];
     tx.update(riferimentoCircolo, {
       sponsorSfideUrls: urls,
       sponsorSfideUrl: null,
       sponsorSfideDurate: durate,
+      sponsorSfideLink: link,
+    });
+  });
+}
+
+// ============================================================
+// L'INDIRIZZO DEL SITO DI UN BANNER.
+//
+// Stringa vuota = il banner torna un cartellone e non si tocca piu'.
+//
+// ⚠️ SI CONTROLLA QUI, PRIMA DI SCRIVERE, e non si scrive quello che
+// l'Admin ha battuto. Sul documento finisce solo un indirizzo gia'
+// normalizzato — schema minuscolo, https messo davanti a chi ha
+// scritto solo il nome del sito — cosi' quello che l'app legge e'
+// sempre della stessa forma. Il controllo si ripete comunque sul
+// telefono un istante prima di aprirlo: questo qui e' cortesia verso
+// l'Admin, quello li' e' sicurezza verso il socio.
+// ============================================================
+export async function impostaLinkSponsor(
+  circoloId: string, indice: number, indirizzo: string, immagineAttesa: string,
+): Promise<void> {
+  const buono = normalizzaLinkBanner(indirizzo);
+  // Scritto qualcosa che non e' un indirizzo, non si salva niente: un
+  // salvataggio silenzioso a vuoto farebbe credere all'Admin di aver
+  // messo il link, e lo sponsor scoprirebbe il contrario da solo.
+  if (indirizzo.trim() && !buono) {
+    throw new Error('L’indirizzo del sito non è valido. Scrivilo per esteso, per esempio sponsordelcircolo.it');
+  }
+  const riferimentoCircolo = doc(db, 'circoli', circoloId);
+  // In transazione come le altre: l'elenco si rilegge, si cambia una
+  // casella e si riscrive intero. Fuori da una transazione, un banner
+  // tolto da un'altra postazione nel frattempo avrebbe fatto riscrivere
+  // un elenco piu' lungo delle immagini.
+  await runTransaction(db, async (tx) => {
+    const istantanea = await tx.get(riferimentoCircolo);
+    const dati = istantanea.data() as Circolo | undefined;
+    const link = linkSponsor(dati);
+    // ⚠️ SI CONTROLLA CHE IN QUELLA POSIZIONE CI SIA ANCORA LA STESSA
+    // IMMAGINE, e non basta che la posizione esista. Il link si salva
+    // quando l'Admin esce dal campo, e uscire dal campo puo' voler dire
+    // aver toccato la freccia che sposta il banner: fra il momento in
+    // cui ha scritto e il momento in cui si scrive, quella posizione
+    // puo' essere di un altro sponsor — e ci avremmo messo il suo
+    // indirizzo, in silenzio. Lo stesso vale con due Admin collegati
+    // insieme.
+    //
+    // ⚠️ E si SOLLEVA un errore invece di uscire buoni buoni. Prima qui
+    // si tornava indietro senza scrivere e senza dire niente: il
+    // pannello spegneva «Salvo…» e l'Admin se ne andava convinto di
+    // aver messo il link.
+    const immagini = immaginiSponsor(dati);
+    if (indice < 0 || indice >= link.length || immagini[indice] !== immagineAttesa) {
+      throw new Error('Il banner è cambiato mentre scrivevi l’indirizzo. Controlla e riprova.');
+    }
+    tx.update(riferimentoCircolo, {
+      sponsorSfideLink: link.map((l, i) => (i === indice ? buono : l)),
     });
   });
 }

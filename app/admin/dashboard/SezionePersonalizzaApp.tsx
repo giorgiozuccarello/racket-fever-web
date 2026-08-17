@@ -3,10 +3,14 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Circolo, immaginiSponsor, MAX_IMMAGINI_SPONSOR, INTERVALLI_SPONSOR,
-  durateSponsor, sponsorFisso, DURATA_SPONSOR_MINIMA,
+  durateSponsor, sponsorFisso, DURATA_SPONSOR_MINIMA, linkSponsor,
 } from '../../../data/circoli';
+import { normalizzaLinkBanner, erroreLink, MAX_LUNGHEZZA_LINK } from '../../../data/linkBanner';
 import { aggiornaCircolo } from '../../../data/circoliRepo';
-import { caricaLogoCircolo, caricaSponsorSfide, rimuoviImmagineSponsor, impostaDurataSponsor, spostaImmagineSponsor } from '../../../data/storage';
+import {
+  caricaLogoCircolo, caricaSponsorSfide, rimuoviImmagineSponsor, impostaDurataSponsor,
+  spostaImmagineSponsor, impostaLinkSponsor,
+} from '../../../data/storage';
 
 export default function SezionePersonalizzaApp({ circolo }: { circolo: Circolo }) {
   return (
@@ -76,6 +80,8 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
   }, [immagini.length]);
 
   const durate = durateSponsor(circolo);
+  // Gli indirizzi dei siti, uno per banner e nello stesso ordine.
+  const linkDeiBanner = linkSponsor(circolo);
   // L'indice del banner che si e' preso la scena, se c'e'.
   const iFisso = sponsorFisso(circolo);
 
@@ -274,6 +280,16 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
                 </span>
               </div>
             )}
+
+            {url && (
+              <CasellaLinkSponsor
+                circoloId={circolo.id}
+                indice={indice}
+                valore={linkDeiBanner[indice] ?? ''}
+                immagine={url}
+                bloccato={occupato}
+              />
+            )}
           </div>
         );
       })}
@@ -296,6 +312,78 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
         onChange={gestisciFile} style={{ display: 'none' }}
       />
 
+    </div>
+  );
+}
+
+// ============================================================
+// LA CASELLA DEL SITO DELLO SPONSOR.
+//
+// ⚠️ HA UNA COPIA SUA DEL TESTO, e non scrive a ogni lettera. Legata
+// direttamente a Firestore, ogni carattere battuto sarebbe stato una
+// scrittura ribattuta a tutti i soci collegati — e la fascia sarebbe
+// ripartita da capo sui loro telefoni mentre l'Admin scrive
+// l'indirizzo. Si salva quando si esce dal campo, esattamente come il
+// cursore della durata si salva quando lo si lascia andare.
+//
+// ⚠️ E SI RIALLINEA quando il valore vero cambia: dopo il salvataggio
+// torna l'indirizzo NORMALIZZATO — scritto «www.sponsor.it», nel campo
+// compare «https://www.sponsor.it» — ed e' giusto che l'Admin veda
+// quello che e' stato scritto davvero.
+// ============================================================
+function CasellaLinkSponsor({ circoloId, indice, valore, immagine, bloccato }: {
+  circoloId: string; indice: number; valore: string; immagine: string; bloccato: boolean;
+}) {
+  const [testo, setTesto] = useState(valore);
+  const [salvando, setSalvando] = useState(false);
+  const [errore, setErrore] = useState('');
+  useEffect(() => { setTesto(valore); setErrore(''); }, [valore]);
+
+  const salva = async () => {
+    const buono = normalizzaLinkBanner(testo);
+    const problema = erroreLink(testo);
+    if (problema) {
+      setErrore(problema);
+      return;
+    }
+    setErrore('');
+    if (buono === valore) return;
+    setSalvando(true);
+    try {
+      await impostaLinkSponsor(circoloId, indice, testo, immagine);
+    } catch (e: any) {
+      setErrore(e?.message ?? 'Non sono riuscito a salvare l’indirizzo. Riprova.');
+      setTesto(valore);
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <div style={{ marginTop: '.6rem' }}>
+      <input
+        className="admin-input"
+        type="url"
+        value={testo}
+        maxLength={MAX_LUNGHEZZA_LINK}
+        disabled={bloccato || salvando}
+        onChange={(e) => setTesto(e.target.value)}
+        onBlur={salva}
+        onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+        placeholder="Sito dello sponsor (facoltativo)"
+        aria-label={`Indirizzo del sito dello sponsor ${indice + 1}`}
+      />
+      {errore
+        ? <div className="admin-error-text">{errore}</div>
+        : (
+          <p className="admin-card-hint" style={{ marginTop: '.25rem' }}>
+            {salvando
+              ? 'Salvo…'
+              : valore
+                ? 'Il socio che tocca il banner viene avvisato e poi esce sul browser.'
+                : 'Vuoto: il banner resta un cartellone e non si può toccare.'}
+          </p>
+        )}
     </div>
   );
 }

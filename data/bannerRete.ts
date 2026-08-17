@@ -44,6 +44,15 @@ export interface BannerRete {
   // tutto quello che lo copre, comunque sia stato venduto.
   // Si scrive da sola — vedi zoneDi() — e non si tocca a mano.
   zone: string[];
+  // L'indirizzo del sito dello sponsor. Vuoto o assente = il banner
+  // non si tocca.
+  //
+  // ⚠️ QUI STA UN INDIRIZZO CHE ARRIVA SU MEZZA ITALIA, e va guardato
+  // con l'occhio con cui si guarda un campo pubblico: questo documento
+  // lo legge ogni socio di ogni circolo coperto, e quello che c'e'
+  // scritto e' cio' che il telefono aprira'. Lo controllano le regole
+  // in scrittura e lo ricontrolla l'app un istante prima di aprirlo.
+  link?: string | null;
   // Da quando a quando. Facoltativi: senza, vale sempre.
   daGiorno?: string | null;   // 'YYYY-MM-DD'
   aGiorno?: string | null;    // 'YYYY-MM-DD'
