@@ -15,13 +15,25 @@ export default function SezionePersonalizzaApp({ circolo }: { circolo: Circolo }
       <p className="admin-card-hint">
         Il colore dell&apos;app ora si sceglie tra 8 Temi coordinati — il selettore per
         l&apos;Admin arriva a breve; nel frattempo tutti i circoli usano il Tema Bianco
-        di default. Qui sotto resta solo il logo.
+        di default. Qui resta il logo; i banner degli sponsor hanno una sezione loro,
+        qui sotto.
       </p>
 
       <div className="superadmin-subtitolo" style={{ marginTop: '.5rem' }}>Logo dell&apos;App</div>
       <SezioneLogoInterna circolo={circolo} />
+    </div>
+  );
+}
 
-      <div className="superadmin-subtitolo" style={{ marginTop: '1.6rem' }}>Sponsor Sfide</div>
+// ⚠️ I BANNER HANNO UNA SEZIONE LORO, e prima stavano in fondo a
+// «Personalizza App» sotto il logo. Non e' un riordino estetico: quello
+// e' il posto dove il circolo VENDE, ci torna ogni volta che cambia uno
+// sponsor, e deve trovarlo per nome invece di ricordarsi che sta sotto
+// il logo.
+export function SezioneBannerMarketing({ circolo }: { circolo: Circolo }) {
+  return (
+    <div className="admin-card">
+      <div className="admin-card-title">Banner Marketing</div>
       <SezioneSponsorInterna circolo={circolo} />
     </div>
   );

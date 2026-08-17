@@ -40,6 +40,14 @@ export interface DatiOnboarding {
   citta: string;
   sigla: string;
   regione: string;
+  // ⚠️ Chieste alla NASCITA e non dopo. Da quando la geografia e' di
+  // rete, l'Admin non puo' piu' aggiungerle da solo: un circolo che
+  // entra senza provincia resta invisibile alla vendita provinciale e
+  // pubblica tornei che nessuno trova filtrando per provincia, finche'
+  // qualcuno di noi non riapre la sua scheda. Il momento in cui il dato
+  // costa zero e' questo.
+  provincia: string;
+  comune: string;
   passwordCircolo: string;
   nomeAdmin: string;
   cognomeAdmin: string;
@@ -133,6 +141,8 @@ export async function creaCircoloConAdmin(dati: DatiOnboarding): Promise<string>
     temaApp: TEMA_APP_DEFAULT,
     limiteOreSettimanali: 0,
     regione: testoOpzionale(dati.regione) ?? null,
+    provincia: testoOpzionale(dati.provincia) ?? null,
+    comune: testoOpzionale(dati.comune) ?? null,
 
     // ---- Anagrafica di rete ----
     stato: 'attivo',

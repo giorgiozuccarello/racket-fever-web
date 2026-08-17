@@ -13,13 +13,12 @@
 
 import { useEffect, useState } from 'react';
 import { Circolo } from '../../../data/circoli';
-import { aggiornaCircolo } from '../../../data/circoliRepo';
 import {
   Torneo, TIPOLOGIE_TORNEO, REGIONI_ITALIA, MACROAREE, TUTTA_ITALIA,
   statoTorneo, etichettaStato, periodoTorneo, torneoDaMostrare, ordinaTornei,
-  SportTorneo, sportDi, provinceDi,
+  SportTorneo, sportDi,
 } from '../../../data/tornei';
-import { creaTorneo, rimuoviTorneo, ascoltaTorneiCircolo } from '../../../data/torneiRepo';
+import { creaTorneo, aggiornaTorneo, rimuoviTorneo, ascoltaTorneiCircolo } from '../../../data/torneiRepo';
 
 export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
   const [nome, setNome] = useState('');
@@ -30,9 +29,6 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
   const [scadenza, setScadenza] = useState('');
   const [link, setLink] = useState('');
   const [luogo, setLuogo] = useState('');
-  // Parte dalla provincia del circolo: quasi tutti i tornei si giocano
-  // in casa, e chi fa diversamente cambia una voce.
-  const [provincia, setProvincia] = useState(circolo.provincia ?? '');
   const [note, setNote] = useState('');
   const [regioni, setRegioni] = useState<string[]>(circolo.regione ? [circolo.regione] : []);
   const [nazionale, setNazionale] = useState(false);
@@ -40,15 +36,13 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
   const [errore, setErrore] = useState('');
   const [miei, setMiei] = useState<Torneo[]>([]);
   const [daRimuovere, setDaRimuovere] = useState<Torneo | null>(null);
+  // ⚠️ Un torneo pubblicato si correggeva solo togliendolo e
+  // rifacendolo: chi sbagliava una data — il caso piu' frequente di
+  // tutti — lo faceva sparire dalla bacheca di mezza rete e ricomparire
+  // qualche minuto dopo, con un altro identificativo. Da qui si riapre
+  // lo stesso modulo sul torneo che c'e' gia'.
+  const [inModifica, setInModifica] = useState<Torneo | null>(null);
 
-  // ⚠️ La provincia cade quando cambia la regione del circolo. Senza,
-  // chi sceglieva Messina e poi correggeva la regione in Lombardia
-  // pubblicava un torneo con una provincia siciliana — e nel menu a
-  // tendina non lo vedeva nemmeno, perche' un valore che non e' fra le
-  // voci disponibili si mostra come casella vuota.
-  useEffect(() => {
-    if (provincia && !provinceDi(circolo.regione).includes(provincia)) setProvincia('');
-  }, [circolo.regione, provincia]);
 
   useEffect(() => ascoltaTorneiCircolo(circolo.id, setMiei), [circolo.id]);
 
@@ -66,6 +60,37 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
     });
   };
 
+  const apriModifica = (t: Torneo) => {
+    setErrore('');
+    setInModifica(t);
+    setNome(t.nome ?? '');
+    setTipologia(t.tipologia ?? TIPOLOGIE_TORNEO[0]);
+    setSport(sportDi(t));
+    setDataInizio(t.dataInizio ?? '');
+    setDataFine(t.dataFine ?? '');
+    setScadenza(t.scadenzaIscrizioni ?? '');
+    setLink(t.linkIscrizione ?? '');
+    setLuogo(t.luogo ?? '');
+    setNote(t.note ?? '');
+    const zone = t.regioni ?? [];
+    setNazionale(zone.includes(TUTTA_ITALIA));
+    setRegioni(zone.filter((r) => r !== TUTTA_ITALIA));
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const azzeraModulo = () => {
+    setInModifica(null);
+    setNome(''); setDataInizio(''); setDataFine(''); setScadenza('');
+    setLink(''); setLuogo(''); setNote('');
+    setNazionale(false);
+    setRegioni(circolo.regione ? [circolo.regione] : []);
+    // ⚠️ Anche questi due: senza, chi modificava un torneo di padel si
+    // ritrovava il modulo su padel per il torneo successivo, e lo
+    // pubblicava cosi' senza accorgersene.
+    setTipologia(TIPOLOGIE_TORNEO[0]);
+    setSport('tennis');
+  };
+
   const pubblica = async () => {
     setErrore('');
     if (!nome.trim()) { setErrore('Manca il nome del torneo.'); return; }
@@ -77,13 +102,20 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
     if (!nazionale && regioni.length === 0) { setErrore('Scegli almeno una regione, oppure tutta Italia.'); return; }
     setSalvando(true);
     try {
-      await creaTorneo({
+      const dati = {
         circoloId: circolo.id,
         circoloNome: circolo.nome,
         luogo: luogo.trim() || undefined,
-        // Vuota = campo assente: `ripulisci` scarta gli undefined, e una
-        // stringa vuota sul documento sarebbe una provincia inesistente.
-        provincia: provincia || undefined,
+
+        // ⚠️ LA PROVINCIA SI EREDITA DALL'ANAGRAFICA, non si sceglie
+        // piu': e' quella del circolo che organizza. Se il torneo si
+        // gioca da un'altra parte lo si scrive nelle note — succede di
+        // rado, e un campo in piu' su ogni torneo per un caso raro
+        // voleva dire un campo sbagliato su tanti tornei.
+        // In modifica va messa a null se il circolo non ne ha piu' una:
+        // con `undefined` il campo non si tocca, e il torneo terrebbe
+        // per sempre la provincia di prima.
+        provincia: circolo.provincia || (inModifica ? null : undefined),
         nome: nome.trim(),
         tipologia,
         sport,
@@ -99,9 +131,33 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
           ? [TUTTA_ITALIA]
           : Array.from(new Set([...regioni, ...(circolo.regione ? [circolo.regione] : [])])),
         note: note.trim() || undefined,
-      });
-      setNome(''); setDataInizio(''); setDataFine(''); setScadenza('');
-      setLink(''); setLuogo(''); setNote(''); setProvincia(circolo.provincia ?? '');
+      };
+      // ⚠️ In MODIFICA i facoltativi svuotati vanno messi a null: con
+      // `undefined` il campo non viene toccato, e un link cancellato dal
+      // modulo resterebbe scritto sul torneo — cioe' il socio
+      // continuerebbe a finire su una pagina di iscrizione chiusa.
+      if (inModifica) {
+        await aggiornaTorneo(inModifica.id, {
+          ...dati,
+          luogo: luogo.trim() || null as any,
+          dataFine: dataFine || null as any,
+          scadenzaIscrizioni: scadenza || null as any,
+          linkIscrizione: link.trim() || null as any,
+          // ⚠️ LE NOTE VUOTE SONO STRINGA VUOTA, NON null, e la
+          // differenza qui vale tutta la funzione. Le regole controllano
+          // la lunghezza delle note con `.get('note','')`, e quel
+          // default vale solo a CHIAVE ASSENTE: con la chiave presente e
+          // il valore a null si prende il null, e `null.size()` non e'
+          // «zero», e' un errore di valutazione — cioe' scrittura
+          // respinta. Sarebbe fallita ogni modifica di un torneo senza
+          // note, cioe' quasi tutte: proprio il caso — correggere una
+          // data — per cui la modifica e' stata fatta.
+          note: note.trim(),
+        });
+      } else {
+        await creaTorneo(dati);
+      }
+      azzeraModulo();
     } catch (e: any) {
       setErrore(e?.message ?? 'Non sono riuscito a pubblicare. Riprova.');
     } finally {
@@ -113,73 +169,31 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Pubblica un torneo</div>
+      <div className="admin-card-title">{inModifica ? 'Modifica il torneo' : 'Pubblica un torneo'}</div>
       <p className="admin-card-hint">
         Il torneo compare nella pagina Tornei dei soci del tuo circolo e di tutti i circoli
         della rete che stanno nelle regioni che scegli. Dentro l&apos;app non ci si iscrive:
         il socio tocca la card e arriva alla pagina di iscrizione vera.
       </p>
 
-      {/* ⚠️ La regione del circolo si imposta qui e non in una sezione
-          sua: e' l'unica cosa che la usa. */}
-      <div className="admin-row" style={{ alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
-        <span style={{ fontWeight: 700, fontSize: '.9rem' }}>Regione del circolo:</span>
-        <select
-          className="admin-input"
-          style={{ maxWidth: 260 }}
-          value={circolo.regione ?? ''}
-          onChange={async (e) => {
-            const r = e.target.value;
-            if (!r) return;
-            try { await aggiornaCircolo(circolo.id, { regione: r }); } catch { /* lo dira' il prossimo tentativo */ }
-          }}
-        >
-          <option value="">— da scegliere —</option>
-          {REGIONI_ITALIA.map((r) => <option key={r} value={r}>{r}</option>)}
-        </select>
-      </div>
-      {!circolo.regione && (
-        <p className="admin-card-hint" style={{ color: '#B3261E' }}>
-          Senza regione i tuoi soci non trovano i tornei della loro zona, e la bacheca si apre
-          su tutta Italia invece che su quello che hanno vicino.
-        </p>
-      )}
-
-      {/* ⚠️ LA PROVINCIA DEL CIRCOLO, che e' un'altra cosa da quella del
-          torneo qui sotto: questa dice dove sta il circolo, quella dove
-          si gioca. Sta qui accanto alla regione perche' e' la stessa
-          anagrafica e si compila una volta sola. */}
-      <div className="admin-row" style={{ alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
-        <span style={{ fontWeight: 700, fontSize: '.9rem' }}>Provincia del circolo:</span>
-        <select
-          className="admin-input"
-          style={{ maxWidth: 260 }}
-          value={circolo.provincia ?? ''}
-          onChange={async (e) => {
-            const pr = e.target.value;
-            if (!pr) return;
-            try { await aggiornaCircolo(circolo.id, { provincia: pr }); } catch { /* lo dira' il prossimo tentativo */ }
-          }}
-        >
-          <option value="">— da scegliere —</option>
-          {provinceDi(circolo.regione).map((pr) => <option key={pr} value={pr}>{pr}</option>)}
-        </select>
-      </div>
-
-      {/* ⚠️ LA PROVINCIA E' DEL TORNEO, non del circolo, e sta qui
-          sotto la regione perche' e' da quella che l'elenco si accorcia:
-          scelta la Sicilia si scelgono nove province, non centosette. */}
-      <div className="admin-row" style={{ alignItems: 'center', gap: '.6rem', marginBottom: '.6rem' }}>
-        <span style={{ fontWeight: 700, fontSize: '.9rem' }}>Provincia del torneo:</span>
-        <select
-          className="admin-input"
-          style={{ maxWidth: 260 }}
-          value={provincia}
-          onChange={(e) => setProvincia(e.target.value)}
-        >
-          <option value="">— non indicata —</option>
-          {provinceDi(circolo.regione).map((pr) => <option key={pr} value={pr}>{pr}</option>)}
-        </select>
+      {/* ⚠️ REGIONE E PROVINCIA NON SI TOCCANO PIU' DA QUI. Erano due
+          selettori, e decidevano dove si vedono i tornei del circolo e
+          quali banner di rete gli arrivano: cose vendute a terzi. Da
+          adesso le scrive e le verifica Racket Fever all'ingresso in
+          rete, e le regole Firestore rifiutano la scrittura anche a chi
+          ci provasse da fuori. Qui restano in sola lettura, che e'
+          quello che serve davvero: sapere con che geografia si lavora. */}
+      <div className="admin-card-hint" style={{ marginBottom: '.6rem' }}>
+        <strong>Il circolo risulta in:</strong>{' '}
+        {circolo.regione || '— regione non indicata —'}
+        {circolo.provincia ? `, provincia di ${circolo.provincia}` : ''}
+        {circolo.comune ? `, ${circolo.comune}` : ''}.
+        {(!circolo.regione || !circolo.provincia) && (
+          <span style={{ color: '#B3261E' }}>
+            {' '}Finché mancano, i tuoi soci non trovano i tornei della vostra zona.
+            Scrivici e li sistemiamo.
+          </span>
+        )}
       </div>
 
       <input
@@ -277,8 +291,14 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
       {!!errore && <div className="admin-error-text" style={{ marginTop: '.6rem' }}>{errore}</div>}
 
       <button className="admin-btn-full" onClick={pubblica} disabled={salvando}>
-        {salvando ? 'Attendere…' : '+ Pubblica torneo'}
+        {salvando ? 'Attendere…' : inModifica ? 'Salva le modifiche' : '+ Pubblica torneo'}
       </button>
+      {inModifica && (
+        <button type="button" className="admin-input" style={{ cursor: 'pointer', marginTop: '.4rem' }}
+          onClick={azzeraModulo}>
+          Annulla la modifica
+        </button>
+      )}
 
       <div className="admin-card-title" style={{ marginTop: '1.4rem' }}>I tornei del circolo</div>
       {elenco.length === 0 && <p className="admin-card-hint">Non hai ancora pubblicato nessun torneo.</p>}
@@ -293,6 +313,8 @@ export default function SezioneTornei({ circolo }: { circolo: Circolo }) {
                 e' l'archivio da cui si ripesca l'anno dopo. */}
             {!torneoDaMostrare(t) && <div className="admin-list-sub">Non più visibile ai soci (archivio)</div>}
           </div>
+          <button className="admin-icon-btn" onClick={() => apriModifica(t)} aria-label="Modifica"
+            title="Correggi date, orari, link o note">✎</button>
           <button className="admin-icon-btn danger" onClick={() => setDaRimuovere(t)} aria-label="Rimuovi">🗑</button>
         </div>
       ))}

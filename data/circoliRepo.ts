@@ -168,6 +168,8 @@ export interface AnagraficaCircolo {
   citta: string;
   sigla: string;
   regione: string | null;
+  provincia: string | null;
+  comune: string | null;
   password: string;
   richiedenteNome: string | null;
   richiedenteRuolo: string | null;

@@ -56,6 +56,16 @@ export interface Circolo {
   // nazionale o regionale. Elenco chiuso, come per i tornei: scritta a
   // mano, «Messina» e «ME» sarebbero due province diverse.
   provincia?: string | null;
+  // Il comune dove sta il circolo. Insieme a regione e provincia forma
+  // la geografia dell'anagrafica.
+  //
+  // ⚠️ QUESTI TRE LI SCRIVE SOLO IL SUPER ADMIN, e le regole lo
+  // impongono: sono la base su cui i banner e i tornei vengono
+  // consegnati a una zona, e un circolo che si spostasse di regione da
+  // solo cambierebbe, senza dirlo a nessuno, quello che abbiamo
+  // venduto a uno sponsor. Se un circolo si trasferisce davvero,
+  // chiama Racket Fever.
+  comune?: string | null;
   limiteSfidaPosizioni?: number; // 0/assente = usa il default (5): quante posizioni sopra si può sfidare
   // Solo web: sfumatura scelta dall'admin per la classifica sociale.
   // Non esiste nel mobile, va conservata quando si allineano i file.

@@ -16,7 +16,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { Circolo, statoCircolo, etichettaStatoCircolo, StatoCircolo } from '../../../data/circoli';
-import { REGIONI_ITALIA } from '../../../data/tornei';
+import { REGIONI_ITALIA, provinceDi } from '../../../data/tornei';
 import {
   ascoltaCircoli, aggiornaAnagraficaCircolo, AnagraficaCircolo,
   sospendiCircolo, riattivaCircolo, chiudiCircolo,
@@ -50,7 +50,7 @@ function giornoDaMs(ms?: number): string {
 }
 
 interface Modulo {
-  nome: string; citta: string; sigla: string; regione: string; password: string;
+  nome: string; citta: string; sigla: string; regione: string; provincia: string; comune: string; password: string;
   richiedenteNome: string; richiedenteRuolo: string; richiedenteEmail: string; richiedenteTelefono: string;
   firmatarioNome: string; firmatarioRuolo: string; firmaIl: string;
   noteInterne: string; creatoIlGiorno: string;
@@ -59,7 +59,8 @@ interface Modulo {
 function moduloDa(c: Circolo): Modulo {
   return {
     nome: c.nome ?? '', citta: c.citta ?? '', sigla: c.sigla ?? '',
-    regione: c.regione ?? '', password: c.password ?? '',
+    regione: c.regione ?? '', provincia: c.provincia ?? '', comune: c.comune ?? '',
+    password: c.password ?? '',
     richiedenteNome: c.richiedenteNome ?? '', richiedenteRuolo: c.richiedenteRuolo ?? '',
     richiedenteEmail: c.richiedenteEmail ?? '', richiedenteTelefono: c.richiedenteTelefono ?? '',
     firmatarioNome: c.firmatarioNome ?? '', firmatarioRuolo: c.firmatarioRuolo ?? '',
@@ -125,6 +126,19 @@ export default function SezioneCircoli() {
     // compare a nessuno nella bacheca Tornei. Si accetta il vuoto solo
     // se era gia' vuoto — togliergliela sarebbe un peggioramento, non
     // averla mai avuta e' un dato da recuperare con calma.
+    // ⚠️ La provincia deve appartenere alla regione, e il controllo sta
+    // qui perche' qui e' l'unico posto dove si scrivono. Cambiando
+    // regione, il menu della provincia mostra una casella vuota — il
+    // valore vecchio non e' fra le voci — ma resta nello stato e non
+    // essendo cambiato non riparte: sul documento sarebbe rimasto un
+    // circolo lombardo in provincia di Messina, e un banner venduto su
+    // Messina gli sarebbe arrivato lo stesso. E' esattamente il danno
+    // per cui questi campi sono stati tolti all'Admin.
+    if (modulo.provincia.trim() && modulo.regione.trim()
+      && !provinceDi(modulo.regione).includes(modulo.provincia)) {
+      setErrore(`${modulo.provincia} non è una provincia della regione ${modulo.regione}: correggi prima la provincia.`);
+      return;
+    }
     if (!modulo.regione.trim() && (aperto.regione ?? '').trim()) {
       setErrore('La regione non si può togliere: serve ai Tornei per far trovare il circolo.');
       return;
@@ -150,6 +164,8 @@ export default function SezioneCircoli() {
         dati.sigla = modulo.sigla.trim().toUpperCase();
       }
       metti('regione', modulo.regione);
+      metti('provincia', modulo.provincia);
+      metti('comune', modulo.comune);
       metti('password', modulo.password, false);
       metti('richiedenteNome', modulo.richiedenteNome);
       metti('richiedenteRuolo', modulo.richiedenteRuolo);
@@ -257,13 +273,49 @@ export default function SezioneCircoli() {
           </div>
         </div>
 
+        {/* ⚠️ LA GEOGRAFIA LA SCRIVE SOLO CHI STA QUI. Regione,
+            provincia e comune decidono a quali circoli arriva un banner
+            venduto su una zona e dove si vedono i tornei: nella
+            dashboard dell'Admin sono in sola lettura, e le regole
+            Firestore glieli rifiutano anche se ci provasse da fuori. Un
+            circolo che si trasferisce davvero chiama Racket Fever. */}
         <label className="admin-label">Regione</label>
-        <select className="admin-select" value={modulo.regione} onChange={agg('regione')}>
+        <select
+          className="admin-select"
+          value={modulo.regione}
+          onChange={(e) => {
+            const nuova = e.target.value;
+            setModulo((m) => (m === null ? m : {
+              ...m,
+              regione: nuova,
+              // Se la provincia non appartiene alla regione nuova cade:
+              // meglio un campo vuoto da ricompilare che uno pieno di un
+              // valore che non si vede piu' nel menu.
+              provincia: nuova && provinceDi(nuova).includes(m.provincia) ? m.provincia : '',
+            }));
+          }}
+        >
           <option value="">— non indicata —</option>
           {REGIONI_ITALIA.map((r) => <option key={r} value={r}>{r}</option>)}
         </select>
+
+        <div className="admin-row" style={{ gap: '.8rem' }}>
+          <div style={{ flex: 1 }}>
+            <label className="admin-label">Provincia</label>
+            <select className="admin-select" value={modulo.provincia} onChange={agg('provincia')}>
+              <option value="">— non indicata —</option>
+              {provinceDi(modulo.regione || null).map((pr) => <option key={pr} value={pr}>{pr}</option>)}
+            </select>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label className="admin-label">Comune</label>
+            <input className="admin-input" value={modulo.comune} onChange={agg('comune')} maxLength={80} />
+          </div>
+        </div>
         <p className="admin-card-hint" style={{ marginTop: '.4rem', marginBottom: 0 }}>
-          Serve ai Tornei: è la regione con cui la bacheca parte filtrata per i suoi soci.
+          Regione e provincia decidono dove si vedono i tornei del circolo e quali banner di
+          rete gli arrivano. Il circolo non può cambiarle da solo: verificale all&apos;ingresso
+          in rete.
         </p>
 
         <label className="admin-label">Password d&apos;accesso soci</label>
@@ -439,7 +491,7 @@ export default function SezioneCircoli() {
             <div style={{ flex: 1 }}>
               <div className="admin-list-main">{c.nome}</div>
               <div className="admin-list-sub">
-                {c.citta} · {c.sigla}{c.regione ? ` · ${c.regione}` : ''}
+                {c.citta} · {c.sigla}{c.provincia ? ` (${c.provincia})` : ''}{c.regione ? ` · ${c.regione}` : ''}
               </div>
             </div>
             {stato !== 'attivo' && (

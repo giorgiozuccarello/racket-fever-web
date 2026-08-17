@@ -43,6 +43,11 @@ export default function SezioneBannerRete() {
   const [errore, setErrore] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [daRimuovere, setDaRimuovere] = useState<BannerRete | null>(null);
+  // ⚠️ Uno sponsor cambia la propria immagine a campagna aperta, e
+  // prima l'unico modo era togliere il banner e rifarlo — perdendo la
+  // data di pubblicazione e, per qualche secondo, la presenza in tutti
+  // i circoli. Qui si riapre lo stesso modulo sul banner esistente.
+  const [inModifica, setInModifica] = useState<BannerRete | null>(null);
 
   // Il modulo del banner nuovo.
   const [immagineUrl, setImmagineUrl] = useState('');
@@ -86,10 +91,14 @@ export default function SezioneBannerRete() {
   // di venderlo.
   const giaSullaZona = useMemo(() => {
     if (zone.length === 0) return 0;
-    return banner.filter((b) => bannerInCorso(b, oggiIso()))
+    return banner
+      // In modifica, quello che si sta ritoccando non conta: e' gia'
+      // dentro il conto, e l'avviso sarebbe scattato a torto.
+      .filter((b) => b.id !== inModifica?.id)
+      .filter((b) => bannerInCorso(b, oggiIso()))
       .filter((b) => (b.zone ?? []).some((z) => z === 'ITALIA' || zone.includes(z)))
       .length;
-  }, [banner, zone]);
+  }, [banner, zone, inModifica]);
 
   // ⚠️ Quanti circoli vedra' DAVVERO questo banner, e quanti restano
   // fuori perche' non hanno l'anagrafica completa. E' il numero che
@@ -131,6 +140,27 @@ export default function SezioneBannerRete() {
     }
   };
 
+  const apriModifica = (b: BannerRete) => {
+    setErrore('');
+    setInModifica(b);
+    setImmagineUrl(b.immagineUrl);
+    setDurata(b.durata);
+    setCopertura(b.copertura);
+    setRegioni(b.regioni ?? []);
+    setProvince(b.province ?? []);
+    setDaGiorno(b.daGiorno ?? '');
+    setAGiorno(b.aGiorno ?? '');
+    setNota(note[b.id] ?? '');
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const azzeraModulo = () => {
+    setInModifica(null);
+    setImmagineUrl(''); setNota(''); setDaGiorno(''); setAGiorno('');
+    setRegioni([]); setProvince([]); setCopertura('italia');
+    setDurata(DURATA_BANNER_RETE_PREDEFINITA);
+  };
+
   const pubblica = async () => {
     setErrore('');
     if (!immagineUrl) { setErrore("Carica prima l'immagine del banner."); return; }
@@ -147,24 +177,32 @@ export default function SezioneBannerRete() {
       // .get(campo, '') non riceve la stringa vuota ma il null — che
       // non e' «vuoto», e' un errore di valutazione, cioe' scrittura
       // respinta. Sarebbe fallita ogni pubblicazione.
-      const id = await creaBannerRete({
+      const dati = {
         immagineUrl,
         durata,
         copertura,
-        regioni: copertura === 'regioni' ? regioni : undefined,
-        province: copertura === 'province' ? province : undefined,
+        // ⚠️ In MODIFICA i rami che non c'entrano vanno messi a null e
+        // non lasciati stare: passando da «province» a «regioni», un
+        // `undefined` non tocca il campo e sul documento resterebbe
+        // l'elenco delle province di prima — invisibile nel modulo, ma
+        // scritto, e pronto a ricomparire alla modifica successiva.
+        regioni: copertura === 'regioni' ? regioni : (inModifica ? null : undefined),
+        province: copertura === 'province' ? province : (inModifica ? null : undefined),
         zone,
-        daGiorno: daGiorno || undefined,
-        aGiorno: aGiorno || undefined,
-      });
-      if (nota.trim()) {
-        // Non blocca: il banner e' pubblicato, la nota e' roba nostra.
-        try { await scriviNotaRete(id, nota); }
-        catch { setErrore('Il banner è pubblicato, ma la nota interna non si è salvata.'); }
+        daGiorno: daGiorno || (inModifica ? null : undefined),
+        aGiorno: aGiorno || (inModifica ? null : undefined),
+      };
+      const id = inModifica
+        ? (await aggiornaBannerRete(inModifica.id, dati), inModifica.id)
+        : await creaBannerRete(dati);
+      // Non blocca: il banner e' pubblicato, la nota e' roba nostra.
+      try {
+        if (nota.trim()) await scriviNotaRete(id, nota);
+        else if (inModifica) await rimuoviNotaRete(id);
+      } catch {
+        setErrore('Il banner è salvato, ma la nota interna no.');
       }
-      setImmagineUrl(''); setNota(''); setDaGiorno(''); setAGiorno('');
-      setRegioni([]); setProvince([]); setCopertura('italia');
-      setDurata(DURATA_BANNER_RETE_PREDEFINITA);
+      azzeraModulo();
     } catch (err: any) {
       setErrore(err?.message ?? 'Non sono riuscito a pubblicare il banner.');
     } finally {
@@ -176,7 +214,9 @@ export default function SezioneBannerRete() {
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Banner marketing</div>
+      <div className="admin-card-title">
+        {inModifica ? 'Modifica il banner' : 'Banner marketing'}
+      </div>
       <p className="admin-card-hint">
         Questi banner entrano nella fascia sponsor dei circoli coperti, in mezzo ai loro:
         uno del circolo, uno nostro, e così via. Il circolo non li vede nel suo pannello e non
@@ -296,8 +336,14 @@ export default function SezioneBannerRete() {
 
       {!!errore && <div className="admin-error-text" style={{ marginTop: '.6rem' }}>{errore}</div>}
       <button className="admin-btn-full" onClick={pubblica} disabled={salvando || inCarico}>
-        {salvando ? 'Pubblico…' : '+ Pubblica banner'}
+        {salvando ? 'Salvo…' : inModifica ? 'Salva le modifiche' : '+ Pubblica banner'}
       </button>
+      {inModifica && (
+        <button type="button" className="admin-input" style={{ cursor: 'pointer', marginTop: '.4rem' }}
+          onClick={azzeraModulo}>
+          Annulla la modifica
+        </button>
+      )}
 
       <div className="admin-card-title" style={{ marginTop: '1.4rem' }}>Banner pubblicati</div>
       {banner.length === 0 && <p className="admin-card-hint">Non ce n’è ancora nessuno.</p>}
@@ -320,12 +366,18 @@ export default function SezioneBannerRete() {
                 {note[b.id] ? ` · ${note[b.id]}` : ''}
               </div>
             </div>
+            {/* Spento mentre lo stesso banner e' aperto nel modulo: i
+                due scrivono la stessa cosa, e l'ultimo che salva
+                annullerebbe l'altro senza dirlo. */}
             <select className="admin-input" style={{ width: 'auto', flex: '0 0 auto', minWidth: 0 }}
+              disabled={inModifica?.id === b.id}
               value={b.durata}
               onChange={(e) => aggiornaBannerRete(b.id, { durata: Number(e.target.value) })
                 .catch(() => setErrore('Non sono riuscito a cambiare la durata.'))}>
               {DURATE_BANNER_RETE.map((d) => <option key={d} value={d}>{d}s</option>)}
             </select>
+            <button className="admin-icon-btn" onClick={() => apriModifica(b)} aria-label="Modifica"
+              title="Cambia immagine, zona o periodo">✎</button>
             <button className="admin-icon-btn danger" onClick={() => setDaRimuovere(b)} aria-label="Rimuovi">🗑</button>
           </div>
         );

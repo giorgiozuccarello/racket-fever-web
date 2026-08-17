@@ -4,7 +4,7 @@ import { useState } from 'react';
 import {
   creaCircoloConAdmin, ONBOARDING_ACCOUNT_ORFANO, ONBOARDING_CIRCOLO_SENZA_ADMIN,
 } from '../../../data/onboarding';
-import { REGIONI_ITALIA } from '../../../data/tornei';
+import { REGIONI_ITALIA, provinceDi } from '../../../data/tornei';
 
 interface Credenziali {
   nomeCircolo: string;
@@ -18,6 +18,8 @@ export default function SezioneOnboarding() {
   const [citta, setCitta] = useState('');
   const [sigla, setSigla] = useState('');
   const [regione, setRegione] = useState('');
+  const [provincia, setProvincia] = useState('');
+  const [comune, setComune] = useState('');
   const [passwordCircolo, setPasswordCircolo] = useState('');
   const [nomeAdmin, setNomeAdmin] = useState('');
   const [cognomeAdmin, setCognomeAdmin] = useState('');
@@ -60,6 +62,14 @@ export default function SezioneOnboarding() {
     // circoli creati prima ne sono senza, e nella bacheca Tornei —
     // l'unica cosa che attraversa i circoli — non compaiono a nessuno
     // finche' non gliela si scrive a mano.
+    if (!provincia) {
+      // Obbligatoria come la regione, e per lo stesso motivo: senza,
+      // il circolo non riceve i banner venduti sulla sua provincia e i
+      // suoi tornei non compaiono a chi filtra per provincia. E non
+      // puo' aggiungersela da solo.
+      setErrore('Scegli la provincia: senza, il circolo non risulta in nessuna zona.');
+      return;
+    }
     if (!regione) {
       setErrore('Scegli la regione: serve ai Tornei per far trovare il circolo.');
       return;
@@ -75,7 +85,7 @@ export default function SezioneOnboarding() {
     setCreando(true);
     try {
       await creaCircoloConAdmin({
-        nomeCircolo, citta, sigla, regione, passwordCircolo,
+        nomeCircolo, citta, sigla, regione, provincia, comune, passwordCircolo,
         nomeAdmin, cognomeAdmin, emailAdmin, passwordAdmin,
         richiedenteNome, richiedenteRuolo, richiedenteEmail, richiedenteTelefono,
         firmatarioNome, firmatarioRuolo, firmaIl, noteInterne,
@@ -150,10 +160,33 @@ export default function SezioneOnboarding() {
       </div>
 
       <label className="admin-label">Regione</label>
-      <select className="admin-select" value={regione} onChange={(e) => setRegione(e.target.value)}>
+      <select
+        className="admin-select"
+        value={regione}
+        onChange={(e) => {
+          const nuova = e.target.value;
+          setRegione(nuova);
+          // La provincia cade se non appartiene alla regione nuova.
+          setProvincia((p) => (nuova && provinceDi(nuova).includes(p) ? p : ''));
+        }}
+      >
         <option value="">— scegli la regione —</option>
         {REGIONI_ITALIA.map((r) => <option key={r} value={r}>{r}</option>)}
       </select>
+
+      {/* ⚠️ Provincia e comune si chiedono QUI, che e' l'unico momento
+          in cui costano zero: dopo, l'Admin non puo' piu' aggiungerle —
+          la geografia e' di rete — e un circolo entrato senza provincia
+          resta fuori da ogni vendita provinciale finche' non ci
+          accorgiamo di riaprirne la scheda. */}
+      <label className="admin-label">Provincia</label>
+      <select className="admin-select" value={provincia} onChange={(e) => setProvincia(e.target.value)}>
+        <option value="">— scegli la provincia —</option>
+        {provinceDi(regione || null).map((pr) => <option key={pr} value={pr}>{pr}</option>)}
+      </select>
+
+      <label className="admin-label">Comune</label>
+      <input className="admin-input" value={comune} onChange={(e) => setComune(e.target.value)} maxLength={80} />
 
       <label className="admin-label">Password d&apos;accesso soci</label>
       <input className="admin-input" value={passwordCircolo} onChange={(e) => setPasswordCircolo(e.target.value)} placeholder="es. esempio2026" />

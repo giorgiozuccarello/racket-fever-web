@@ -15,7 +15,7 @@ import { Sfida, ascoltaSfideCircolo, risolviTimerAccordo, risolviTimerPrenotazio
 import InstallPrompt from '../InstallPrompt';
 import SezionePassword from './SezionePassword';
 import SezioneCollaboratori from './SezioneCollaboratori';
-import SezionePersonalizzaApp from './SezionePersonalizzaApp';
+import SezionePersonalizzaApp, { SezioneBannerMarketing } from './SezionePersonalizzaApp';
 import SezioneCampi from './SezioneCampi';
 import SezioneTornei from './SezioneTornei';
 import SezioneBacheca from './SezioneBacheca';
@@ -190,6 +190,13 @@ export default function AdminDashboard() {
         </SezioneCollassabile>
         <SezioneCollassabile id="personalizza" titolo="Personalizza App" descrizione="Colori e logo dell'app mostrati ai soci">
           <SezionePersonalizzaApp circolo={circolo} />
+        </SezioneCollassabile>
+        <SezioneCollassabile
+          id="banner"
+          titolo="Banner Marketing"
+          descrizione="Gli sponsor che girano in Home e in Classifica"
+        >
+          <SezioneBannerMarketing circolo={circolo} />
         </SezioneCollassabile>
         <SezioneCollassabile id="password" titolo="Password Circolo" descrizione="Password che i soci usano per accedere">
           <SezionePassword circolo={circolo} />

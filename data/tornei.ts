@@ -162,7 +162,7 @@ export interface Torneo {
   // Dove si GIOCA, che e' un'altra cosa da `regioni` — quella dice
   // dove il torneo si VEDE. Facoltativa: i tornei pubblicati prima che
   // questo campo esistesse non ce l'hanno, e devono restare validi.
-  provincia?: string;
+  provincia?: string | null;
   note?: string;
   // L'ultimo giorno in cui la card si vede: fine del torneo piu' i
   // quindici di coda. E' scritto sul documento e non ricavato ogni
