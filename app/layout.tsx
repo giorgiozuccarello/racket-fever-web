@@ -16,9 +16,24 @@ const splineMono = Spline_Sans_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'Racket Fever — La piattaforma italiana per i circoli tennis',
+  // ⚠️ La descrizione diceva «Gratis per il circolo»: era il modello
+  // vecchio, e su una pagina indicizzata una frase sbagliata resta in
+  // giro molto dopo che il sito e' cambiato. Quello che va detto e' che
+  // e' gratis per CHI GIOCA.
+  title: 'Racket Fever — L\'app dei circoli tennis italiani',
   description:
-    "App e gestionale per circoli tennis: prenotazioni, tornei, community. Gratis per il circolo, un'app brandizzata per ogni club.",
+    'Prenotazioni, lezioni con il Maestro, sfide, tornei e bacheca del tuo circolo. '
+    + "Gratuita per chi gioca, con i colori e il logo del proprio club.",
+  metadataBase: new URL('https://racketfever.it'),
+  openGraph: {
+    type: 'website',
+    locale: 'it_IT',
+    siteName: 'Racket Fever',
+    title: 'Racket Fever — L\'app dei circoli tennis italiani',
+    description:
+      'Prenoti il campo, prendi lezione, sfidi un socio e segui i tornei. '
+      + 'Gratuita per chi gioca.',
+  },
   icons: {
     icon: '/icons/icon-192.png',
     apple: '/icons/icon-180.png',

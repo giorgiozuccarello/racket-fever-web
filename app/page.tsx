@@ -36,7 +36,7 @@ export default function Home() {
         <div className="nav-links">
           <a href="#circoli">Per i Circoli</a>
           <a href="#giocatori">Per i Giocatori</a>
-          <a href="#prezzi">Prezzi</a>
+          <a href="#prezzi">Quanto costa</a>
           <a href="#chisiamo">Chi Siamo</a>
           <Link className="btn btn-outline nav-login-btn" href="/admin">Accedi</Link>
           <a className="btn" href="#richiesta">Porta l&apos;app nel tuo circolo</a>
@@ -46,14 +46,14 @@ export default function Home() {
       <header className="hero" id="top">
         <div className="hero-grid">
           <div>
-            <div className="mono">Terra rossa · Prenotazioni · Tornei · Community</div>
+            <div className="mono">Terra rossa · Prenotazioni · Lezioni · Sfide · Tornei</div>
             <h1 className="display">
               Il tuo circolo,<br />nella tua <em>tasca</em>.
             </h1>
             <p className="lead">
-              Racket Fever è l&apos;app dei circoli tennis italiani: ogni socio vede l&apos;app con i
-              colori e il logo del proprio circolo. Prenota il campo, iscriviti ai tornei, resta in
-              contatto con la community.
+              Racket Fever è l&apos;app dei circoli tennis italiani, ed è <strong>gratuita per chi
+              gioca</strong>. Ogni socio la vede con i colori e il logo del proprio circolo: prenota
+              il campo, prende lezione dal Maestro, lancia una sfida, segue i tornei.
             </p>
             <div className="hero-cta">
               <a className="btn" href="#giocatori">Scarica l&apos;app</a>
@@ -84,9 +84,9 @@ export default function Home() {
       </header>
 
       <div className="strip">
-        <div><b>€4,99 / anno</b><small>Per il socio</small></div>
-        <div><b>Gratis</b><small>Per il circolo</small></div>
-        <div><b>Real-time</b><small>Disponibilità campi</small></div>
+        <div><b>Gratis</b><small>Per chi gioca</small></div>
+        <div><b>In tempo reale</b><small>Disponibilità dei campi</small></div>
+        <div><b>Su misura</b><small>Colori e logo del circolo</small></div>
       </div>
 
       <section id="circoli">
@@ -94,36 +94,37 @@ export default function Home() {
           <div className="eyebrow mono reveal">Per i Circoli</div>
           <h2 className="display reveal">Non un fornitore. Un sodalizio.</h2>
           <p className="sub reveal">
-            La piattaforma è gratuita per il circolo. In cambio, il circolo presenta l&apos;app ai
-            propri soci. Il nostro team vi affianca nella personalizzazione: logo, colori, campi e
-            servizi vengono configurati insieme, fin dal primo giorno.
+            Per i tuoi soci l&apos;app è gratuita: nessun abbonamento, niente da comprare dal
+            telefono. Il nostro team vi affianca nella personalizzazione — logo, colori, campi,
+            tariffe e Maestri vengono configurati insieme, fin dal primo giorno.
           </p>
 
           <div className="sodalizio reveal">
             <div className="noi">
-              <h3>Racket Fever offre</h3>
+              <h3>Racket Fever mette</h3>
               <ul>
-                <li>App personalizzata con logo e colori del circolo</li>
-                <li>Assistenza dedicata nel setup e nella customizzazione</li>
-                <li>Aggiornamenti continui e nuove funzionalità</li>
-                <li>Dashboard admin completa e facile da usare</li>
-                <li>Supporto tecnico diretto dal nostro team</li>
+                <li>L&apos;app con logo e colori del circolo, fra otto temi grafici</li>
+                <li>Pannello di gestione: campi, soci, ospiti, tessere, limiti e disdette</li>
+                <li>Area Maestro con agenda, lezioni e tariffe</li>
+                <li>Fino a dieci spazi per i vostri sponsor dentro l&apos;app</li>
+                <li>Onboarding assistito e supporto diretto dal nostro team</li>
+                <li>Aggiornamenti continui, senza che dobbiate fare niente</li>
               </ul>
             </div>
             <div className="voi">
-              <h3>Il circolo contribuisce</h3>
+              <h3>Il circolo mette</h3>
               <ul>
-                <li>Promozione attiva dell&apos;app ai propri soci</li>
-                <li>Raccolta dei feedback degli utenti</li>
-                <li>Testimonianza per far crescere la rete dei circoli</li>
-                <li>Fiducia nel brand verso i soci</li>
-                <li>Segnalazione tempestiva di problemi ed esigenze</li>
+                <li>La presentazione dell&apos;app ai propri soci</li>
+                <li>Campi, orari e anagrafiche tenuti aggiornati</li>
+                <li>I feedback di chi la usa tutti i giorni</li>
+                <li>La testimonianza che fa crescere la rete dei circoli</li>
+                <li>La segnalazione tempestiva di problemi ed esigenze</li>
               </ul>
             </div>
           </div>
 
           <div className="gratis reveal">
-            <strong>Zero costi per il circolo. Per sempre.</strong>
+            <strong>L&apos;app è gratuita per i tuoi soci. Del resto parliamo insieme.</strong>
             <a className="btn" style={{ background: 'var(--pino)' }} href="#richiesta">
               Richiedi l&apos;attivazione
             </a>
@@ -136,40 +137,56 @@ export default function Home() {
           <div className="eyebrow mono reveal">Per i Giocatori</div>
           <h2 className="display reveal">Tutto il circolo, in un&apos;app.</h2>
           <p className="sub reveal">
-            Scarichi l&apos;app, scegli il tuo circolo dalla lista, inserisci la password che ti dà
-            il circolo — e da quel momento l&apos;app è la vostra: colori, logo e campi del tuo club.
+            Scarichi l&apos;app — è gratuita — scegli il tuo circolo dalla lista, inserisci la
+            password che ti dà la segreteria: da quel momento l&apos;app è la vostra, con i colori,
+            il logo e i campi del tuo club.
           </p>
 
           <div className="feat reveal">
             <article>
               <div className="mono">Campi</div>
-              <h3>Prenotazione real-time</h3>
-              <p>Griglia settimanale con disponibilità aggiornata al secondo. Scegli campo, giorno e orario in tre tocchi.</p>
+              <h3>Prenoti in tempo reale</h3>
+              <p>Griglia del giorno con la disponibilità aggiornata al secondo. Scegli campo e orario, aggiungi chi gioca con te — soci o ospiti — e hai finito.</p>
             </article>
             <article>
-              <div className="mono">Competizione</div>
-              <h3>Tornei &amp; classifiche</h3>
-              <p>Iscriviti ai tornei interni, segui il tabellone e scala la classifica del tuo circolo.</p>
+              <div className="mono">Maestro</div>
+              <h3>Lezioni, senza telefonate</h3>
+              <p>Chiedi una lezione al Maestro dall&apos;app. Se quell&apos;ora non gli va bene te ne propone altre, e la chat resta lì fino a lezione fatta.</p>
+            </article>
+            <article>
+              <div className="mono">Sfide</div>
+              <h3>Sfide e classifica sociale</h3>
+              <p>Sfida un socio, giocate, e il risultato muove la classifica del circolo. Con le tue statistiche: ore giocate, partite, andamento.</p>
+            </article>
+            <article>
+              <div className="mono">Tornei</div>
+              <h3>Tornei del circolo e della rete</h3>
+              <p>Quelli di casa e quelli degli altri circoli, filtrati per regione, provincia e periodo. Un tocco e sei sulla pagina di iscrizione.</p>
+            </article>
+            <article>
+              <div className="mono">Bacheca</div>
+              <h3>La bacheca del circolo</h3>
+              <p>Avvisi, chiusure dei campi, quote, volantini dei tornei. Quello che prima stava appeso in segreteria, in tasca.</p>
             </article>
             <article>
               <div className="mono">Community</div>
               <h3>Chat del circolo</h3>
-              <p>Chat di gruppo e messaggi diretti: trova un avversario per stasera in un minuto.</p>
+              <p>Chat di gruppo e messaggi diretti: trovi un avversario per stasera in un minuto.</p>
             </article>
             <article>
-              <div className="mono">Progressi</div>
-              <h3>Statistiche personali</h3>
-              <p>Ore giocate, storico prenotazioni e livello di gioco, sempre a portata di mano.</p>
+              <div className="mono">Portafoglio</div>
+              <h3>Il tuo credito, sempre in chiaro</h3>
+              <p>Quanto hai, quanto hai speso e per cosa. Il credito lo carica la segreteria del circolo: nell&apos;app non si compra niente.</p>
             </article>
             <article>
-              <div className="mono">Avvisi</div>
-              <h3>Notifiche push</h3>
-              <p>Conferme di prenotazione, convocazioni ai tornei e comunicazioni del circolo.</p>
+              <div className="mono">Promemoria</div>
+              <h3>Ti ricorda quando giochi</h3>
+              <p>Due giorni prima, il giorno prima, e l&apos;ultima ora utile per disdire senza penalità. Arrivano da soli, anche se non apri l&apos;app.</p>
             </article>
             <article>
               <div className="mono">Identità</div>
               <h3>L&apos;app del tuo club</h3>
-              <p>Logo, colori e informazioni del tuo circolo: un&apos;app che sembra fatta apposta per voi. Perché lo è.</p>
+              <p>Logo, colori e informazioni del tuo circolo, fra otto temi grafici: un&apos;app che sembra fatta apposta per voi. Perché lo è.</p>
             </article>
           </div>
         </div>
@@ -177,32 +194,36 @@ export default function Home() {
 
       <section id="prezzi">
         <div className="wrap">
-          <div className="eyebrow mono reveal">Prezzi</div>
-          <h2 className="display reveal">Meno di un tubo di palline.</h2>
-          <p className="sub reveal">Un unico prezzo, trasparente, per un anno intero di gioco organizzato.</p>
+          <div className="eyebrow mono reveal">Quanto costa</div>
+          <h2 className="display reveal">Per chi gioca, niente.</h2>
+          <p className="sub reveal">
+            L&apos;app si scarica e si usa gratis. Non c&apos;è un abbonamento, non c&apos;è niente
+            da comprare dentro l&apos;app: il socio pensa a giocare.
+          </p>
 
           <div className="prezzi-grid reveal">
             <div className="card-prezzo evidenza">
               <div className="mono" style={{ color: 'var(--terra-chiara)' }}>Socio / Giocatore</div>
-              <div className="prezzo display">€4,99 <small>/ anno</small></div>
+              <div className="prezzo display">Gratis</div>
               <ul>
-                <li>Prenotazione campi illimitata</li>
-                <li>Tornei, classifiche e statistiche</li>
-                <li>Chat community del circolo</li>
-                <li>Notifiche push</li>
-                <li>Rinnovo automatico, disdici quando vuoi</li>
+                <li>Prenotazione dei campi senza limiti</li>
+                <li>Lezioni con il Maestro del circolo</li>
+                <li>Sfide, classifica sociale e statistiche</li>
+                <li>Tornei del circolo e di tutta la rete</li>
+                <li>Bacheca, chat e promemoria automatici</li>
+                <li>Nessun abbonamento, nessun acquisto nell&apos;app</li>
               </ul>
-              <a className="btn" href="#giocatori">Scarica e attiva</a>
+              <a className="btn" href="#giocatori">Guarda cosa ci trovi</a>
             </div>
             <div className="card-prezzo">
               <div className="mono" style={{ color: 'var(--terra)' }}>Circolo</div>
-              <div className="prezzo display">Gratis</div>
+              <div className="prezzo display">Parliamone</div>
               <ul>
-                <li>App brandizzata per i tuoi soci</li>
-                <li>Pannello admin: campi, soci, tornei, avvisi</li>
-                <li>Onboarding assistito dal nostro team</li>
-                <li>Supporto tecnico dedicato</li>
-                <li>Nessun vincolo, nessun canone</li>
+                <li>App con il logo e i colori del circolo</li>
+                <li>Gestione di campi, soci, ospiti, Maestri e tornei</li>
+                <li>Spazi per i vostri sponsor dentro l&apos;app</li>
+                <li>Onboarding assistito e supporto diretto</li>
+                <li>Condizioni concordate insieme, sul vostro circolo</li>
               </ul>
               <a className="btn" href="#richiesta">Attiva il tuo circolo</a>
             </div>
@@ -222,7 +243,8 @@ export default function Home() {
           <p className="reveal">
             Il primo circolo pilota è l&apos;ASD Tennis Milazzo, in Sicilia. Da lì costruiamo, un
             circolo alla volta, la rete dei club tennis italiani — con la cura artigianale di chi il
-            circolo lo vive davvero.
+            circolo lo vive davvero. Ogni cosa che trovi nell&apos;app è nata da una richiesta di un
+            presidente, di un Maestro o di un socio: nessuna è stata inventata a tavolino.
           </p>
         </div>
       </section>
@@ -239,8 +261,8 @@ export default function Home() {
               </span>
             </div>
             <p style={{ fontSize: '.88rem', opacity: 0.7, maxWidth: '26rem' }}>
-              La piattaforma italiana per i circoli tennis. App brandizzata per i soci, gestione
-              completa per il circolo.
+              La piattaforma italiana per i circoli tennis. Gratuita per chi gioca, con l&apos;app
+              vestita dei colori del proprio circolo e la gestione completa per chi lo manda avanti.
             </p>
           </div>
           <div>
@@ -248,7 +270,7 @@ export default function Home() {
             <ul>
               <li><a href="#circoli">Per i Circoli</a></li>
               <li><a href="#giocatori">Per i Giocatori</a></li>
-              <li><a href="#prezzi">Prezzi</a></li>
+              <li><a href="#prezzi">Quanto costa</a></li>
               <li><a href="#">Blog / News</a></li>
             </ul>
           </div>
