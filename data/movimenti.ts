@@ -405,6 +405,24 @@ export async function creaAperturePerCircolo(circoloId: string): Promise<number>
   let create = 0;
   for (const d of snap.docs) {
     const v = d.data();
+    // ============================================================
+    // ⚠️ SOLO CHI FA ANCORA PARTE DEL CIRCOLO. Qui si apriva una riga
+    // per OGNI tessera trovata, e le tessere non si cancellano mai: chi
+    // e' stato rimosso dal circolo, chi si e' cancellato l'account, chi
+    // era stato rifiutato e perfino chi ha una richiesta ancora in
+    // attesa avevano tutti la loro. Dopo un Reset Completo Soci il
+    // registro appena riaperto elencava dodici portafogli mentre nella
+    // sezione Soci ce n'erano due — e i dieci di troppo erano persone
+    // che dal circolo erano uscite, alcune con il nome gia'
+    // anonimizzato in «Socio rimosso».
+    //
+    // ⚠️ 'sospesa' RESTA DENTRO, e non e' una dimenticanza: un socio
+    // sospeso e' ancora tesserato, il suo credito e' ancora denaro del
+    // circolo, e lasciarlo fuori dal registro vorrebbe dire aprire i
+    // conti nascondendo un saldo che esiste.
+    // ============================================================
+    const stato = v.stato as string | undefined;
+    if (stato !== 'approvata' && stato !== 'sospesa') continue;
     const credito = (v.credito as number) ?? 0;
     const debito = (v.sosUtilizzato as number) ?? 0;
     try {
