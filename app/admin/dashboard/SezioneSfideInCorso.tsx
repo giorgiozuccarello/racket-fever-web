@@ -149,12 +149,29 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo }: { sfide: S
     if (!daConcludere) return;
     setAnnullando(true);
     try {
-      await annullaSfida(daConcludere);
+      const esito = await annullaSfida(daConcludere);
       setConfermaAnnullaAperta(false);
       setDaConcludere(null);
-      setAnnullamentoFatto(true);
-    } catch {
-      alert('Errore di connessione. Riprova.');
+      if (esito.giaAnnullata) {
+        alert('Questa sfida era già stata annullata.');
+      } else if (esito.oreVere > 0) {
+        // Annullare la sfida non rimborsa la partita: le ore già
+        // pagate restano sulla griglia come prenotazioni normali.
+        alert(
+          `Sfida annullata. Restano ${esito.oreVere} ${esito.oreVere === 1 ? 'ora già prenotata e pagata' : 'ore già prenotate e pagate'}: `
+          + 'ora sono prenotazioni normali, cancellale dalla griglia se vanno tolte.',
+        );
+      } else {
+        setAnnullamentoFatto(true);
+      }
+    } catch (e: any) {
+      // ⚠️ Non più un catch cieco: era lui a chiamare «errore di
+      // connessione» un rifiuto dei permessi.
+      alert(
+        e?.code === 'functions/permission-denied'
+          ? 'Non hai i permessi per annullare questa sfida.'
+          : `Non sono riuscito ad annullare la sfida. ${e?.message ?? ''}`.trim(),
+      );
     } finally {
       setAnnullando(false);
     }
@@ -193,9 +210,22 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo }: { sfide: S
       return 'Trattativa in chat, nessuno ha ancora risposto';
     }
     if (sf.fase === 'prenotazione') {
-      if (sf.propostaAccettata) return 'Proposta accettata — in attesa della conferma finale';
-      if (sf.proposta) return 'Proposta formale inviata, in attesa di risposta';
-      return 'Accordo trovato, in attesa di una proposta formale';
+      // ⚠️ RISCRITTO SULLA TRATTATIVA NUOVA. Diceva «in attesa della
+      // conferma finale» di un passaggio che non esiste piu': chi
+      // sceglie prenota, e non c'e' nessuna conferma dopo. Una riga di
+      // stato che descrive un meccanismo smontato manda l'Admin a
+      // cercare al telefono un socio che non deve fare niente.
+      const quante = (sf.orariProposti ?? []).length;
+      if (sf.propostaDi === 'sfidante') {
+        return `Lo Sfidante ha proposto ${quante} mezz’ore — tocca allo Sfidato scegliere o controproporre`;
+      }
+      if (sf.propostaDi === 'sfidato') {
+        return `Lo Sfidato ha proposto ${quante} mezz’ore — tocca allo Sfidante scegliere o controproporre`;
+      }
+      // Le sfide nate prima della trattativa a lista.
+      if (sf.propostaAccettata) return 'Proposta accettata (vecchio meccanismo) — in attesa della conferma';
+      if (sf.proposta) return 'Proposta formale inviata (vecchio meccanismo), in attesa di risposta';
+      return 'Accordo trovato, in attesa che lo Sfidante proponga gli orari';
     }
     return '';
   };

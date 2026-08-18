@@ -87,7 +87,7 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
     setErroreReset('');
     setResettando(true);
     try {
-      await resettaSfideTest(circolo.id, sfide);
+      await resettaSfideTest(circolo.id);
       setConfermaResetAperta(false);
     } catch (e: unknown) {
       setErroreReset(e instanceof Error ? e.message : 'Errore sconosciuto — controlla la connessione e riprova.');

@@ -25,6 +25,7 @@ import { httpsCallable } from 'firebase/functions';
 import { creaAperturePerCircolo } from './movimenti';
 import { raggruppaConsecutive } from './raggruppamento';
 import { chiudiConversazioneLezione } from './conversazioneLezione';
+import { resettaSfideTest } from './sfide';
 
 export type StatoTessera = 'in_attesa' | 'approvata' | 'sospesa' | 'chiusa' | 'rifiutata';
 
@@ -595,16 +596,29 @@ export async function resettaSociTest(circoloId: string): Promise<{
     }
   }
 
-  // Quinto passo: le sfide. Le loro prenotazioni sono gia' state
-  // cancellate al secondo passo, qui restano i documenti sfida.
+  // ============================================================
+  // Quinto passo: le sfide.
+  //
+  // ⚠️ QUI SI CANCELLAVANO A MANO, ED ERA UNA FABBRICA DI RIFIUTI. Il
+  // `deleteDoc` portava via il documento della sfida e lasciava dentro
+  // la sottocollezione `messaggi` — e la regola che permette di
+  // cancellare un messaggio legge il documento della sfida per sapere
+  // chi comanda. Senza piu' quel documento, quelle chat non le poteva
+  // togliere piu' nessun client: restavano in Firestore per sempre,
+  // invisibili, dopo OGNI «Reset Completo Soci». L'unica traccia era
+  // un avviso in console che non guardava nessuno.
+  //
+  // Adesso passa dalla stessa Cloud Function di «Reset Sfide», che con
+  // l'Admin SDK svuota chat e segnaposto prima di togliere la sfida.
+  // Due pulsanti vicini che facevano la stessa cosa in due modi
+  // diversi, e uno dei due sbagliato, sono un difetto in se'.
+  // ============================================================
   let sfideCancellate = 0;
   try {
-    const snap = await getDocs(query(collection(db, 'sfide'), where('circoloId', '==', circoloId)));
-    for (const d of snap.docs) {
-      try { await deleteDoc(d.ref); sfideCancellate++; } catch (e) { console.warn('Sfida non cancellata:', d.id, e); }
-    }
+    const r = await resettaSfideTest(circoloId);
+    sfideCancellate = r.cancellate;
   } catch (e) {
-    console.warn('Sfide non lette durante il reset:', e);
+    console.warn('Sfide non azzerate durante il reset:', e);
   }
 
   const aperture = await creaAperturePerCircolo(circoloId);

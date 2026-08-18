@@ -20,8 +20,11 @@ export default function SezioneTestReset({ circolo, sfide }: { circolo: Circolo;
   const resetSfide = async () => {
     setErrore(''); setResettando(true);
     try {
-      await resettaSfideTest(circolo.id, sfide);
-      setEsito('Sfide azzerate — puoi ripartire con i test.');
+      const r = await resettaSfideTest(circolo.id);
+      setEsito(
+        `Sfide azzerate: ${r.cancellate} cancellate, con le loro chat e le ore bloccate sulla griglia.`
+        + (r.fallite > 0 ? ` ⚠️ ${r.fallite} non si sono potute cancellare: riprova.` : ''),
+      );
       setConfermaSfide(false);
     } catch (e: any) {
       setErrore(e?.message ?? 'Errore sconosciuto — controlla la connessione e riprova.');
