@@ -1,19 +1,9 @@
 import type { Metadata } from 'next';
-import { Archivo, Spline_Sans_Mono } from 'next/font/google';
 import './globals.css';
 
-const archivo = Archivo({
-  subsets: ['latin'],
-  variable: '--font-archivo',
-  display: 'swap',
-});
+const archivo = { variable: '' } as any;
 
-const splineMono = Spline_Sans_Mono({
-  subsets: ['latin'],
-  weight: ['400', '500'],
-  variable: '--font-spline-mono',
-  display: 'swap',
-});
+const splineMono = { variable: '' } as any;
 
 export const metadata: Metadata = {
   // ⚠️ La descrizione diceva «Gratis per il circolo»: era il modello

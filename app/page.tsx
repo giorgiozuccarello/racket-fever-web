@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { REGIONI_ITALIA, provinceDi } from '../data/tornei';
 import { db } from '../lib/firebase';
 
 export default function Home() {
@@ -278,6 +279,7 @@ export default function Home() {
             <h4>Contatti</h4>
             <ul>
               <li><a href="mailto:info@racketfever.com">info@racketfever.com</a></li>
+              <li><a href="/cancellazione-account">Cancellazione account</a></li>
               <li><a href="#">Press kit</a></li>
               <li><a href="#">Privacy</a></li>
               <li><a href="#">Termini di servizio</a></li>
@@ -293,19 +295,65 @@ export default function Home() {
   );
 }
 
+// ============================================================
+// LA RICHIESTA DI ATTIVAZIONE — senza campi liberi da riempire.
+//
+// ⚠️ IL TESTO LIBERO E' STATO TOLTO, e non per semplificare il modulo:
+// e' che un campo libero su una pagina pubblica, senza accesso, e' uno
+// spazio pubblicitario gratuito — e infatti sono arrivate le prime
+// richieste di spam. Un filtro sarebbe stato una rincorsa; togliendo
+// il campo, uno spam non ha piu' dove mettere il suo messaggio e il
+// suo link, quindi non conviene piu' mandarlo. E' lo stesso
+// ragionamento fatto per le chat fra soci.
+//
+// Restano liberi solo i tre dati che sono nomi propri e non si possono
+// mettere in un elenco: il nome del circolo, il nome del referente e
+// l'email. Su quelli le regole impongono una lunghezza e rifiutano
+// qualunque cosa contenga un indirizzo web — un nome di circolo con
+// dentro un link non e' un nome di circolo.
+//
+// Regione e provincia sono menu: l'elenco completo ce l'abbiamo gia'
+// dal lavoro sui tornei e sui banner di rete, e cosi' l'anagrafica
+// arriva gia' pulita invece di essere verificata a mano dopo.
+// ============================================================
+const RUOLI_RICHIESTA = ['Presidente', 'Direttore', 'Segreteria', 'Maestro', 'Altro'];
+
 function RichiestaForm() {
   const [nome, setNome] = useState('');
-  const [citta, setCitta] = useState('');
+  const [referente, setReferente] = useState('');
+  const [ruolo, setRuolo] = useState(RUOLI_RICHIESTA[0]);
+  const [regione, setRegione] = useState('');
+  const [provincia, setProvincia] = useState('');
   const [email, setEmail] = useState('');
-  const [messaggio, setMessaggio] = useState('');
+  const [telefono, setTelefono] = useState('');
+  const [contattami, setContattami] = useState(false);
+  // ⚠️ IL CAMPO CHE NON SI VEDE. Sta fuori schermo e non ha etichetta,
+  // quindi una persona non lo trova nemmeno volendo; i programmi che
+  // compilano moduli in automatico invece riempiono tutto quello che
+  // trovano. Se arriva pieno, la richiesta non parte — e non si dice
+  // niente a chi l'ha mandata, perche' dirglielo sarebbe insegnargli
+  // come aggirarlo.
+  const [esca, setEsca] = useState('');
   const [inviando, setInviando] = useState(false);
   const [inviato, setInviato] = useState(false);
   const [errore, setErrore] = useState('');
 
+  // ⚠️ `provinceDi` e non l'elenco a mano: quando una regione non ha
+  // province quella funzione ricade su tutte e centosette, «perche' un
+  // elenco vuoto sembrerebbe un guasto». Con la ricaduta opposta — un
+  // menu vuoto su un campo obbligatorio — il modulo sarebbe diventato
+  // impossibile da inviare, senza nessun messaggio che lo spiegasse.
+  const province = regione ? provinceDi(regione) : [];
+
   const invia = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!nome.trim() || !citta.trim() || !email.trim()) {
-      setErrore('Compila almeno nome del circolo, città ed email.');
+    if (esca.trim()) { setInviato(true); return; }
+    if (!nome.trim() || !referente.trim() || !email.trim() || !regione || !provincia) {
+      setErrore('Compila il nome del circolo, il referente, l’email e la zona.');
+      return;
+    }
+    if (!contattami) {
+      setErrore('Spunta «Voglio essere contattato» per inviare la richiesta.');
       return;
     }
     setErrore('');
@@ -316,9 +364,13 @@ function RichiestaForm() {
       // "richieste_attivazione", scrittura pubblica, lettura solo Super Admin).
       await addDoc(collection(db, 'richieste_attivazione'), {
         nomeCircolo: nome.trim(),
-        citta: citta.trim(),
+        referente: referente.trim(),
+        ruolo,
+        regione,
+        provincia,
         email: email.trim(),
-        messaggio: messaggio.trim(),
+        telefono: telefono.trim(),
+        contattami: true,
         stato: 'nuova',
         creataIl: serverTimestamp(),
       });
@@ -347,16 +399,59 @@ function RichiestaForm() {
           <form className="form-box reveal" onSubmit={invia}>
             <label htmlFor="nome">Nome del circolo</label>
             <input id="nome" type="text" placeholder="ASD Tennis Milazzo" value={nome} onChange={(e) => setNome(e.target.value)} maxLength={120} required />
-            <label htmlFor="citta">Città</label>
-            <input id="citta" type="text" placeholder="Milazzo (ME)" value={citta} onChange={(e) => setCitta(e.target.value)} maxLength={120} required />
-            <label htmlFor="email">Email del responsabile</label>
+
+            <label htmlFor="referente">Chi sei</label>
+            <input id="referente" type="text" placeholder="Nome e cognome" value={referente} onChange={(e) => setReferente(e.target.value)} maxLength={80} required />
+
+            <label htmlFor="ruolo">Il tuo ruolo nel circolo</label>
+            <select id="ruolo" value={ruolo} onChange={(e) => setRuolo(e.target.value)}>
+              {RUOLI_RICHIESTA.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+
+            <label htmlFor="regione">Regione</label>
+            <select
+              id="regione" value={regione} required
+              onChange={(e) => { setRegione(e.target.value); setProvincia(''); }}
+            >
+              <option value="">Scegli la regione…</option>
+              {REGIONI_ITALIA.map((r) => <option key={r} value={r}>{r}</option>)}
+            </select>
+
+            <label htmlFor="provincia">Provincia</label>
+            <select
+              id="provincia" value={provincia} required disabled={!regione}
+              onChange={(e) => setProvincia(e.target.value)}
+            >
+              <option value="">{regione ? 'Scegli la provincia…' : 'Scegli prima la regione'}</option>
+              {province.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+
+            <label htmlFor="email">Email</label>
             <input id="email" type="email" placeholder="presidente@circolo.it" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={200} required />
-            <label htmlFor="msg">Raccontaci il vostro circolo</label>
-            <textarea
-              id="msg" rows={4}
-              placeholder="Quanti campi avete? Quanti soci? Come gestite oggi le prenotazioni?"
-              value={messaggio} onChange={(e) => setMessaggio(e.target.value)} maxLength={2000}
+
+            <label htmlFor="tel">Telefono (facoltativo, ma è la via più rapida)</label>
+            <input
+              id="tel" type="tel" inputMode="tel" placeholder="333 1234567"
+              value={telefono} maxLength={25}
+              onChange={(e) => setTelefono(e.target.value.replace(/[^0-9+\s]/g, ''))}
             />
+
+            {/* L'esca per i programmi automatici: fuori schermo, senza
+                etichetta e senza tabulazione. Una persona non la trova. */}
+            <input
+              type="text" value={esca} onChange={(e) => setEsca(e.target.value)}
+              tabIndex={-1} autoComplete="off" aria-hidden="true"
+              style={{ position: 'absolute', left: '-9999px', width: 1, height: 1, opacity: 0 }}
+            />
+
+            <label className="form-consenso">
+              <input
+                type="checkbox" checked={contattami}
+                onChange={(e) => setContattami(e.target.checked)}
+              />
+              <span>Voglio essere contattato da Racket Fever per l’attivazione del circolo.</span>
+            </label>
+
             {errore && <p style={{ color: '#B3261E', fontSize: '.85rem', marginTop: '.8rem' }}>{errore}</p>}
             <button className="btn" type="submit" disabled={inviando}>
               {inviando ? 'Invio in corso…' : 'Invia la richiesta'}

@@ -12,7 +12,8 @@ import {
   collection, doc, getDoc, setDoc, onSnapshot, updateDoc, addDoc, deleteDoc, query, orderBy,
   where, getDocs, writeBatch,
 } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { db, functions } from '../lib/firebase';
+import { httpsCallable } from 'firebase/functions';
 import { Circolo, Campo, Blocco, StatoCircolo, statoCircolo } from './circoli';
 
 function suUnsub(errore: any) {
@@ -49,7 +50,13 @@ export function ascoltaCircolo(circoloId: string, callback: (c: Circolo | null) 
 // macchina a stati qui sotto. Il compilatore fa la stessa guardia che
 // fanno le regole Firestore, ma la fa a chi scrive il codice.
 export type CampiCircoloModificabili = Partial<Omit<Circolo,
-  'id' | 'stato' | 'creatoIlMs' | 'sospesoIlMs' | 'chiusoIlMs'>>;
+  // ⚠️ Fuori anche i campi di rete: geografia e approvazione
+  // automatica li scrive solo il Super Admin, e le regole li
+  // respingono (vedi campiDiRete in firestore.rules). Tenendoli qui
+  // dentro, il codice dell'Admin compilava benissimo e si prendeva un
+  // «permesso negato» opaco a runtime.
+  'id' | 'stato' | 'creatoIlMs' | 'sospesoIlMs' | 'chiusoIlMs'
+  | 'regione' | 'provincia' | 'comune' | 'approvazioneAutomatica'>>;
 
 export async function aggiornaCircolo(circoloId: string, dati: CampiCircoloModificabili) {
   await updateDoc(doc(db, 'circoli', circoloId), dati as any);
@@ -157,6 +164,33 @@ export async function chiudiCircolo(circoloId: string) {
     stato: 'chiuso' as StatoCircolo,
     chiusoIlMs: Date.now(),
   });
+}
+
+// ============================================================
+// ELIMINARE UN CIRCOLO — per davvero, e non e' «chiudi».
+//
+// ⚠️ CHIUDERE E ELIMINARE SONO DUE COSE DIVERSE. «Chiudi» mette lo
+// stato a 'chiuso' e lascia tutto dov'e': e' quello che serve per un
+// club che smette, perche' i conti restano consultabili e una
+// riattivazione e' possibile. Questa invece porta via i dati e non
+// torna indietro: serve a ripulire i circoli di prova prima di andare
+// sugli store. Su un circolo vero non si usa.
+//
+// Il lavoro lo fa una Cloud Function: da qui non si potrebbe fare
+// nemmeno volendo, perche' significa cancellare tessere, movimenti e
+// accessi di altre persone.
+export async function eliminaCircoloDefinitivo(
+  circoloId: string, confermaNome: string, ancheAccessi: boolean,
+): Promise<{ nome: string; accessiRimossi: number }> {
+  const chiama = httpsCallable(functions, 'eliminaCircolo', { timeout: 540000 });
+  const esito = await chiama({ circoloId, confermaNome, ancheAccessi });
+  return esito.data as { nome: string; accessiRimossi: number };
+}
+
+// L'interruttore dell'approvazione automatica. Sta fra i campi di rete
+// nelle regole, quindi lo puo' scrivere solo il Super Admin.
+export async function impostaApprovazioneAutomatica(circoloId: string, attiva: boolean): Promise<void> {
+  await updateDoc(doc(db, 'circoli', circoloId), { approvazioneAutomatica: attiva });
 }
 
 // I campi anagrafici che il Super Admin puo' correggere dalla scheda.

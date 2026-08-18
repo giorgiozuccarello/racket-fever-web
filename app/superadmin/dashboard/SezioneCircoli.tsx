@@ -20,6 +20,7 @@ import { REGIONI_ITALIA, provinceDi } from '../../../data/tornei';
 import {
   ascoltaCircoli, aggiornaAnagraficaCircolo, AnagraficaCircolo,
   sospendiCircolo, riattivaCircolo, chiudiCircolo,
+  eliminaCircoloDefinitivo, impostaApprovazioneAutomatica,
 } from '../../../data/circoliRepo';
 import SchedaCircoloVista from './SchedaCircoloVista';
 
@@ -84,6 +85,13 @@ export default function SezioneCircoli() {
   const [esito, setEsito] = useState('');
   const [errore, setErrore] = useState('');
   const [conferma, setConferma] = useState<'sospendi' | 'riattiva' | 'chiudi' | null>(null);
+  // L'eliminazione vera ha una finestra sua, perche' chiede di
+  // ricopiare il nome: mescolarla con le altre conferme avrebbe voluto
+  // dire un modulo dentro una finestra che di solito non ne ha.
+  const [eliminando, setEliminando] = useState(false);
+  const [nomeScritto, setNomeScritto] = useState('');
+  const [ancheAccessi, setAncheAccessi] = useState(false);
+  const [inCancellazione, setInCancellazione] = useState(false);
   const [ricerca, setRicerca] = useState('');
 
   useEffect(() => ascoltaCircoli(setCircoli), []);
@@ -408,6 +416,99 @@ export default function SezioneCircoli() {
             dati restano scritti — prenotazioni, movimenti e tessere continuano ad avere un
             circolo a cui riferirsi.
           </p>
+        )}
+
+        <div className="superadmin-subtitolo">Circolo dimostrativo</div>
+        <p className="admin-card-hint">
+          Con l&apos;approvazione automatica accesa, chi chiede di entrare in questo circolo viene
+          ammesso all&apos;istante, senza che nessuno tocchi «Approva». Serve per i revisori di
+          Google e Apple, che aprono l&apos;app quando vogliono loro e non hanno nessuno dall&apos;altra
+          parte ad aspettarli. ⚠️ Su un circolo vero non va accesa mai: da quando non c&apos;è più
+          la password d&apos;ingresso, l&apos;approvazione a mano è l&apos;unica porta che ha.
+        </p>
+        <button
+          className={aperto.approvazioneAutomatica ? 'admin-btn-full admin-btn-danger' : 'admin-btn-full'}
+          onClick={async () => {
+            try {
+              await impostaApprovazioneAutomatica(aperto.id, !aperto.approvazioneAutomatica);
+            } catch {
+              setErrore('Non sono riuscito a cambiare l’approvazione automatica.');
+            }
+          }}
+        >
+          {aperto.approvazioneAutomatica
+            ? 'Approvazione automatica ACCESA — spegnila'
+            : 'Accendi l’approvazione automatica'}
+        </button>
+
+        <div className="superadmin-subtitolo">Eliminazione definitiva</div>
+        <p className="admin-card-hint">
+          Diversa da «Chiudi»: qui spariscono i <strong>dati</strong> — tessere, prenotazioni,
+          movimenti, sfide, lezioni, bacheca, tornei, campi, immagini. Serve a ripulire i circoli
+          di prova. Gli account dei soci non vengono toccati: sparisce solo la loro tessera con
+          questo circolo, perché possono essere soci anche altrove.
+        </p>
+        <button className="admin-btn-full admin-btn-danger" onClick={() => { setEliminando(true); setNomeScritto(''); setAncheAccessi(false); }}>
+          Elimina definitivamente
+        </button>
+
+        {eliminando && (
+          <div className="admin-modal-backdrop" onClick={() => !inCancellazione && setEliminando(false)}>
+            <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
+              <div className="admin-modal-title">Eliminare {aperto.nome}?</div>
+              <p className="admin-modal-sub">
+                Spariscono tutti i dati di questo circolo e non si torna indietro. Per confermare,
+                riscrivi il nome esatto del circolo.
+              </p>
+              <input
+                className="admin-input"
+                value={nomeScritto}
+                onChange={(e) => setNomeScritto(e.target.value)}
+                placeholder={aperto.nome}
+                disabled={inCancellazione}
+              />
+              <label className="admin-card-hint" style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginTop: '.6rem' }}>
+                <input
+                  type="checkbox"
+                  checked={ancheAccessi}
+                  onChange={(e) => setAncheAccessi(e.target.checked)}
+                  disabled={inCancellazione}
+                />
+                <span>
+                  Cancella anche gli accessi di Admin e Maestri di questo circolo (libera le loro
+                  email per riusarle). Senza la spunta restano, ma non appartengono più a nessun circolo.
+                </span>
+              </label>
+              <div className="admin-modal-btn-row">
+                <button
+                  className="admin-modal-btn-cancel"
+                  onClick={() => setEliminando(false)}
+                  disabled={inCancellazione}
+                >
+                  Indietro
+                </button>
+                <button
+                  className="admin-modal-btn-confirm danger"
+                  disabled={inCancellazione || nomeScritto.trim().toLowerCase() !== aperto.nome.trim().toLowerCase()}
+                  onClick={async () => {
+                    setInCancellazione(true);
+                    setErrore('');
+                    try {
+                      await eliminaCircoloDefinitivo(aperto.id, nomeScritto, ancheAccessi);
+                      setEliminando(false);
+                      chiudiScheda();
+                    } catch (e: any) {
+                      setErrore(e?.message ?? 'Non sono riuscito a eliminare il circolo.');
+                    } finally {
+                      setInCancellazione(false);
+                    }
+                  }}
+                >
+                  {inCancellazione ? 'Elimino…' : 'Elimina tutto'}
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {conferma && (

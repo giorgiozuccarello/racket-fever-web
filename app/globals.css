@@ -170,7 +170,28 @@ h2.display{font-size:clamp(1.9rem,4.5vw,3.2rem);margin-bottom:1rem;max-width:22c
   width:100%;padding:.85rem 1rem;font-family:var(--font-archivo),sans-serif;font-size:.95rem;
   border:2px solid var(--pino);background:var(--carta);color:var(--inchiostro);
 }
-.form-box input:focus,.form-box textarea:focus{outline:3px solid var(--terra-chiara);outline-offset:1px}
+/* I menu a tendina del modulo di attivazione: stesso bordo e stesso
+   corpo delle caselle di testo, o accanto a quelle sembrerebbero un
+   pezzo di un'altra pagina. `appearance:none` toglie lo stile del
+   sistema operativo, che su Windows e su Mac e' diverso. */
+.form-box select{
+  width:100%;padding:.85rem 1rem;font-family:var(--font-archivo),sans-serif;font-size:.95rem;
+  border:2px solid var(--pino);background:var(--carta);color:var(--inchiostro);
+  appearance:none;-webkit-appearance:none;border-radius:0;cursor:pointer;
+  background-image:linear-gradient(45deg,transparent 50%,var(--pino) 50%),linear-gradient(135deg,var(--pino) 50%,transparent 50%);
+  background-position:calc(100% - 20px) calc(1.3rem),calc(100% - 14px) calc(1.3rem);
+  background-size:6px 6px,6px 6px;background-repeat:no-repeat;
+}
+.form-box select:disabled{opacity:.5;cursor:not-allowed}
+.form-box input:focus,.form-box textarea:focus,.form-box select:focus{outline:3px solid var(--terra-chiara);outline-offset:1px}
+/* La riga del consenso non e' un'etichetta di campo: va letta come una
+   frase, quindi niente maiuscoletto e niente spaziatura da etichetta. */
+.form-box label.form-consenso{
+  display:flex;gap:.6rem;align-items:flex-start;margin:1.4rem 0 0;
+  font-family:var(--font-archivo),sans-serif;font-size:.92rem;letter-spacing:normal;
+  text-transform:none;color:var(--inchiostro);cursor:pointer;line-height:1.45;
+}
+.form-box label.form-consenso input{width:auto;margin-top:.15rem;accent-color:var(--pino)}
 .form-box .btn{margin-top:1.6rem;width:100%;padding:1rem;font-size:1rem}
 .form-ok{border:3px solid var(--pino);padding:2rem;text-align:center;margin-top:1.5rem}
 

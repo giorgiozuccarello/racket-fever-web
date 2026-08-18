@@ -1,10 +1,11 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   creaCircoloConAdmin, ONBOARDING_ACCOUNT_ORFANO, ONBOARDING_CIRCOLO_SENZA_ADMIN,
 } from '../../../data/onboarding';
 import { REGIONI_ITALIA, provinceDi } from '../../../data/tornei';
+import { ascoltaRichieste, RichiestaAttivazione } from '../../../data/richiesteAttivazione';
 
 interface Credenziali {
   nomeCircolo: string;
@@ -29,6 +30,42 @@ export default function SezioneOnboarding() {
   const [creando, setCreando] = useState(false);
   const [successo, setSuccesso] = useState<Credenziali | null>(null);
 
+  // ============================================================
+  // DA QUALE RICHIESTA NASCE QUESTO CIRCOLO.
+  //
+  // ⚠️ IL COLLEGAMENTO NON ESISTEVA, e senza di lui due cose non
+  // funzionavano affatto. Il codice per scriverlo c'era — l'onboarding
+  // accetta un `richiestaId` da sempre — ma nessuna schermata glielo
+  // passava, quindi: nessuna richiesta e' mai passata da sola allo
+  // stato «attivata» (restavano tutte «nuova» finche' qualcuno non
+  // cliccava a mano), e l'eliminazione di un circolo non poteva
+  // portarsi via la richiesta da cui era nato, perche' il filo per
+  // trovarla non era mai stato annodato.
+  // ============================================================
+  const [richieste, setRichieste] = useState<RichiestaAttivazione[]>([]);
+  const [richiestaId, setRichiestaId] = useState('');
+  useEffect(() => ascoltaRichieste(setRichieste), []);
+  const daContattare = richieste.filter((r) => r.stato === 'nuova');
+
+  // Scegliendo la richiesta il modulo si riempie da solo con quello che
+  // il circolo ha gia' scritto: e' anche il modo di non ribattere a
+  // mano un'anagrafica che e' gia' arrivata giusta, visto che regione e
+  // provincia le ha scelte da un menu.
+  const prendiDallaRichiesta = (id: string) => {
+    setRichiestaId(id);
+    const r = richieste.find((x) => x.id === id);
+    if (!r) return;
+    setNomeCircolo(r.nomeCircolo ?? '');
+    if (r.regione) setRegione(r.regione);
+    if (r.provincia) setProvincia(r.provincia);
+    if (r.citta) setCitta(r.citta);
+    setRichiedenteNome(r.referente ?? '');
+    setRichiedenteRuolo(r.ruolo ?? '');
+    setRichiedenteEmail(r.email ?? '');
+    setRichiedenteTelefono(r.telefono ?? '');
+    if (r.referente || r.ruolo || r.email) setAnagraficaAperta(true);
+  };
+
   // ---- Anagrafica di rete ----
   // Sta dietro un interruttore perche' non sempre si sa gia' tutto al
   // momento della creazione: chi chiede l'adesione spesso non e' chi
@@ -46,6 +83,11 @@ export default function SezioneOnboarding() {
 
   const reset = () => {
     setNomeCircolo(''); setCitta(''); setSigla(''); setRegione(''); setPasswordCircolo('');
+    // ⚠️ Anche provincia e comune, che restavano indietro: creato un
+    // circolo, il successivo partiva con la provincia del precedente
+    // gia' selezionata — e l'anagrafica di rete decide dove arrivano i
+    // banner venduti su una zona.
+    setProvincia(''); setComune(''); setRichiestaId('');
     setNomeAdmin(''); setCognomeAdmin(''); setEmailAdmin(''); setPasswordAdmin('');
     setRichiedenteNome(''); setRichiedenteRuolo(''); setRichiedenteEmail(''); setRichiedenteTelefono('');
     setFirmatarioNome(''); setFirmatarioRuolo(''); setFirmaIl(''); setNoteInterne('');
@@ -89,6 +131,7 @@ export default function SezioneOnboarding() {
         nomeAdmin, cognomeAdmin, emailAdmin, passwordAdmin,
         richiedenteNome, richiedenteRuolo, richiedenteEmail, richiedenteTelefono,
         firmatarioNome, firmatarioRuolo, firmaIl, noteInterne,
+        richiestaId,
       });
       setSuccesso({ nomeCircolo, passwordCircolo, emailAdmin, passwordAdmin });
       reset();
@@ -144,6 +187,30 @@ export default function SezioneOnboarding() {
         Il presidente potrà poi personalizzare tema, logo, campi e prezzi
         dalla propria Dashboard.
       </p>
+
+      {/* ⚠️ Il collegamento con la richiesta arrivata dal sito. Sceglierla
+          qui fa tre cose: riempie il modulo con quello che il circolo ha
+          già scritto, chiude da sola la richiesta quando il circolo
+          nasce, e lascia il filo che permetterà — il giorno che quel
+          circolo venisse eliminato — di portarsi via anche la richiesta.
+          Senza, restavano tutte «nuova» per sempre. */}
+      {daContattare.length > 0 && (
+        <>
+          <label className="admin-label" htmlFor="ob-richiesta">Nasce da una richiesta ricevuta</label>
+          <select
+            id="ob-richiesta" className="admin-input" value={richiestaId}
+            onChange={(e) => prendiDallaRichiesta(e.target.value)}
+          >
+            <option value="">Nessuna — lo creo io da zero</option>
+            {daContattare.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.nomeCircolo}{r.provincia ? ` · ${r.provincia}` : (r.citta ? ` · ${r.citta}` : '')}
+                {r.referente ? ` — ${r.referente}` : ''}
+              </option>
+            ))}
+          </select>
+        </>
+      )}
 
       <label className="admin-label">Nome del circolo</label>
       <input className="admin-input" value={nomeCircolo} onChange={(e) => setNomeCircolo(e.target.value)} placeholder="ASD Tennis Esempio" />

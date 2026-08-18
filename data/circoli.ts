@@ -61,6 +61,12 @@ export interface Circolo {
   // spuntata quando pubblica. Senza, non c'e' modo di sapere dove sta
   // un circolo — l'indirizzo non e' mai stato chiesto.
   regione?: string | null;
+  // ⚠️ Solo per il circolo dimostrativo dei revisori: chi chiede di
+  // entrare viene approvato all'istante, senza che nessuno tocchi
+  // niente. Lo accende e lo spegne SOLO il Super Admin — sta fra i
+  // campi di rete nelle regole — perche' su un circolo vero vorrebbe
+  // dire lasciare la porta aperta a chiunque.
+  approvazioneAutomatica?: boolean;
   // ⚠️ SERVE AI BANNER DI RETE, oltre che all'anagrafica: uno sponsor
   // venduto su una provincia arriva ai circoli che stanno in quella
   // provincia, e senza questo campo un circolo non ci sta per
