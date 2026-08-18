@@ -11,6 +11,7 @@ import {
   sendPasswordResetEmail,
   reload,
   User,
+  deleteUser,
 } from 'firebase/auth';
 import {
   doc, setDoc, getDoc, updateDoc, onSnapshot,
@@ -19,6 +20,7 @@ import {
 import { auth, db, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { registraMovimentoInTransazione } from './movimenti';
+import { VERSIONE_DOCUMENTI } from './consenso';
 
 export interface ProfiloUtente {
   nome: string;
@@ -45,6 +47,17 @@ export interface ProfiloUtente {
   // sezione Impostazioni. Qui si leggono e basta: sono suoi.
   annoNascita?: number | null;
   racchetta?: string | null; // testo libero, es. "Babolat Pure Aero"
+  // ⚠️ ALLINEATI AL GEMELLO DELL'APP. Mancavano, e il commento sopra
+  // `registrati()` spiegava proprio perché un gemello che diverge è una
+  // mina — poi divergeva l'interfaccia. Compilava lo stesso, perché
+  // l'oggetto passato a `setDoc` non è tipizzato: il compilatore non
+  // proteggeva proprio dove serviva.
+  consensoVersione?: string;
+  consensoIlMs?: number;
+  eta16Dichiarata?: boolean;
+  torneiInEvidenza?: string[];
+  bachecaLettaAlMs?: Record<string, number>;
+  bachecaHomeSpentaAlMs?: Record<string, number>;
 }
 
 // Eta' ricavata dall'anno di nascita. Si tiene l'ANNO e non l'eta'
@@ -69,21 +82,50 @@ export interface SocioCircolo extends ProfiloUtente {
  * L'utente viene poi disconnesso: dovrà accedere esplicitamente
  * dopo aver confermato l'email.
  */
+// ============================================================
+// ⚠️ QUESTA COPIA ERA RIMASTA INDIETRO, ed era il pericolo peggiore
+// di tutta la tornata: le regole Firestore adesso RESPINGONO la
+// nascita di un profilo senza i campi del consenso, e questa versione
+// non li scriveva. Oggi non la chiama nessuna pagina del sito — è il
+// gemello di quella dell'app — ma un gemello che diverge è una mina
+// con la data sopra: la prima pagina web che avesse chiamato
+// `registrati()` avrebbe creato un'utenza Auth e poi si sarebbe vista
+// rifiutare il profilo, lasciando la persona murata fuori.
+//
+// Tenuta allineata riga per riga a data/users.ts dell'app.
+// ============================================================
 export async function registrati(
   nome: string,
   cognome: string,
   email: string,
-  password: string
+  password: string,
+  consensi: { documentiAccettati: boolean; etaDichiarata: boolean },
 ): Promise<void> {
+  if (!consensi.documentiAccettati || !consensi.etaDichiarata) {
+    throw new Error('CONSENSO_MANCANTE');
+  }
+
   const cred = await createUserWithEmailAndPassword(auth, email.trim(), password.trim());
 
-  await setDoc(doc(db, 'utenti', cred.user.uid), {
-    nome: nome.trim(),
-    cognome: cognome.trim(),
-    email: email.trim(),
-    circoloId: null,
-    credito: 0,
-  });
+  try {
+    await setDoc(doc(db, 'utenti', cred.user.uid), {
+      nome: nome.trim(),
+      cognome: cognome.trim(),
+      email: email.trim(),
+      circoloId: null,
+      credito: 0,
+      consensoVersione: VERSIONE_DOCUMENTI,
+      consensoIlMs: Date.now(),
+      eta16Dichiarata: consensi.etaDichiarata,
+    });
+  } catch (e) {
+    try {
+      await deleteUser(cred.user);
+    } catch {
+      // Vedi il commento nel gemello dell'app.
+    }
+    throw e;
+  }
 
   await sendEmailVerification(cred.user);
   await signOut(auth);

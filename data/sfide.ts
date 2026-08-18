@@ -238,28 +238,15 @@ export async function lanciaSfidaV2(params: {
   return ref.id;
 }
 
-// ---------------- Chat — messaggio di testo libero ----------------
+// ⚠️ QUI C'ERA `inviaMessaggioTesto`, ED E' STATA TOLTA. Il testo
+// libero nelle chat fra soci non esiste piu': le regole rifiutano i
+// messaggi di tipo «testo» e accettano solo i codici delle frasi
+// rapide (vedi data/messaggiRapidi.ts). Nessuna schermata del sito la
+// usava — le chat stanno solo nell'app — ma lasciarla qui avrebbe
+// voluto dire lasciare in giro una funzione che scrive documenti che
+// il server respinge, e il prossimo che la trova ci perde un
+// pomeriggio.
 
-export async function inviaMessaggioTesto(sfida: Sfida, mittenteId: string, mittenteNome: string, testo: string): Promise<void> {
-  const pulito = testo.trim();
-  if (!pulito) return;
-  await addDoc(collection(db, 'sfide', sfida.id, 'messaggi'), {
-    tipo: 'testo', mittenteId, mittenteNome, testo: pulito,
-    // Chi ha materialmente scritto, sempre. Le regole lo pretendono:
-    // e' quello che rende ogni messaggio attribuibile.
-    scrittoDa: auth.currentUser?.uid ?? '',
-    creatoIl: serverTimestamp(),
-  });
-  // In fase "prenotazione" ogni messaggio conta come "azione" ai fini
-  // della regola "ultima risposta valida": chi scrive per ultimo è
-  // considerato in attesa di risposta dall'altro.
-  if (sfida.fase === 'prenotazione') {
-    const chi = mittenteId === sfida.sfidanteId ? 'sfidante' : 'sfidato';
-    await updateDoc(doc(db, 'sfide', sfida.id), { ultimaAzioneDi: chi });
-  }
-  const destinatarioId = mittenteId === sfida.sfidanteId ? sfida.sfidatoId : sfida.sfidanteId;
-  await notificaSfidaConRitentativi(destinatarioId, `${mittenteNome}: ${pulito}`, sfida.circoloId);
-}
 
 // ⚠️ GLI AVVISI DI SISTEMA NON LI SCRIVE PIU' IL TELEFONO.
 // Le frasi in gioco qui sono di quelle che decidono — "perde la

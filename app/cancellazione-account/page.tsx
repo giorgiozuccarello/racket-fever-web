@@ -16,6 +16,7 @@
 // ============================================================
 
 import type { Metadata } from 'next';
+import { EMAIL_CONTATTO, SITO_NUDO, VERSIONE_DOCUMENTI } from '../../data/consenso';
 
 export const metadata: Metadata = {
   title: 'Cancellazione dell’account — Racket Fever',
@@ -41,7 +42,7 @@ export default function CancellazioneAccount() {
         Cancellare il proprio account
       </h1>
       <p style={{ color: '#5A625E', marginTop: 0 }}>
-        Racket Fever — racketfever.com. Ultimo aggiornamento: agosto 2026.
+        Racket Fever — {SITO_NUDO}. Ultimo aggiornamento: {VERSIONE_DOCUMENTI}.
       </p>
 
       <h2 style={{ fontSize: '1.25rem', marginTop: '2.5rem' }}>Se sei un socio</h2>
@@ -69,7 +70,7 @@ export default function CancellazioneAccount() {
       <p>
         Il tuo account non l’hai creato tu: te l’ha creato il circolo o il team di Racket Fever, ed
         è legato a lezioni, prenotazioni e conti che riguardano altre persone. Scrivici a{' '}
-        <a href="mailto:info@racketfever.com" style={{ color: '#0E3B2E' }}>info@racketfever.com</a>{' '}
+        <a href={`mailto:${EMAIL_CONTATTO}`} style={{ color: '#0E3B2E' }}>{EMAIL_CONTATTO}</a>{' '}
         dall’indirizzo email con cui accedi, scrivendo «cancellazione account» nell’oggetto. Ti
         rispondiamo entro pochi giorni e ce ne occupiamo noi.
       </p>
@@ -83,8 +84,9 @@ export default function CancellazioneAccount() {
         Il tuo profilo (nome, cognome, email, anno di nascita, foto, preferenze e impostazioni), la
         foto del profilo, gli avvisi che ti erano arrivati, i collegamenti con i tuoi compagni di
         gioco, i dispositivi registrati per le notifiche e l’accesso stesso: da quel momento con
-        quella email non si entra più. Le tue prenotazioni future vengono annullate e i campi
-        tornano liberi per gli altri soci.
+        quella email non si entra più. Le prenotazioni future che erano <strong>solo tue</strong>{' '}
+        vengono annullate e i campi tornano liberi. Quelle che dividevi con qualcuno restano in
+        piedi: c’è dentro la quota di un’altra persona, e non è il caso di cancellargliela.
       </p>
 
       <h2 style={{ fontSize: '1.25rem', marginTop: '2.5rem' }}>Che cosa resta, e perché</h2>
@@ -130,7 +132,7 @@ export default function CancellazioneAccount() {
 
       <p style={{ marginTop: '3rem', color: '#5A625E', fontSize: '.9rem' }}>
         Per qualsiasi domanda su questa pagina o sui tuoi dati:{' '}
-        <a href="mailto:info@racketfever.com" style={{ color: '#0E3B2E' }}>info@racketfever.com</a>
+        <a href={`mailto:${EMAIL_CONTATTO}`} style={{ color: '#0E3B2E' }}>{EMAIL_CONTATTO}</a>
       </p>
     </main>
   );

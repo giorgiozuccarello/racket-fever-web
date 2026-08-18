@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
+import { SITO_NUDO } from '../../../data/consenso';
 
 export default function SuperAdminLogin() {
   const router = useRouter();
@@ -54,7 +55,7 @@ export default function SuperAdminLogin() {
         <input
           id="email" type="email" value={email} autoComplete="username"
           onChange={(e) => { setEmail(e.target.value); setErrore(''); }}
-          placeholder="team@racketfever.com"
+          placeholder={`team@${SITO_NUDO}`}
         />
 
         <label htmlFor="password">Password</label>

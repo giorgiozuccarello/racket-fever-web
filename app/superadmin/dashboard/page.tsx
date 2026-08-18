@@ -7,6 +7,7 @@ import { auth } from '../../../lib/firebase';
 import { leggiSuperAdmin, ProfiloSuperAdmin } from '../../../data/superadmin';
 import SezioneOnboarding from './SezioneOnboarding';
 import SezioneRichieste from './SezioneRichieste';
+import SezioneSegnalazioni from './SezioneSegnalazioni';
 import SezioneCircoli from './SezioneCircoli';
 import SezioneBannerRete from './SezioneBannerRete';
 
@@ -63,6 +64,7 @@ export default function SuperAdminDashboard() {
       <main className="admin-main">
         <SezioneOnboarding />
         <SezioneRichieste />
+        <SezioneSegnalazioni />
         <SezioneCircoli />
         <SezioneBannerRete />
       </main>

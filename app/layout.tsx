@@ -1,9 +1,34 @@
 import type { Metadata } from 'next';
+import { Archivo, Spline_Sans_Mono } from 'next/font/google';
 import './globals.css';
+import { SITO } from '../data/consenso';
 
-const archivo = { variable: '' } as any;
+// ============================================================
+// ⚠️ QUESTE DUE RIGHE ERANO STATE SOSTITUITE DA UNO STUB
+// (`const archivo = { variable: '' } as any`) per far girare una build
+// in un ambiente senza accesso a fonts.googleapis.com — e lo stub e'
+// finito in consegna. Il sito non si rompeva: cadeva sui fallback
+// `sans-serif` e `monospace` di globals.css, cioe' perdeva tutta la
+// tipografia senza che niente segnalasse un errore. E' il tipo di
+// guasto peggiore, quello che la build dichiara riuscita.
+//
+// ⚠️ SE UNA BUILD FALLISCE QUI per rete assente, si stubba, si
+// verifica, E SI RIMETTE PRIMA DI IMPACCHETTARE.
+//
+// Nessun `weight`: sono entrambi font variabili, e chiedendo i pesi a
+// mano si scaricano piu' file per avere di meno.
+// ============================================================
+const archivo = Archivo({
+  subsets: ['latin'],
+  variable: '--font-archivo',
+  display: 'swap',
+});
 
-const splineMono = { variable: '' } as any;
+const splineMono = Spline_Sans_Mono({
+  subsets: ['latin'],
+  variable: '--font-spline-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   // ⚠️ La descrizione diceva «Gratis per il circolo»: era il modello
@@ -14,7 +39,10 @@ export const metadata: Metadata = {
   description:
     'Prenotazioni, lezioni con il Maestro, sfide, tornei e bacheca del tuo circolo. '
     + "Gratuita per chi gioca, con i colori e il logo del proprio club.",
-  metadataBase: new URL('https://racketfever.it'),
+  // ⚠️ Un tempo qui c'era `racketfever.it` mentre ogni altra pagina
+  // diceva `.com`. Adesso il dominio sta in data/consenso.ts e basta
+  // cambiarlo li'.
+  metadataBase: new URL(SITO),
   openGraph: {
     type: 'website',
     locale: 'it_IT',

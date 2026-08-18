@@ -25,6 +25,7 @@ import SezionePrezzi from './SezionePrezzi';
 import SezioneBlocchi from './SezioneBlocchi';
 import SezioneSoci from './SezioneSoci';
 import SezioneRichiesteTessera from './SezioneRichiesteTessera';
+import SezioneSegnalazioni from './SezioneSegnalazioni';
 import SezioneTessereDaSaldare from './SezioneTessereDaSaldare';
 import SezioneTestReset from './SezioneTestReset';
 import SezioneDebitiSoci from './SezioneDebitiSoci';
@@ -231,6 +232,16 @@ export default function AdminDashboard() {
         </SezioneCollassabile>
         <SezioneCollassabile id="richieste" titolo="Richieste in sospeso" descrizione="Chi ha chiesto di entrare nel circolo">
           <SezioneRichiesteTessera circolo={circolo} approvatore={responsabile.email} />
+        </SezioneCollassabile>
+        {/* Accanto alle richieste, non in fondo: sono le due cose che
+            un segretario guarda quando apre la dashboard per vedere
+            «cosa è arrivato». */}
+        <SezioneCollassabile
+          id="segnalazioni"
+          titolo="Segnalazioni"
+          descrizione="Soci che hanno segnalato la scheda di un altro socio"
+        >
+          <SezioneSegnalazioni circolo={circolo} />
         </SezioneCollassabile>
         {/* Il registro non e' una sezione collassabile ma una pagina a
             se': un estratto conto ha bisogno di spazio per i filtri,

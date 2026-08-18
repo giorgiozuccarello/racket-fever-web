@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { REGIONI_ITALIA, provinceDi } from '../data/tornei';
 import { db } from '../lib/firebase';
+import { EMAIL_CONTATTO } from '../data/consenso';
 
 export default function Home() {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -278,11 +279,13 @@ export default function Home() {
           <div>
             <h4>Contatti</h4>
             <ul>
-              <li><a href="mailto:info@racketfever.com">info@racketfever.com</a></li>
+              <li><a href={`mailto:${EMAIL_CONTATTO}`}>{EMAIL_CONTATTO}</a></li>
               <li><a href="/cancellazione-account">Cancellazione account</a></li>
-              <li><a href="#">Press kit</a></li>
-              <li><a href="#">Privacy</a></li>
-              <li><a href="#">Termini di servizio</a></li>
+              {/* ⚠️ Erano due segnaposto morti, e Play Console rifiuta
+                  l'invio senza un indirizzo di informativa funzionante:
+                  era una delle cinque cose che impedivano di pubblicare. */}
+              <li><a href="/privacy">Privacy</a></li>
+              <li><a href="/termini">Termini di servizio</a></li>
             </ul>
           </div>
         </div>
@@ -376,7 +379,7 @@ function RichiestaForm() {
       });
       setInviato(true);
     } catch {
-      setErrore('Si è verificato un errore. Riprova o scrivici a info@racketfever.com.');
+      setErrore(`Si è verificato un errore. Riprova o scrivici a ${EMAIL_CONTATTO}.`);
     } finally {
       setInviando(false);
     }
@@ -451,6 +454,20 @@ function RichiestaForm() {
               />
               <span>Voglio essere contattato da Racket Fever per l’attivazione del circolo.</span>
             </label>
+
+            {/* ============================================================
+                ⚠️ IL LINK ALL'INFORMATIVA VA QUI, ACCANTO AL PULSANTE, e
+                non solo in fondo alla pagina. Chi compila questo modulo
+                sta consegnando nome, circolo e recapito a degli
+                sconosciuti: l'informativa gli va offerta nel momento in
+                cui decide, non dieci schermate più in basso fra i link di
+                servizio. È anche la posizione che il Garante indica, ed è
+                l'unica che una persona vede davvero.
+                ============================================================ */}
+            <p className="form-nota">
+              I dati che lasci qui servono solo a richiamarti: nient’altro, e a nessun altro.
+              Come li trattiamo è scritto nell’<a href="/privacy">informativa privacy</a>.
+            </p>
 
             {errore && <p style={{ color: '#B3261E', fontSize: '.85rem', marginTop: '.8rem' }}>{errore}</p>}
             <button className="btn" type="submit" disabled={inviando}>

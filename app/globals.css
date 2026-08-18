@@ -1041,3 +1041,10 @@ footer li a:hover{opacity:1;text-decoration:underline}
     grid-column:2;text-align:left;font-size:.78rem;
   }
 }
+
+/* Nota sotto il modulo pubblico: l'informativa privacy accanto al
+   pulsante di invio, non solo nel piede della pagina. */
+.form-nota{
+  margin:.9rem 0 0;font-size:.78rem;line-height:1.5;color:var(--grigio);
+}
+.form-nota a{color:var(--pino);text-decoration:underline}
