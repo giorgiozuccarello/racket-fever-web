@@ -3,7 +3,10 @@
 import { useState } from 'react';
 import { SocioCircolo, aggiornaLimitePersonale, ripristinaSOS, etaDaAnno } from '../../../data/users';
 import { creaNotifica } from '../../../data/notifiche';
-import { ricaricaCredito, azzeraCredito, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
+import {
+  ricaricaCredito, azzeraCredito, cancellaConRimborso, importoDaRimborsare, PrenotazioneAdmin,
+} from '../../../data/prenotazioniRepo';
+import { anteprimaRimozione, rimuoviSocioDaCircolo } from '../../../data/tessere';
 import { CONTENUTI_DEMO } from '../../../data/contenutiDemo';
 import Modal from './Modal';
 
@@ -19,6 +22,96 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
   const [ripristinando, setRipristinando] = useState(false);
   const [confermaAzzeraAperta, setConfermaAzzeraAperta] = useState(false);
   const [azzerando, setAzzerando] = useState(false);
+
+  // ============================================================
+  // TOGLIERE UNA PERSONA DAL CIRCOLO.
+  //
+  // ⚠️ ESISTEVA SOLO NELLA DASHBOARD DELL'APP. Il motore c'era da
+  // sempre — anteprima di cosa succede, rimborso delle prenotazioni
+  // future, ricompattazione della classifica, chiusura della tessera —
+  // ma dal browser, che e' dove un segretario lavora davvero, non
+  // c'era nessun pulsante per chiamarlo. Chi provava a togliere un
+  // socio dal computer concludeva che la funzione non ci fosse.
+  //
+  // ⚠️ E IL NOME DEL PULSANTE CAMBIA CON IL RUOLO: a un ospite non si
+  // toglie la qualifica di socio, che non ha mai avuto — gli si toglie
+  // l'accesso come ospite. E' la stessa operazione, ma chiamarla nello
+  // stesso modo faceva esitare chi la doveva usare.
+  // ============================================================
+  const [rimozioneAperta, setRimozioneAperta] = useState(false);
+  const [anteprima, setAnteprima] = useState<{
+    prenotazioniFuture: number; credito: number; debito: number; inClassifica: boolean;
+  } | null>(null);
+  const [rimuovendo, setRimuovendo] = useState(false);
+  const [erroreRimozione, setErroreRimozione] = useState('');
+
+  const eOspite = socio?.ruoloTessera === 'ospite';
+  const etichettaRimozione = eOspite ? 'Togli la qualifica di Ospite' : 'Rimuovi dal circolo';
+
+  const apriRimozione = async () => {
+    if (!socio) return;
+    setErroreRimozione('');
+    setRimozioneAperta(true);
+    setAnteprima(null);
+    try {
+      setAnteprima(await anteprimaRimozione(socio.uid, circoloId));
+    } catch {
+      // ⚠️ Non blocca: l'anteprima e' un aiuto, non un permesso. Non
+      // riuscendo a leggerla si mostra quello che si sa gia' dalla
+      // scheda, invece di impedire un'operazione legittima.
+      setAnteprima({
+        prenotazioniFuture: 0,
+        credito: socio.credito ?? 0,
+        debito: socio.sosUtilizzato ?? 0,
+        inClassifica: false,
+      });
+    }
+  };
+
+  const confermaRimozione = async () => {
+    if (!socio) return;
+    setRimuovendo(true);
+    setErroreRimozione('');
+    try {
+      const esito = await rimuoviSocioDaCircolo({
+        uid: socio.uid,
+        circoloId,
+        rimborsa: (p) => cancellaConRimborso({
+          uid: socio.uid,
+          circoloId,
+          prenotazioneId: p.id,
+          prezzo: importoDaRimborsare(p),
+          descrizione: 'Rimborso per rimozione dal circolo',
+        }),
+      });
+      const saldo = (socio.credito ?? 0) > 0
+        ? ` Hai € ${(socio.credito ?? 0).toFixed(2)} di credito da ritirare in segreteria.`
+        : (socio.sosUtilizzato ?? 0) > 0
+          ? ` Risulta un debito di € ${(socio.sosUtilizzato ?? 0).toFixed(2)} da saldare in segreteria.`
+          : '';
+      await creaNotifica(
+        socio.uid,
+        (eOspite
+          ? 'Il circolo ha chiuso la tua posizione di Ospite.'
+          : 'Non fai più parte dei soci del circolo.')
+          + saldo
+          + (esito.prenotazioniCancellate > 0
+            ? ` Le tue ${esito.prenotazioniCancellate} prenotazioni future sono state cancellate e rimborsate.`
+            : ''),
+        undefined,
+        circoloId,
+        // Globale: da questo momento la persona non è più membro del
+        // circolo, quindi un avviso legato al circolo non lo leggerebbe.
+        true
+      );
+      setRimozioneAperta(false);
+      onClose();
+    } catch {
+      setErroreRimozione('Non è stato possibile completare la rimozione. Riprova.');
+    } finally {
+      setRimuovendo(false);
+    }
+  };
 
   const numeroPrenotazioni = (uid: string) => prenotazioni.filter((p) => p.utenteId === uid).length;
 
@@ -185,8 +278,80 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
               />
               {salvandoLimite && <div className="admin-saving">Salvataggio…</div>}
             </div>
+
+            <div className="superadmin-subtitolo" style={{ marginTop: '1.4rem' }}>
+              {eOspite ? 'Qualifica di Ospite' : 'Appartenenza al circolo'}
+            </div>
+            <p className="admin-card-hint">
+              {eOspite
+                ? 'Chiude la posizione di Ospite. Le prenotazioni future vengono annullate e rimborsate; il credito e il debito restano nel conto e si regolano in segreteria.'
+                : 'Chiude la tessera con questo circolo. Le prenotazioni future vengono annullate e rimborsate, la classifica sociale si ricompatta, e il conto resta aperto finché non lo si regola in segreteria.'}
+            </p>
+            <button className="admin-btn-full admin-btn-danger" onClick={apriRimozione}>
+              {etichettaRimozione}
+            </button>
           </>
         )}
+      </Modal>
+
+      {/* Rimozione dal circolo — sopra la scheda socio */}
+      <Modal visible={rimozioneAperta} onClose={() => !rimuovendo && setRimozioneAperta(false)}>
+        <div className="admin-modal-title">{etichettaRimozione}?</div>
+        <div className="admin-modal-sub">{socio?.nome} {socio?.cognome}</div>
+        {/* ⚠️ Si dice PRIMA cosa sta per succedere, con i numeri veri.
+            Una rimozione tocca prenotazioni già pagate e un conto
+            aperto: chiedere «sei sicuro?» senza dire quanto c'è in
+            ballo è chiedere una conferma a chi non sa cosa conferma. */}
+        {anteprima === null ? (
+          <p className="admin-modal-sub" style={{ marginTop: '.6rem' }}>Controllo la situazione…</p>
+        ) : (
+          <div style={{ marginTop: '.8rem', display: 'grid', gap: '.35rem' }}>
+            <p className="admin-modal-sub" style={{ margin: 0 }}>
+              • {anteprima.prenotazioniFuture === 0
+                ? 'Nessuna prenotazione futura da annullare.'
+                : `${anteprima.prenotazioniFuture} ${anteprima.prenotazioniFuture === 1 ? 'prenotazione futura verrà annullata e rimborsata' : 'prenotazioni future verranno annullate e rimborsate'}.`}
+            </p>
+            {anteprima.prenotazioniFuture > 0 && (
+              <p className="admin-modal-sub" style={{ margin: 0 }}>
+                • Se fra quelle c&apos;è una partita divisa con altri, viene annullata per tutti e
+                ognuno riceve indietro la propria quota.
+              </p>
+            )}
+            {anteprima.inClassifica && (
+              <p className="admin-modal-sub" style={{ margin: 0 }}>
+                • Esce dalla classifica sociale: chi stava sotto risale di una posizione.
+              </p>
+            )}
+            {anteprima.credito > 0 && (
+              <p className="admin-modal-sub" style={{ margin: 0 }}>
+                • Resta un credito di € {anteprima.credito.toFixed(2)} da restituire in segreteria.
+              </p>
+            )}
+            {anteprima.debito > 0 && (
+              <p className="admin-modal-sub" style={{ margin: 0, color: '#B3261E' }}>
+                • Resta un debito di € {anteprima.debito.toFixed(2)} da recuperare in segreteria.
+              </p>
+            )}
+            {(anteprima.credito > 0 || anteprima.debito > 0) && (
+              <p className="admin-modal-sub" style={{ margin: 0 }}>
+                La posizione comparirà in «Tessere da saldare» finché non la chiudi.
+              </p>
+            )}
+          </div>
+        )}
+        {!!erroreRimozione && <div className="admin-error-text">{erroreRimozione}</div>}
+        <div className="admin-modal-btn-row">
+          <button className="admin-modal-btn-cancel" onClick={() => setRimozioneAperta(false)} disabled={rimuovendo}>
+            Annulla
+          </button>
+          <button
+            className="admin-modal-btn-confirm danger"
+            onClick={confermaRimozione}
+            disabled={rimuovendo || anteprima === null}
+          >
+            {rimuovendo ? 'Attendere…' : etichettaRimozione}
+          </button>
+        </div>
       </Modal>
 
       {/* Conferma ripristino — sopra la scheda socio */}

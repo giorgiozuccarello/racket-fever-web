@@ -555,6 +555,20 @@ export function raggruppaInCard(movimenti: Movimento[]): CardMovimenti[] {
 
     const chiudiCard = () => {
       if (passi.length === 0) return;
+      // ⚠️ UNA CARD SENZA NEMMENO UN ADDEBITO NON E' UNA CARD, e senza
+      // questa riga faceva cadere l'INTERA pagina Movimenti del
+      // circolo. `vissute` si riempie solo sugli addebiti: se in
+      // memoria arriva un rimborso senza il suo addebito — un dato
+      // vecchio, o una prenotazione cancellata mentre il registro
+      // veniva svuotato — l'elenco resta vuoto, e due righe piu' sotto
+      // si legge l'ultimo elemento di un array vuoto e gli si chiede
+      // uno `split`. Il registro e' immutabile: una riga cosi' non si
+      // puo' togliere, quindi la pagina sarebbe rimasta rotta per
+      // sempre. Meglio non disegnare quella card.
+      if (vissute.size === 0) {
+        attive = new Set(); passi = []; dentro = []; vissute = new Set();
+        return;
+      }
       const rif = dentro[0];
       const finale = passi[passi.length - 1].intervalloDopo;
       const cancellata = finale === null;

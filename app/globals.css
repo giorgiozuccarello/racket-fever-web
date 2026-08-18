@@ -1013,3 +1013,31 @@ footer li a:hover{opacity:1;text-decoration:underline}
    a metà — non lo notava nessuno. */
 .scheda-foto-barra-allarme{border-color:#C9A94F;background:#FDF6E3}
 .scheda-foto-barra-allarme .scheda-foto-quando{color:#7A5800}
+
+/* ============================================================
+   LA STORIA DI UN CONTO ANCORA APERTO — «da dove nasce».
+   Una tabella senza tabella: quattro colonne che restano allineate
+   fra una riga e l'altra, perche' e' quello che permette di scorrerle
+   con l'occhio invece di leggerle una per una.
+   ============================================================ */
+.admin-storia-conto{
+  margin:.2rem 0 1rem;padding:.7rem .9rem;border-radius:10px;
+  background:rgba(14,59,46,.04);border:1px solid rgba(14,59,46,.10);
+}
+.admin-storia-riga{
+  display:grid;grid-template-columns:4.6rem 1fr 5.2rem 8rem;gap:.6rem;
+  align-items:baseline;padding:.28rem 0;font-size:.82rem;
+  border-bottom:1px solid rgba(14,59,46,.06);
+}
+.admin-storia-riga:last-child{border-bottom:none}
+.admin-storia-giorno{color:#6B7671;font-variant-numeric:tabular-nums}
+.admin-storia-testo{color:#141F1B;line-height:1.35}
+.admin-storia-entrata{color:#1B7A46;text-align:right;font-variant-numeric:tabular-nums}
+.admin-storia-uscita{color:#B3261E;text-align:right;font-variant-numeric:tabular-nums}
+.admin-storia-saldo{color:#6B7671;text-align:right;font-variant-numeric:tabular-nums}
+@media (max-width:700px){
+  .admin-storia-riga{grid-template-columns:4.2rem 1fr;row-gap:.1rem}
+  .admin-storia-entrata,.admin-storia-uscita,.admin-storia-saldo{
+    grid-column:2;text-align:left;font-size:.78rem;
+  }
+}

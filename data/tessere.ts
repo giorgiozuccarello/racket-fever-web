@@ -739,9 +739,21 @@ export async function rimuoviSocioDaCircolo(params: {
     catch (e) { console.warn('Conversazione della lezione non chiusa:', cardId, e); }
   }
 
+  // ⚠️ LA TESSERA SI CHIUDE PRIMA DELLA CLASSIFICA. Nell'ordine
+  // inverso, una ricompattazione riuscita seguita da una chiusura
+  // fallita lasciava la tessera aperta con la sua posizione: l'Admin
+  // vedeva l'errore, ritoccava «Rimuovi», e tutti quelli sotto
+  // risalivano UNA SECONDA VOLTA. La chiusura e' anche il segno di
+  // «gia' fatto», quindi deve essere la prima cosa a cui si crede.
+  await chiudiTessera(uid, circoloId);
+
   // Classifica: chi stava sotto risale di una posizione, altrimenti
   // resterebbe un buco permanente nella numerazione.
-  if (posizioneLiberata != null) {
+  // ⚠️ Solo per una posizione vera — un intero positivo — e solo per
+  // chi era davvero in classifica: un valore storto avrebbe fatto
+  // scalare una parte qualunque dell'elenco.
+  if (typeof posizioneLiberata === 'number'
+    && Number.isInteger(posizioneLiberata) && posizioneLiberata > 0) {
     const qT = query(
       collection(db, 'tessere'),
       where('circoloId', '==', circoloId),
@@ -759,7 +771,6 @@ export async function rimuoviSocioDaCircolo(params: {
     }
   }
 
-  await chiudiTessera(uid, circoloId);
   return { prenotazioniCancellate, posizioneLiberata };
 }
 
