@@ -109,7 +109,9 @@ function Dato({ valore, etichetta, allarme }: {
 //    l'Admin non vedrà un errore chiaro: vedrà il banner «Lettura
 //    respinta» e numeri incompleti. Ogni lettura nuova va verificata
 //    contro le regole per tutti e due i ruoli.
-export default function SchedaCircoloVista({ circoloId, perAdmin = false, statoCircolo }: {
+export default function SchedaCircoloVista({
+  circoloId, perAdmin = false, statoCircolo, puoAggiornare = true,
+}: {
   circoloId: string;
   perAdmin?: boolean;
   // ⚠️ Serve a UNA cosa sola, ed e' un allarme da spegnere. Il giro
@@ -119,6 +121,12 @@ export default function SchedaCircoloVista({ circoloId, perAdmin = false, statoC
   // essere indietro e invitava a premere un tasto che quel circolo lo
   // rifiuta. Campo assente = attivo, come ovunque nel progetto.
   statoCircolo?: string;
+  // ⚠️ Falso per il Collaboratore. LEGGE i numeri come tutti — dentro
+  // la fotografia non c'è niente che non veda già nelle tessere che
+  // maneggia ogni giorno alla cassa — ma non ha il tasto che la RIFÀ:
+  // uno scatto rilegge tutto lo storico del circolo, ed è lavoro
+  // pesante che non si mette in mano a una password condivisa.
+  puoAggiornare?: boolean;
 }) {
   const [tessere, setTessere] = useState<Tessera[]>([]);
   const [maestri, setMaestri] = useState<MaestroConUid[]>([]);
@@ -305,20 +313,32 @@ export default function SchedaCircoloVista({ circoloId, perAdmin = false, statoC
           {foto === undefined
             ? 'Lettura della fotografia…'
             : foto === 'respinta'
-              ? 'Lettura della fotografia respinta: i numeri qui sotto non ci sono, e il tasto non risolve — è un problema di permessi.'
+              ? (puoAggiornare
+                  ? 'Lettura della fotografia respinta: i numeri qui sotto non ci sono, e il tasto non risolve — è un problema di permessi.'
+                  : 'Lettura della fotografia respinta: i numeri qui sotto non ci sono. Se il tuo accesso Collaboratore è scaduto, rientra con la password del circolo.')
               : foto === null
                 ? (circoloFermo
                   ? 'Nessuna fotografia: di questo circolo non ne è mai stata calcolata una, e non lo sarà finché il circolo non torna attivo.'
-                  : 'Nessuna fotografia ancora: i numeri qui sotto mancano perché non sono stati calcolati, non perché il circolo sia fermo. Premi «Aggiorna adesso».')
+                  : 'Nessuna fotografia ancora: i numeri qui sotto mancano perché non sono stati calcolati, non perché il circolo sia fermo. '
+                    + (puoAggiornare
+                      ? 'Premi «Aggiorna adesso».'
+                      : 'Il calcolo gira ogni notte; per rifarlo subito serve l’accesso del responsabile del circolo.'))
                 : scattoMs === null
-                  ? 'Fotografia senza data di scatto: rifalla per sapere a quando risale.'
+                  ? (puoAggiornare
+                    ? 'Fotografia senza data di scatto: rifalla per sapere a quando risale.'
+                    : 'Fotografia senza data di scatto: la prossima notte il calcolo la rifà, e la data torna.')
                   : `Aggiornato al ${quandoLeggibile(scattoMs)} · ${daQuanto(scattoMs)}${
                     circoloFermo
                       ? ' — il circolo non è attivo: questa resta la fotografia dell’ultimo giorno di attività'
                       : fotoVecchia
-                        ? ' — il giro notturno fotografa pochi circoli per volta e questo è rimasto indietro: premi «Aggiorna adesso»'
+                        ? ' — il giro notturno fotografa pochi circoli per volta e questo è rimasto indietro'
+                          + (puoAggiornare ? ': premi «Aggiorna adesso»' : '')
                         : ''}`}
         </span>
+        {/* ⚠️ A chi non può aggiornare il tasto non si mostra spento:
+            si toglie. Un comando visibile ma inerte fa credere di aver
+            sbagliato qualcosa; assente, non pone la domanda. */}
+        {puoAggiornare && (
         <button
           className="scheda-foto-tasto" onClick={scatta}
           // ⚠️ Spento anche a circolo non attivo: il server rifiuta lo
@@ -331,6 +351,7 @@ export default function SchedaCircoloVista({ circoloId, perAdmin = false, statoC
         >
           {scattando ? 'Calcolo in corso…' : 'Aggiorna adesso'}
         </button>
+        )}
       </div>
       {erroreScatto && <div className="admin-error-text">{erroreScatto}</div>}
       {avvisoScatto && <p className="admin-card-hint scheda-nota">{avvisoScatto}</p>}

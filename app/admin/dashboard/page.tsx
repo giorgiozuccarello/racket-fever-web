@@ -14,8 +14,10 @@ import { ascoltaPrenotazioniCircolo, PrenotazioneAdmin } from '../../../data/pre
 import { Sfida, ascoltaSfideCircolo, risolviTimerAccordo, risolviTimerPrenotazione } from '../../../data/sfide';
 import InstallPrompt from '../InstallPrompt';
 import SezionePanoramicaCircolo from './SezionePanoramicaCircolo';
-import SezioneSoci, { ETICHETTA_SOCI } from './SezioneSoci';
-import SezioneDebitiSoci, { ETICHETTA_DEBITI } from './SezioneDebitiSoci';
+// ⚠️ Le due sezioni non si montano piu' da qui: stanno dentro
+// SezionePanoramicaCircolo, che le importa per conto suo. Erano rimaste
+// anche qui, sciolte, per il solo Collaboratore.
+
 import SezionePassword from './SezionePassword';
 import SezioneCollaboratori from './SezioneCollaboratori';
 import SezionePersonalizzaApp, { SezioneBannerMarketing } from './SezionePersonalizzaApp';
@@ -172,6 +174,18 @@ export default function AdminDashboard() {
           <div>
             <div className="mono" style={{ opacity: 0.75 }}>ADMIN CIRCOLO</div>
             <h1 className="display" style={{ fontSize: '1.7rem', marginTop: '.2rem' }}>{circolo.nome}</h1>
+            {/* ⚠️ CHI SEI, scritto. Le due porte d'ingresso — l'account
+                del responsabile e la password condivisa dello staff —
+                aprivano una dashboard identica, e da dentro non c'era
+                un solo segno che dicesse con quale delle due si era
+                entrati. Quando una sezione si comporta diversamente nei
+                due casi, quel silenzio si legge come un guasto. */}
+            {scadenzaSessione != null && (
+              <div className="admin-header-collab">
+                Accesso Collaboratore · scade alle {new Date(scadenzaSessione)
+                  .toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+              </div>
+            )}
           </div>
         </div>
         {/* Lato destro: il marchio Racket Fever e il tasto di uscita.
@@ -200,13 +214,16 @@ export default function AdminDashboard() {
           `main` — stessa larghezza massima, stesso padding — cosi' si
           allinea al resto della pagina ma prende tutta la riga.
           ============================================================ */}
-      {/* ⚠️ NON AL COLLABORATORE. Le regole gli negano la fotografia,
-          quindi vedrebbe persone e denaro ma non attività: una
-          schermata a metà con un banner rosso. E non pretende di
-          nascondergli i saldi — quelli li legge già dalle tessere,
-          perché gli servono per le ricariche. Quello che resta al
-          presidente è il quadro d'insieme. */}
-      {scadenzaSessione == null && (
+      {/* ⚠️ A TUTTI, Collaboratore compreso, e il giro precedente aveva
+          deciso il contrario. Il ragionamento era: le regole gli negano
+          la fotografia, quindi vedrebbe persone e denaro ma non
+          attività. Sbagliato due volte. Il Collaboratore legge già
+          tutte le tessere del circolo — senza non potrebbe fare una
+          ricarica — quindi la fotografia non gli dice niente di nuovo,
+          gli dice le stesse cose sommate. E una sezione che sparisce
+          senza una parola non si distingue da una sezione che non è
+          arrivata. Adesso la fotografia la legge anche lui; al solo
+          responsabile resta il tasto che la rifà. */}
       <div className="admin-larga">
         <SezioneCollassabile
           id="panoramica"
@@ -219,10 +236,10 @@ export default function AdminDashboard() {
             statoCircolo={statoCircolo(circolo)}
             soci={soci}
             onSelezionaSocio={setSocioSelUid}
+            puoAggiornare={scadenzaSessione == null}
           />
         </SezioneCollassabile>
       </div>
-      )}
 
       <main className="admin-main">
         <SezioneCollassabile id="test-reset" titolo="Test Reset" descrizione="Strumenti per ripartire puliti fra due sessioni di prova">
@@ -238,12 +255,24 @@ export default function AdminDashboard() {
         >
           <SezioneBannerMarketing circolo={circolo} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="password" titolo="Password Circolo" descrizione="Password che i soci usano per accedere">
-          <SezionePassword circolo={circolo} />
-        </SezioneCollassabile>
-        <SezioneCollassabile id="collaboratori" titolo="Collaboratori" descrizione="Accesso rapido per lo staff, senza account personale">
-          <SezioneCollaboratori circoloId={circolo.id} />
-        </SezioneCollassabile>
+        {/* ⚠️ LE DUE SERRATURE NON SI MOSTRANO A CHI È ENTRATO CON UNA
+            CHIAVE A SCADENZA. Erano montate per tutti, e il Collaboratore
+            si trovava davanti il proprio campo password già compilato:
+            poteva cambiarselo e rientrare per sempre, oppure cambiare
+            quello dei soci e chiudere fuori il circolo. Le regole adesso
+            lo negano (firestore.rules: /privato e il campo `password` del
+            circolo), e queste due righe fanno in modo che non veda un
+            comando destinato a essere respinto. */}
+        {scadenzaSessione == null && (
+          <>
+            <SezioneCollassabile id="password" titolo="Password Circolo" descrizione="Password che i soci usano per accedere">
+              <SezionePassword circolo={circolo} />
+            </SezioneCollassabile>
+            <SezioneCollassabile id="collaboratori" titolo="Collaboratori" descrizione="Accesso rapido per lo staff, senza account personale">
+              <SezioneCollaboratori circoloId={circolo.id} />
+            </SezioneCollassabile>
+          </>
+        )}
         <SezioneCollassabile id="campi" titolo="Campi" descrizione="Nome e disciplina dei campi">
           <SezioneCampi circoloId={circolo.id} campi={campi} />
         </SezioneCollassabile>
@@ -298,21 +327,10 @@ export default function AdminDashboard() {
         <SezioneCollassabile id="saldare" titolo="Tessere da saldare" descrizione="Ex soci con credito da restituire o debito da recuperare">
           <SezioneTessereDaSaldare circolo={circolo} />
         </SezioneCollassabile>
-        {/* «Soci» e «Debiti dei Soci» sono sottosezioni della
-            Panoramica, in cima alla pagina. Non sono state duplicate:
-            due strade per la stessa cosa prima o poi divergono. Restano
-            qui, sciolte, solo per il Collaboratore, che la Panoramica
-            non ce l'ha: sono gli strumenti con cui lavora al banco. */}
-        {scadenzaSessione != null && (
-          <>
-            <SezioneCollassabile id="soci" {...ETICHETTA_SOCI}>
-              <SezioneSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
-            </SezioneCollassabile>
-            <SezioneCollassabile id="debiti" {...ETICHETTA_DEBITI}>
-              <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
-            </SezioneCollassabile>
-          </>
-        )}
+        {/* «Soci» e «Debiti dei Soci» stanno DENTRO la Panoramica, in
+            cima alla pagina, per tutti. Non esistono più sciolte per
+            nessuno: erano rimaste qui per il solo Collaboratore, e due
+            strade per la stessa schermata prima o poi divergono. */}
         <SezioneCollassabile id="maestri" titolo="Maestri" descrizione="Anagrafica, account e accesso dei maestri del circolo">
           <SezioneMaestri circoloId={circolo.id} maestri={maestri} prenotazioni={prenotazioni} />
         </SezioneCollassabile>

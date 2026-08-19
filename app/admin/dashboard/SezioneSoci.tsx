@@ -8,7 +8,9 @@ import { SocioCircolo } from '../../../data/users';
 // posti diversi — dentro la Panoramica per il presidente, sciolte per
 // il Collaboratore — e finche' le stringhe erano scritte a mano in
 // tutti e due, cambiarne una voleva dire due sezioni con lo stesso
-// contenuto e due nomi diversi a seconda di chi guarda.
+// contenuto e due nomi diversi a seconda di chi guarda. Oggi il posto è
+// uno solo — la Panoramica, per tutti — ma le costanti restano: è il
+// modo giusto di tenerle comunque.
 export const ETICHETTA_SOCI = {
   titolo: 'Soci/Tesserati e Ospiti',
   descrizione: 'Anagrafica e credito di Soci/Tesserati e Ospiti',

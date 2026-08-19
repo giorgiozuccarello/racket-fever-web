@@ -281,6 +281,13 @@ footer li a:hover{opacity:1;text-decoration:underline}
   width:42px;height:42px;border-radius:21px;object-fit:cover;flex-shrink:0;
   border:2px solid rgba(245,241,230,.35);
 }
+/* Il segno di quale delle due porte d'ingresso si sta usando: senza,
+   la dashboard del responsabile e quella del Collaboratore sono
+   indistinguibili da dentro. */
+.admin-header-collab{
+  margin-top:.3rem;font-size:.72rem;font-weight:800;letter-spacing:.02em;
+  color:#FFE1A8;
+}
 .admin-header-logo-fallback{
   display:flex;align-items:center;justify-content:center;
   background:rgba(245,241,230,.12);color:var(--riga);font-weight:800;font-size:.85rem;
