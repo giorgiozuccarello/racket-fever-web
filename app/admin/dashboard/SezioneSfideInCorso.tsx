@@ -155,11 +155,11 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo }: { sfide: S
       if (esito.giaAnnullata) {
         alert('Questa sfida era già stata annullata.');
       } else if (esito.oreVere > 0) {
-        // Annullare la sfida non rimborsa la partita: le ore già
-        // pagate restano sulla griglia come prenotazioni normali.
+        // Le ore tornano libere e il denaro torna ai due, con la sua
+        // riga nel registro.
         alert(
-          `Sfida annullata. Restano ${esito.oreVere} ${esito.oreVere === 1 ? 'ora già prenotata e pagata' : 'ore già prenotate e pagate'}: `
-          + 'ora sono prenotazioni normali, cancellale dalla griglia se vanno tolte.',
+          `Sfida annullata. Liberate e rimborsate ${esito.oreVere} `
+          + `${esito.oreVere === 1 ? 'mezz’ora già pagata' : 'mezz’ore già pagate'}.`,
         );
       } else {
         setAnnullamentoFatto(true);
@@ -468,7 +468,9 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo }: { sfide: S
         <p className="admin-card-hint" style={{ textAlign: 'center' }}>
           {daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} vs {daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome}
           <br /><br />
-          Le eventuali mezz&apos;ore prenotate/sospese verranno liberate, entrambi i soci saranno avvisati.
+          Le ore prenotate per questa sfida vengono liberate e rimborsate a tutti e due, con la
+          loro riga nel registro. Le ore già giocate restano come prenotazioni normali: quelle
+          non si rimborsano. Entrambi i soci saranno avvisati.
           La classifica NON viene toccata: nessuno vince né perde posizioni.
         </p>
         <div className="admin-modal-btn-row">

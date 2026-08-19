@@ -263,7 +263,7 @@ export default function SezioneCircoli() {
         {/* ⚠️ Come sta il circolo PRIMA dei campi da correggere: chi
             apre un circolo quasi sempre vuole sapere come va, non
             correggergli la sigla. */}
-        <SchedaCircoloVista circoloId={aperto.id} />
+        <SchedaCircoloVista circoloId={aperto.id} statoCircolo={statoCircolo(aperto)} />
 
         <div className="superadmin-subtitolo">Anagrafica</div>
 

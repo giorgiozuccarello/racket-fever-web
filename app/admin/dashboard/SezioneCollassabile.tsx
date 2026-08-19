@@ -12,9 +12,17 @@ import { useEffect, useState, ReactNode } from 'react';
 //   spillo spento  -> alla prossima apertura la sezione sarà chiusa
 // La preferenza è salvata nel browser (localStorage).
 export default function SezioneCollassabile({
-  id, titolo, descrizione, children,
-}: { id: string; titolo: string; descrizione: string; children: ReactNode }) {
-  const [aperta, setAperta] = useState(false);
+  id, titolo, descrizione, children, apertaDiPartenza,
+}: {
+  id: string; titolo: string; descrizione: string; children: ReactNode;
+  // ⚠️ Aperta al primo avvio, e serve a una sola sezione: la
+  // Panoramica. Tutte nascono chiuse — sono venticinque — ma quella e'
+  // la prima cosa da guardare, e chi aveva fissato «Soci» e «Debiti»
+  // se le ritrova dentro: nascendo chiusa la Panoramica, quelle due
+  // sembravano sparite e lo spillo sembrava rotto.
+  apertaDiPartenza?: boolean;
+}) {
+  const [aperta, setAperta] = useState(!!apertaDiPartenza);
   const [fissata, setFissata] = useState(false);
 
   useEffect(() => {
@@ -61,7 +69,14 @@ export default function SezioneCollassabile({
             <div className="admin-collassa-descrizione">{descrizione}</div>
           </div>
         </button>
-        <button
+        {/* ⚠️ Niente spillo dove la sezione si apre comunque. Lo
+            spillo dice una cosa sola — «come la trovi la prossima
+            volta» — e sulla Panoramica quella risposta e' «aperta» in
+            ogni caso: spento avrebbe annunciato «sarà chiusa», che e'
+            falso, e acceso avrebbe promesso una preferenza che non sta
+            salvando niente. Un comando che non cambia niente e mente
+            sull'esito e' peggio di un comando assente. */}
+        {!apertaDiPartenza && <button
           type="button"
           className={`admin-collassa-pin${fissata ? ' attivo' : ''}`}
           onClick={toggleFissa}
@@ -76,7 +91,7 @@ export default function SezioneCollassabile({
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" />
           </svg>
-        </button>
+        </button>}
         {/* Freccia: stesso comando dell'intestazione, fuori dal giro di
             tabulazione per non annunciare due volte la stessa cosa. */}
         <button

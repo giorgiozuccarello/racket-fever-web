@@ -409,7 +409,15 @@ export async function saldaTessera(uid: string, circoloId: string): Promise<void
 // dedicato).
 // ============================================================
 export async function resettaSociTest(circoloId: string): Promise<{
-  tessereAzzerate: number;
+  // ⚠️ DUE NUMERI E NON UNO. C'era il solo totale delle tessere
+  // azzerate, e a schermo diventava «Azzerati 12 portafogli» su un
+  // circolo che di soci ne ha due: gli altri dieci sono tessere di chi
+  // dal circolo e' uscito, che si azzerano lo stesso — se restassero
+  // con un debito addosso ricomparirebbero in «Tessere da saldare»
+  // dopo un reset che dichiara di aver pulito. Il lavoro era giusto,
+  // era il numero a raccontarlo male.
+  sociAzzerati: number;
+  tessereChiuseAzzerate: number;
   prenotazioniCancellate: number;
   movimentiCancellati: number;
   aperture: number;
@@ -426,11 +434,17 @@ export async function resettaSociTest(circoloId: string): Promise<{
   // Primo passo: portafogli a zero, tessera per tessera.
   const qT = query(collection(db, 'tessere'), where('circoloId', '==', circoloId));
   const snapT = await getDocs(qT);
-  let tessereAzzerate = 0;
+  let sociAzzerati = 0;
+  let tessereChiuseAzzerate = 0;
   for (const d of snapT.docs) {
     try {
       await updateDoc(d.ref, { credito: 0, sosUtilizzato: 0 });
-      tessereAzzerate++;
+      // Gli stessi due stati che decidono chi ha una riga nel registro
+      // riaperto: cosi' i due numeri della stessa frase parlano della
+      // stessa cosa.
+      const stato = d.data().stato as string | undefined;
+      if (stato === 'approvata' || stato === 'sospesa') sociAzzerati++;
+      else tessereChiuseAzzerate++;
     } catch (e) {
       console.warn('Tessera non azzerata durante il reset:', d.id, e);
     }
@@ -624,7 +638,7 @@ export async function resettaSociTest(circoloId: string): Promise<{
   const aperture = await creaAperturePerCircolo(circoloId);
 
   return {
-    tessereAzzerate, prenotazioniCancellate, movimentiCancellati,
+    sociAzzerati, tessereChiuseAzzerate, prenotazioniCancellate, movimentiCancellati,
     aperture, avvisiCancellati, sfideCancellate, richiesteCancellate, richiesteFallite,
     motivoRichieste,
   };

@@ -3,6 +3,17 @@
 import { useState } from 'react';
 import { SocioCircolo } from '../../../data/users';
 
+// ⚠️ Titolo e descrizione stanno QUI, accanto alla sezione che
+// descrivono, e non nel punto in cui viene montata. Sono montate in due
+// posti diversi — dentro la Panoramica per il presidente, sciolte per
+// il Collaboratore — e finche' le stringhe erano scritte a mano in
+// tutti e due, cambiarne una voleva dire due sezioni con lo stesso
+// contenuto e due nomi diversi a seconda di chi guarda.
+export const ETICHETTA_SOCI = {
+  titolo: 'Soci/Tesserati e Ospiti',
+  descrizione: 'Anagrafica e credito di Soci/Tesserati e Ospiti',
+};
+
 export default function SezioneSoci({ soci, onSelezionaSocio }: {
   soci: SocioCircolo[]; onSelezionaSocio: (uid: string) => void;
 }) {

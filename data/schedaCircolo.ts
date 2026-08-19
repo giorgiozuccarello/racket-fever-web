@@ -48,6 +48,50 @@ import { Tessera, StatoTessera } from './tessere';
 // e l'interfaccia ne annuncerebbe un altro.
 export const GIORNI_FINESTRA = 30;
 
+// ⚠️ Da quanti giorni una fotografia va segnalata come vecchia.
+// Erano due, scritti a mano nelle due schermate, e con la rete che
+// cresce sarebbero diventati una bugia: il giro notturno fotografa un
+// numero limitato di circoli per notte (MAX_CIRCOLI_PER_GIRO in
+// functions/src/index.ts), quindi oltre un certo numero di circoli
+// ogni circolo viene rifotografato ogni tre o quattro giorni CON IL
+// LAVORO PERFETTAMENTE FUNZIONANTE. Un avviso che accusa il server di
+// essere fermo quando sta girando e' peggio di nessun avviso: la
+// seconda volta non lo legge piu' nessuno, nemmeno il giorno che e'
+// vero.
+// ⚠️ QUATTRO REGGE FINO A CIRCA 160 CIRCOLI ATTIVI, e poi va rialzato:
+// il ritardo normale e' `circoli attivi / MAX_CIRCOLI_PER_GIRO` giorni,
+// cioe' 40 per notte. Superata quella soglia questo avviso torna a
+// essere sistematicamente falso, che e' il difetto da cui nasce questa
+// costante. Il giorno che la rete cresce, questo numero cresce con lei
+// — oppure il server scrive nella fotografia quando e' previsto il
+// prossimo giro, e qui non serve piu' indovinare.
+export const GIORNI_FOTO_VECCHIA = 4;
+
+// Se questa tessera compare negli elenchi «Soci/Tesserati e Ospiti» e
+// «Debiti dei Soci».
+// ⚠️ Serve qui perche' i TOTALI di questa scheda contano TUTTE le
+// tessere, quelle negli elenchi e quelle no: finche' le due cose
+// stavano a trenta righe di distanza nessuno le confrontava, ma adesso
+// il totale e' scritto sopra l'elenco che dovrebbe spiegarlo.
+//
+// ⚠️ E' scritta ESCLUDENDO, come `ascoltaSociCircolo` in data/users.ts,
+// non elencando gli stati ammessi: le due liste sembravano equivalenti
+// sui cinque stati di oggi, ma su una tessera senza `uid` — o con uno
+// stato che nessuno ha ancora previsto — davano risposte opposte.
+//
+// ⚠️ RESTA UN CASO IN CUI NON COINCIDONO, e va detto invece che
+// nascosto: la tessera che sul database non ha proprio il campo
+// `stato`. `normalizza()` in data/tessere.ts la porta qui dentro gia'
+// come 'in_attesa', quindi per questa funzione e' fuori elenco;
+// `ascoltaSociCircolo` legge il documento grezzo e la mostra. Sono le
+// tessere piu' vecchie del campo, poche e destinate a sparire: il
+// numero «fuori elenco» le conta una di troppo. Chiuderlo davvero vuol
+// dire togliere il ripiego da `normalizza`, che tocca mezza app — non
+// una frase in fondo a una scheda.
+function inElenco(t: Tessera): boolean {
+  return t.stato !== 'chiusa' && t.stato !== 'rifiutata' && t.stato !== 'in_attesa' && !!t.uid;
+}
+
 export interface Conteggio { etichetta: string; quante: number }
 
 export interface AttivitaFoto {
@@ -151,9 +195,30 @@ export function ascoltaFotografia(
 
 // Rifà lo scatto adesso, per questo circolo. La lettura pesante resta
 // sul server: qui si aspetta e basta.
-export async function aggiornaFotografia(circoloId: string): Promise<void> {
+//
+// ⚠️ L'ESITO TORNA INDIETRO, e prima veniva buttato via. Il server ha
+// un freno di due minuti — uno scatto rilegge tutto lo storico del
+// circolo, e senza freno bastava tenere premuto per farci pagare un
+// archivio intero — ma quando il freno scattava la funzione rispondeva
+// «no, l'hai appena fatta» e nessuno lo leggeva: la rotella girava, i
+// numeri restavano quelli, e chi guardava ripremeva convinto che fosse
+// rotto. È esattamente il difetto che i commenti qui sopra dichiarano
+// di voler evitare.
+export interface EsitoScatto {
+  aggiornata: boolean;
+  appenaFatta: boolean;
+  scattataIlMs: number | null;
+}
+
+export async function aggiornaFotografia(circoloId: string): Promise<EsitoScatto> {
   const chiama = httpsCallable(functions, 'fotografiaCircolo');
-  await chiama({ circoloId });
+  const esito = await chiama({ circoloId });
+  const d = (esito.data ?? {}) as Partial<EsitoScatto>;
+  return {
+    aggiornata: d.aggiornata === true,
+    appenaFatta: d.appenaFatta === true,
+    scattataIlMs: typeof d.scattataIlMs === 'number' ? d.scattataIlMs : null,
+  };
 }
 
 // ============================================================
@@ -230,6 +295,13 @@ export interface RiepilogoDenaro {
   creditoInGiacenza: number;
   debiti: number;
   fidoConcesso: number;
+  // La parte dei due totali qui sopra che NON si ritrova negli elenchi
+  // sotto, perche' appartiene a tessere chiuse, rifiutate o ancora in
+  // attesa. Senza questo numero si legge «€ 340,00 di debiti aperti» e
+  // sotto un elenco che ne somma 190, e sembra che uno dei due sbagli.
+  debitiFuoriElenco: number;
+  creditoFuoriElenco: number;
+  posizioniFuoriElenco: number;
 }
 
 // Arrotonda al centesimo: sommando decimali in virgola mobile si arriva
@@ -241,7 +313,15 @@ function centesimi(n: number): number {
 
 export function riepilogoDenaro(tessere: Tessera[]): RiepilogoDenaro {
   let credito = 0, debiti = 0, fido = 0;
+  let debitiFuori = 0, creditoFuori = 0, posizioniFuori = 0;
   for (const t of tessere) {
+    if (!inElenco(t)) {
+      const d = t.sosUtilizzato ?? 0;
+      const c = t.credito ?? 0;
+      debitiFuori += d;
+      creditoFuori += c;
+      if (d !== 0 || c !== 0) posizioniFuori += 1;
+    }
     // ⚠️ Le tessere CHIUSE restano nel conto del debito e del credito.
     // Sono soldi che il circolo deve ancora restituire, o che deve
     // ancora incassare: toglierle dal totale farebbe sparire dal
@@ -254,7 +334,40 @@ export function riepilogoDenaro(tessere: Tessera[]): RiepilogoDenaro {
     creditoInGiacenza: centesimi(credito),
     debiti: centesimi(debiti),
     fidoConcesso: centesimi(fido),
+    debitiFuoriElenco: centesimi(debitiFuori),
+    creditoFuoriElenco: centesimi(creditoFuori),
+    posizioniFuoriElenco: posizioniFuori,
   };
+}
+
+// ⚠️ LA FRASE STA QUI, non nelle due schermate. E' l'unica riga della
+// scheda che spiega perche' un totale non torna con l'elenco che gli
+// sta sotto: scritta a mano in tutti e due i posti, sarebbe bastato
+// correggerne una per avere due spiegazioni diverse dello stesso
+// numero. Restituisce null quando non c'e' niente da spiegare.
+//
+// ⚠️ E gli importi si dicono col segno giusto: un credito negativo
+// scritto «€ -35,00 di credito» e' una parola che contraddice il
+// proprio numero. `euro` arriva da fuori perche' le due schermate lo
+// formattano ciascuna a modo suo.
+export function frasePosizioniFuoriElenco(
+  d: RiepilogoDenaro,
+  euro: (n: number) => string,
+): string | null {
+  if (d.debitiFuoriElenco === 0 && d.creditoFuoriElenco === 0) return null;
+  const pezzi: string[] = [];
+  if (d.debitiFuoriElenco > 0) pezzi.push(`${euro(d.debitiFuoriElenco)} di debito`);
+  else if (d.debitiFuoriElenco < 0) pezzi.push(`${euro(-d.debitiFuoriElenco)} di debito già rientrato`);
+  if (d.creditoFuoriElenco > 0) pezzi.push(`${euro(d.creditoFuoriElenco)} di credito`);
+  else if (d.creditoFuoriElenco < 0) pezzi.push(`${euro(-d.creditoFuoriElenco)} di credito in rosso`);
+  // ⚠️ La frase si accorda con quello che ha davvero da dire: con un
+  // solo importo «€ 35,00 di debito SONO di una posizione» e' un
+  // errore di italiano in una schermata che parla di soldi.
+  const uno = pezzi.length === 1;
+  const quante = d.posizioniFuoriElenco;
+  return ` Di questi, ${pezzi.join(' e ')} ${uno ? 'è' : 'sono'} di ${quante} `
+    + `${quante === 1 ? 'posizione non più attiva o non ancora approvata' : 'posizioni non più attive o non ancora approvate'}: `
+    + `${uno ? 'lo trovi' : 'li trovi'} nell’«Elenco per socio» qui sotto`;
 }
 
 // ============================================================

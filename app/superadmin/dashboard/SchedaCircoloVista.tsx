@@ -31,7 +31,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { ascoltaMaestriCircolo, MaestroConUid } from '../../../data/maestriRepo';
 import { ascoltaTessereCircolo, Tessera } from '../../../data/tessere';
 import {
-  ascoltaFotografia, aggiornaFotografia, Fotografia, GIORNI_FINESTRA,
+  ascoltaFotografia, aggiornaFotografia, Fotografia, GIORNI_FINESTRA, GIORNI_FOTO_VECCHIA,
+  frasePosizioniFuoriElenco,
   ATTIVITA_SENZA_FOTO, REGISTRO_SENZA_FOTO,
   riepilogoPersone, riepilogoDenaro, righeSocio,
 } from '../../../data/schedaCircolo';
@@ -95,7 +96,30 @@ function Dato({ valore, etichetta, allarme }: {
   );
 }
 
-export default function SchedaCircoloVista({ circoloId }: { circoloId: string }) {
+// ⚠️ QUESTA SCHEDA HA DUE PADRONI, da quando il pannello Admin la monta
+// nella sua «Panoramica Circolo». È voluto — i numeri con cui un
+// circolo si giudica devono avere una definizione sola — ma due cose
+// vanno sapute da chi la tocca:
+//
+// 1. `perAdmin` cambia SOLO le frasi che parlano di chi guarda. Un
+//    Admin che leggeva «serve un accesso Super Admin» o «questi numeri
+//    servono all'assistenza e alla fatturazione» si trovava un pannello
+//    che parla di lui in terza persona, in casa sua.
+// 2. Se qui dentro si aggiunge una lettura riservata al Super Admin,
+//    l'Admin non vedrà un errore chiaro: vedrà il banner «Lettura
+//    respinta» e numeri incompleti. Ogni lettura nuova va verificata
+//    contro le regole per tutti e due i ruoli.
+export default function SchedaCircoloVista({ circoloId, perAdmin = false, statoCircolo }: {
+  circoloId: string;
+  perAdmin?: boolean;
+  // ⚠️ Serve a UNA cosa sola, ed e' un allarme da spegnere. Il giro
+  // notturno fotografa solo i circoli attivi: su un circolo sospeso o
+  // chiuso la fotografia resta ferma per sempre, e senza sapere lo
+  // stato questa scheda dopo quattro giorni accusava il server di
+  // essere indietro e invitava a premere un tasto che quel circolo lo
+  // rifiuta. Campo assente = attivo, come ovunque nel progetto.
+  statoCircolo?: string;
+}) {
   const [tessere, setTessere] = useState<Tessera[]>([]);
   const [maestri, setMaestri] = useState<MaestroConUid[]>([]);
   // Tre stati, non due. undefined = non si sa ancora; null = non c'è
@@ -116,6 +140,11 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
   const [elencoAperto, setElencoAperto] = useState(false);
   const [scattando, setScattando] = useState(false);
   const [erroreScatto, setErroreScatto] = useState('');
+  // ⚠️ DUE STATI, non uno. Il freno dei due minuti non e' un guasto: e'
+  // il server che dice «i numeri sono gia' quelli nuovi». In rosso,
+  // insieme agli errori veri, si legge come «non ha funzionato» e si
+  // ripreme il tasto — l'esatto contrario di quello che dice.
+  const [avvisoScatto, setAvvisoScatto] = useState('');
 
   useEffect(() => {
     // ⚠️ Si azzerano anche i DATI, non solo le spie. Tenendo quelli del
@@ -126,7 +155,7 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
     // più vero.
     setTessere([]); setMaestri([]); setFoto(undefined);
     setPronto({ tessere: false, maestri: false });
-    setRespinto([]); setErroreScatto('');
+    setRespinto([]); setErroreScatto(''); setAvvisoScatto('');
     const segnalaRifiuto = (che: string) =>
       setRespinto((prec) => (prec.includes(che) ? prec : [...prec, che]));
 
@@ -149,20 +178,36 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
   }, [circoloId]);
 
   const scatta = async () => {
-    setErroreScatto('');
+    setErroreScatto(''); setAvvisoScatto('');
     setScattando(true);
     try {
-      await aggiornaFotografia(circoloId);
+      const esito = await aggiornaFotografia(circoloId);
+      // ⚠️ Il «no» del server si dice, e prima si buttava via: quando il
+      // freno dei due minuti scattava, la rotella girava, i numeri
+      // restavano quelli e chi guardava ripremeva convinto che fosse
+      // rotto.
+      if (!esito.aggiornata && esito.appenaFatta) {
+        // ⚠️ Senza dire «due minuti»: la durata del riposo la decide il
+        // server (RIPOSO_SCATTO_MS in functions/src/index.ts), e
+        // riscriverla qui vuol dire che il giorno che cambia una
+        // schermata ne annuncia un'altra.
+        setAvvisoScatto('La fotografia è appena stata rifatta: i numeri qui sopra sono già quelli nuovi.');
+      }
     } catch (e: any) {
       // ⚠️ Le cause non si equivalgono, e dire sempre "riprova" manda
       // qualcuno a ripremere un tasto che non funzionera' mai.
       const codice = String(e?.code ?? '');
+      // ⚠️ E il motivo che manda il server si riporta: «riprova fra un
+      // momento» e' l'unica frase che non aiuta nessuno.
+      const dalServer = String(e?.message ?? '').trim();
       setErroreScatto(
         codice.includes('permission-denied')
-          ? 'Aggiornamento non consentito: serve un accesso Super Admin.'
+          ? (perAdmin
+            ? 'Aggiornamento non consentito: puoi aggiornare la fotografia del tuo circolo, e solo se il circolo è attivo.'
+            : 'Aggiornamento non consentito: serve un accesso Super Admin.')
           : codice.includes('deadline-exceeded') || codice.includes('internal')
             ? 'Il calcolo ha impiegato troppo: il circolo ha molto storico. Riprova fra qualche minuto — se il server ha finito nel frattempo, i numeri qui sopra si aggiornano da soli.'
-            : 'Aggiornamento non riuscito. Riprova fra un momento.',
+            : `Aggiornamento non riuscito.${dalServer ? ` Il server risponde: ${dalServer}` : ' Riprova fra un momento.'}`,
       );
     } finally {
       setScattando(false);
@@ -184,12 +229,25 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
   // mancante. Senza questa riga la barra annunciava con tutta serietà
   // una fotografia di cinquantasei anni fa.
   const scattoMs = conFoto && conFoto.scattataIlMs > 0 ? conFoto.scattataIlMs : null;
-  // Oltre due giorni il calcolo notturno non sta girando: è l'unico
-  // sintomo osservabile, e in grigio non lo nota nessuno.
-  const fotoVecchia = scattoMs !== null && Date.now() - scattoMs > 2 * 24 * 60 * 60 * 1000;
-  // Vero quando i numeri della fotografia non ci sono: gli zeri qui
-  // sotto vanno detti, non mostrati come dati.
-  const senzaNumeri = conFoto === null;
+  // ⚠️ Dalla costante e non «2» scritto qui: il giro notturno fotografa
+  // un numero limitato di circoli per notte, quindi con la rete che
+  // cresce il ritardo normale cresce con lei. Il commento sta in
+  // data/schedaCircolo.ts, accanto al numero.
+  const circoloFermo = (statoCircolo ?? 'attivo') !== 'attivo';
+  const fraseFuoriElenco = frasePosizioniFuoriElenco(denaro, EURO);
+  const fotoVecchia = !circoloFermo && scattoMs !== null
+    && Date.now() - scattoMs > GIORNI_FOTO_VECCHIA * 24 * 60 * 60 * 1000;
+  // ⚠️ `foto === undefined` vuol dire «non si sa ancora», e prima
+  // finiva qui dentro insieme a «non c'e'»: al primo disegno della
+  // pagina la barra passava in ambra da allarme e la nota del Denaro
+  // annunciava che una fotografia non c'era, mezzo secondo prima che
+  // arrivasse. Su una rete lenta quella frase restava. E adesso la
+  // Panoramica nasce aperta, quindi la vedeva ogni Admin a ogni
+  // apertura.
+  const inAttesaFoto = foto === undefined;
+  // Vero quando i numeri della fotografia non ci sono DAVVERO: gli zeri
+  // qui sotto vanno detti, non mostrati come dati.
+  const senzaNumeri = !inAttesaFoto && conFoto === null;
 
   const tutteArrivate = pronto.tessere && pronto.maestri && foto !== undefined;
   const CONTA_GIORNI = GIORNI_FINESTRA;
@@ -198,12 +256,19 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
     <div className="scheda-circolo">
       {respinto.length > 0 ? (
         <p className="admin-card-hint scheda-attesa">
-          Lettura respinta ({respinto.join(', ')}): i numeri qui sotto sono incompleti e non
-          lo diventeranno. Di solito vuol dire che le regole del database non consentono
-          questa lettura — non che il circolo sia vuoto.
+          {/* ⚠️ Al presidente di un circolo non si parla di «regole del
+              database». Il fatto — i numeri sono incompleti e non
+              miglioreranno — vale per tutti e due; la spiegazione
+              tecnica serve solo a chi puo' farci qualcosa. */}
+          {perAdmin
+            ? `Non riesco a leggere alcuni dati del circolo (${respinto.join(', ')}): i numeri qui sotto sono incompleti e non lo diventeranno. Non vuol dire che il circolo sia vuoto — se il problema resta, scrivici.`
+            : `Lettura respinta (${respinto.join(', ')}): i numeri qui sotto sono incompleti e non lo diventeranno. Di solito vuol dire che le regole del database non consentono questa lettura — non che il circolo sia vuoto.`}
         </p>
       ) : !tutteArrivate && (
-        <p className="admin-card-hint scheda-attesa">
+        // ⚠️ Non `scheda-attesa`: quella è la veste ambra dell'avviso,
+        // e un caricamento normale vestito da problema insegna a
+        // ignorare l'ambra il giorno che il problema c'è davvero.
+        <p className="admin-card-hint scheda-nota">
           Caricamento dei dati del circolo… i numeri qui sotto sono ancora parziali.
         </p>
       )}
@@ -242,20 +307,33 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
             : foto === 'respinta'
               ? 'Lettura della fotografia respinta: i numeri qui sotto non ci sono, e il tasto non risolve — è un problema di permessi.'
               : foto === null
-                ? 'Nessuna fotografia ancora: i numeri qui sotto mancano perché non sono stati calcolati, non perché il circolo sia fermo. Premi «Aggiorna adesso».'
+                ? (circoloFermo
+                  ? 'Nessuna fotografia: di questo circolo non ne è mai stata calcolata una, e non lo sarà finché il circolo non torna attivo.'
+                  : 'Nessuna fotografia ancora: i numeri qui sotto mancano perché non sono stati calcolati, non perché il circolo sia fermo. Premi «Aggiorna adesso».')
                 : scattoMs === null
                   ? 'Fotografia senza data di scatto: rifalla per sapere a quando risale.'
                   : `Aggiornato al ${quandoLeggibile(scattoMs)} · ${daQuanto(scattoMs)}${
-                    fotoVecchia ? ' — il calcolo notturno non sta girando' : ''}`}
+                    circoloFermo
+                      ? ' — il circolo non è attivo: questa resta la fotografia dell’ultimo giorno di attività'
+                      : fotoVecchia
+                        ? ' — il giro notturno fotografa pochi circoli per volta e questo è rimasto indietro: premi «Aggiorna adesso»'
+                        : ''}`}
         </span>
         <button
           className="scheda-foto-tasto" onClick={scatta}
-          disabled={scattando || foto === 'respinta'}
+          // ⚠️ Spento anche a circolo non attivo: il server rifiuta lo
+          // scatto con `failed-precondition`, e un tasto acceso che
+          // risponde sempre di no è peggio di un tasto spento.
+          // ⚠️ Niente `title` per spiegare il tasto spento: Chrome non
+          // mostra il tooltip su un elemento `disabled`, e il motivo e'
+          // gia' scritto nella barra qui accanto.
+          disabled={scattando || foto === 'respinta' || circoloFermo}
         >
           {scattando ? 'Calcolo in corso…' : 'Aggiorna adesso'}
         </button>
       </div>
       {erroreScatto && <div className="admin-error-text">{erroreScatto}</div>}
+      {avvisoScatto && <p className="admin-card-hint scheda-nota">{avvisoScatto}</p>}
       <p className="admin-card-hint scheda-nota">
         Prenotazioni, ore, campi, fasce, registro e numeri per socio si calcolano una volta a
         notte sul server: contarli qui vorrebbe dire scaricare tutto lo storico del circolo a
@@ -263,7 +341,12 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
       </p>
       <div className="scheda-conti">
         <Dato valore={CONTA(attivita.prenotazioni)} etichetta="prenotazioni in tutto" />
-        <Dato valore={CONTA(attivita.prenotazioni30)} etichetta="negli ultimi 30 giorni" />
+        {/* ⚠️ Dalla costante e non «30» scritto a mano: e' proprio il
+            difetto contro cui mette in guardia il commento di
+            GIORNI_FINESTRA in data/schedaCircolo.ts — il giorno che la
+            finestra cambia, il server conta un periodo e la schermata
+            ne annuncia un altro. */}
+        <Dato valore={CONTA(attivita.prenotazioni30)} etichetta={`negli ultimi ${CONTA_GIORNI} giorni`} />
         <Dato valore={ORE(attivita.oreGiocate)} etichetta="ore di campo" />
       </div>
       {/* ⚠️ È il numero che dice davvero se un circolo è vivo, e sta da
@@ -293,7 +376,7 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
             ? <p className="admin-empty-text">Nessuna prenotazione.</p>
             : attivita.campiPiuUsati.map((c) => (
               <div key={c.etichetta} className="scheda-riga-mini">
-                <span>{c.etichetta}</span><span>{c.quante} mezz&apos;ore</span>
+                <span>{c.etichetta}</span><span>{CONTA(c.quante)} mezz&apos;ore</span>
               </div>
             ))}
         </div>
@@ -303,7 +386,7 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
             ? <p className="admin-empty-text">Nessuna prenotazione.</p>
             : attivita.fascePunta.map((f) => (
               <div key={f.etichetta} className="scheda-riga-mini">
-                <span>{f.etichetta}</span><span>{f.quante} mezz&apos;ore</span>
+                <span>{f.etichetta}</span><span>{CONTA(f.quante)} mezz&apos;ore</span>
               </div>
             ))}
         </div>
@@ -320,11 +403,38 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
         <Dato valore={EURO(denaro.fidoConcesso)} etichetta="fido concesso" />
       </div>
       <p className="admin-card-hint scheda-nota">
-        {senzaNumeri
-          ? `Movimenti, ricariche e addebiti degli ultimi ${CONTA_GIORNI} giorni: non disponibili finché non c'è una fotografia.`
-          : `Negli ultimi ${CONTA_GIORNI} giorni: ${CONTA(registro.movimenti30)} movimenti, ${EURO(registro.ricariche30)} di ricariche, ${EURO(registro.addebiti30)} di addebiti — dalla fotografia. Le ricariche contano i versamenti in segreteria, non le ricariche con il Fido.`}
+        {/* ⚠️ QUATTRO CASI, non due. Con un booleano solo, mentre la
+            fotografia stava arrivando si finiva nel ramo dei numeri e
+            si leggeva «0 movimenti, € 0,00 di ricariche — dalla
+            fotografia»: zeri di ripiego presentati come letture vere,
+            firmati da una fotografia che non era ancora arrivata. */}
+        {inAttesaFoto
+          ? `Movimenti, ricariche e addebiti degli ultimi ${CONTA_GIORNI} giorni: in caricamento…`
+          : foto === 'respinta'
+            ? `Movimenti, ricariche e addebiti degli ultimi ${CONTA_GIORNI} giorni: non leggibili da qui — è un problema di permessi, non un circolo senza movimenti.`
+            : senzaNumeri
+              ? `Movimenti, ricariche e addebiti degli ultimi ${CONTA_GIORNI} giorni: non disponibili finché non c’è una fotografia.`
+              : `Negli ultimi ${CONTA_GIORNI} giorni: ${CONTA(registro.movimenti30)} movimenti, ${EURO(registro.ricariche30)} di ricariche, ${EURO(registro.addebiti30)} di addebiti — dalla fotografia. Le ricariche contano i versamenti in segreteria, non le ricariche con il Fido.`}
         {' '}Il credito in giacenza è denaro dei soci versato in segreteria: comprende anche le
         tessere chiuse, perché è una posizione ancora aperta con chi se n&apos;è andato.
+        {/* ⚠️ La differenza si DICE. Questi totali contano tutte le
+            tessere; gli elenchi «Soci» e «Debiti» qui sotto mostrano
+            solo chi è ancora del circolo. Finché le due cose stavano
+            lontane nessuno le confrontava: adesso stanno una sopra
+            l'altra, e senza questa riga sembra che una delle due
+            sbagli. */}
+        {/* La frase la scrive data/schedaCircolo.ts, cioè lo stesso
+            file che calcola i numeri di cui parla. Qui si aggiunge solo
+            la coda che riguarda le due sezioni, che esistono nella
+            Panoramica dell'Admin e non nel pannello Super Admin. */}
+        {fraseFuoriElenco !== null && (
+          <>
+            {fraseFuoriElenco}
+            {perAdmin
+              ? ', ma non nelle sezioni «Soci» e «Debiti dei Soci», che mostrano solo chi è del circolo adesso.'
+              : '.'}
+          </>
+        )}
       </p>
 
       {/* ---------- ELENCO PER SOCIO ---------- */}
@@ -334,10 +444,13 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
       >
         {elencoAperto ? 'Chiudi l’elenco per socio' : `Elenco per socio (${righe.length})`}
       </button>
-      {elencoAperto && senzaNumeri && (
+      {elencoAperto && (inAttesaFoto || senzaNumeri) && (
         <p className="admin-card-hint scheda-nota">
-          Prenotazioni e data dell&apos;ultima si leggono dalla fotografia, che qui non c&apos;è: i
-          nomi e i saldi sono veri e aggiornati, le due colonne dei conteggi no.
+          {inAttesaFoto
+            ? 'Prenotazioni e data dell’ultima si leggono dalla fotografia, che sta ancora arrivando: per ora quelle due colonne sono a zero. I nomi e i saldi sono veri.'
+            : foto === 'respinta'
+              ? 'Prenotazioni e data dell’ultima si leggono dalla fotografia, che da qui non è leggibile: le due colonne dei conteggi restano a zero. I nomi e i saldi sono veri e aggiornati.'
+              : 'Prenotazioni e data dell’ultima si leggono dalla fotografia, che qui non c’è: i nomi e i saldi sono veri e aggiornati, le due colonne dei conteggi no.'}
         </p>
       )}
       {elencoAperto && (
@@ -362,7 +475,7 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
                         </div>
                       </td>
                       <td>{ETICHETTA_STATO[r.stato] ?? r.stato}</td>
-                      <td>{r.prenotazioni}</td>
+                      <td>{CONTA(r.prenotazioni)}</td>
                       <td>{EURO(r.credito)}</td>
                       <td className={r.debito > 0 ? 'scheda-td-debito' : undefined}>
                         {EURO(r.debito)}
@@ -391,10 +504,9 @@ export default function SchedaCircoloVista({ circoloId }: { circoloId: string })
           promettere: qui si dice cosa fanno le regole, non cosa non
           potrà mai succedere. */}
       <p className="admin-card-hint scheda-privacy">
-        Da qui si vedono le tessere del circolo e i totali calcolati su prenotazioni e
-        movimenti: servono all&apos;assistenza e alla fatturazione. Le conversazioni — chat delle lezioni e delle sfide — restano fuori:
-        nessuna schermata di questo pannello le mostra, e le regole del database non ne
-        concedono la lettura al team Racket Fever.
+        {perAdmin
+          ? 'Qui non compaiono le conversazioni: le chat delle sfide e delle lezioni restano fra le persone che le hanno scritte.'
+          : 'Questi numeri servono all’assistenza e alla fatturazione. Le conversazioni dei soci non compaiono qui e le regole del database non ne concedono la lettura al team Racket Fever.'}
       </p>
     </div>
   );

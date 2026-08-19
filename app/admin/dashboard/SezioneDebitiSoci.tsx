@@ -2,6 +2,20 @@
 
 import { SocioCircolo } from '../../../data/users';
 
+// ⚠️ Titolo e descrizione stanno QUI, accanto alla sezione che
+// descrivono, e non nel punto in cui viene montata. Sono montate in due
+// posti diversi — dentro la Panoramica per il presidente, sciolte per
+// il Collaboratore — e finche' le stringhe erano scritte a mano in
+// tutti e due, cambiarne una voleva dire due sezioni con lo stesso
+// contenuto e due nomi diversi a seconda di chi guarda.
+export const ETICHETTA_DEBITI = {
+  titolo: 'Debiti dei Soci/Tesserati e Ospiti',
+  // ⚠️ Diceva «con credito negativo o Fido da saldare», ma il filtro
+  // qui sotto guarda SOLO il Fido: chi cercava un credito negativo
+  // apriva una sezione che non glielo avrebbe mai mostrato.
+  descrizione: 'Soci/Tesserati e Ospiti con un Fido ancora da saldare',
+};
+
 export default function SezioneDebitiSoci({ soci, onSelezionaSocio }: {
   soci: SocioCircolo[]; onSelezionaSocio: (uid: string) => void;
 }) {

@@ -1048,3 +1048,44 @@ footer li a:hover{opacity:1;text-decoration:underline}
   margin:.9rem 0 0;font-size:.78rem;line-height:1.5;color:var(--grigio);
 }
 .form-nota a{color:var(--pino);text-decoration:underline}
+
+/* ============================================================
+   PANORAMICA CIRCOLO — la sezione che prende tutta la riga.
+   ⚠️ Sta FUORI da .admin-main perche' quello e' a due colonne: qui
+   dentro c'e' una tabella a sette colonne, e in mezza pagina
+   scorrerebbe in orizzontale. Stesse misure esterne di .admin-main,
+   cosi' si allinea al resto della pagina.
+   ============================================================ */
+.admin-larga{
+  max-width:1180px;margin:0 auto;
+  /* Stesse misure di .admin-main, cosi' i due contenitori si allineano
+     al pixel. Il fondo a zero perche' il margine del wrapper e il
+     padding superiore di .admin-main fanno gia' lo stacco: sommandoli
+     tutti e tre veniva un buco tripla rispetto a quello fra due card. */
+  padding:clamp(1.5rem,4vw,2.5rem);
+  padding-bottom:0;
+}
+.admin-larga + .admin-main{ padding-top:0 }
+
+/* ⚠️ UNA SEZIONE DENTRO UN'ALTRA, che nel resto del pannello non
+   succede mai. Senza queste righe la sottosezione si porta dietro
+   l'ingombro pensato per stare in cima alla pagina: il margine che la
+   stacca dalla successiva, e la cornice della card interna che si
+   somma a quella del contenitore. */
+.admin-collassa-contenuto .admin-collassa-wrapper{
+  margin:0 0 .8rem;
+}
+.admin-collassa-contenuto .admin-collassa-wrapper:last-child{
+  margin-bottom:0;
+}
+/* La card dentro una sottosezione ha gia' la cornice del collassabile:
+   quella propria diventa un doppio bordo. */
+.admin-collassa-contenuto .admin-collassa-contenuto > .admin-card{
+  border:none;box-shadow:none;margin:0;
+  padding:1rem 1.1rem 1.2rem;
+}
+/* La scheda in sola lettura, dentro la Panoramica, si stacca dalle due
+   sottosezioni che la seguono. */
+.admin-collassa-contenuto > .admin-card > .scheda-circolo{
+  margin-bottom:1.1rem;
+}

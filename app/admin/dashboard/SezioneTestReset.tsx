@@ -22,7 +22,7 @@ export default function SezioneTestReset({ circolo, sfide }: { circolo: Circolo;
     try {
       const r = await resettaSfideTest(circolo.id);
       setEsito(
-        `Sfide azzerate: ${r.cancellate} cancellate, con le loro chat e le ore bloccate sulla griglia.`
+        `Sfide azzerate: ${r.cancellate} cancellate, con le loro chat. Le ore prenotate sono state liberate e rimborsate.`
         + (r.fallite > 0 ? ` ⚠️ ${r.fallite} non si sono potute cancellare: riprova.` : ''),
       );
       setConfermaSfide(false);
@@ -37,7 +37,7 @@ export default function SezioneTestReset({ circolo, sfide }: { circolo: Circolo;
     setErrore(''); setResettando(true);
     try {
       const r = await resettaSociTest(circolo.id);
-      setEsito(`Azzerati ${r.tessereAzzerate} portafogli · ${r.prenotazioniCancellate} prenotazioni, ${r.movimentiCancellati} movimenti, ${r.avvisiCancellati} avvisi, ${r.sfideCancellate} sfide e ${r.richiesteCancellate} richieste di lezione cancellate.${r.richiesteFallite === -1 ? ` ⚠️ Le richieste di lezione non si sono potute leggere: controlla che le regole Firestore siano pubblicate. (${r.motivoRichieste})` : r.richiesteFallite > 0 ? ` ⚠️ ${r.richiesteFallite} richieste di lezione non cancellate. Motivo: ${r.motivoRichieste}` : ''}`);
+      setEsito(`Portafogli azzerati: ${r.sociAzzerati} ${r.sociAzzerati === 1 ? 'socio' : 'soci'} del circolo${r.tessereChiuseAzzerate > 0 ? `, più ${r.tessereChiuseAzzerate} ${r.tessereChiuseAzzerate === 1 ? 'tessera chiusa' : 'tessere chiuse'} di chi non ne fa più parte` : ''}. Cancellati: ${r.prenotazioniCancellate} prenotazioni, ${r.movimentiCancellati} movimenti, ${r.avvisiCancellati} avvisi, ${r.sfideCancellate} sfide, ${r.richiesteCancellate} richieste di lezione.${r.richiesteFallite === -1 ? ` ⚠️ Le richieste di lezione non si sono potute leggere: controlla che le regole Firestore siano pubblicate. (${r.motivoRichieste})` : r.richiesteFallite > 0 ? ` ⚠️ ${r.richiesteFallite} richieste di lezione non cancellate. Motivo: ${r.motivoRichieste}` : ''} Registro riaperto con ${r.aperture} righe, una per socio.`);
       setConfermaSoci(false);
     } catch (e: any) {
       setErrore(e?.message ?? 'Errore sconosciuto — controlla la connessione e riprova.');

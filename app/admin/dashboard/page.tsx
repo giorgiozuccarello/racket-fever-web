@@ -8,11 +8,14 @@ import { allineaProfiliCircolo } from '../../../data/tessere';
 import { leggiResponsabile, ProfiloResponsabile } from '../../../data/responsabili';
 import { leggiSessioneCollaboratore, sessioneScaduta } from '../../../data/collaboratori';
 import { ascoltaSociCircolo, SocioCircolo } from '../../../data/users';
-import { Circolo, Campo, Blocco } from '../../../data/circoli';
+import { Circolo, Campo, Blocco, statoCircolo } from '../../../data/circoli';
 import { ascoltaCircolo, ascoltaCampi, ascoltaBlocchi } from '../../../data/circoliRepo';
 import { ascoltaPrenotazioniCircolo, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
 import { Sfida, ascoltaSfideCircolo, risolviTimerAccordo, risolviTimerPrenotazione } from '../../../data/sfide';
 import InstallPrompt from '../InstallPrompt';
+import SezionePanoramicaCircolo from './SezionePanoramicaCircolo';
+import SezioneSoci, { ETICHETTA_SOCI } from './SezioneSoci';
+import SezioneDebitiSoci, { ETICHETTA_DEBITI } from './SezioneDebitiSoci';
 import SezionePassword from './SezionePassword';
 import SezioneCollaboratori from './SezioneCollaboratori';
 import SezionePersonalizzaApp, { SezioneBannerMarketing } from './SezionePersonalizzaApp';
@@ -23,12 +26,10 @@ import SezioneLimite from './SezioneLimite';
 import SezioneLimiteCancellazione from './SezioneLimiteCancellazione';
 import SezionePrezzi from './SezionePrezzi';
 import SezioneBlocchi from './SezioneBlocchi';
-import SezioneSoci from './SezioneSoci';
 import SezioneRichiesteTessera from './SezioneRichiesteTessera';
 import SezioneSegnalazioni from './SezioneSegnalazioni';
 import SezioneTessereDaSaldare from './SezioneTessereDaSaldare';
 import SezioneTestReset from './SezioneTestReset';
-import SezioneDebitiSoci from './SezioneDebitiSoci';
 import SchedaSocioModal from './SchedaSocioModal';
 import SezioneMaestri from './SezioneMaestri';
 import SezioneClassificaSociale from './SezioneClassificaSociale';
@@ -185,6 +186,44 @@ export default function AdminDashboard() {
         </div>
       </header>
 
+      {/* ============================================================
+          ⚠️ LA PANORAMICA STA FUORI DA `main.admin-main`, e non e' un
+          capriccio: quel contenitore e' una griglia a DUE COLONNE
+          (`column-count: 2`), quindi qualunque cosa ci si metta dentro
+          nasce larga meta' schermo. La panoramica ha una tabella a
+          sette colonne e tre righe di numeri: in mezza pagina
+          scorrerebbe in orizzontale, che e' il modo piu' rapido di
+          rendere illeggibile una schermata fatta per essere letta a
+          colpo d'occhio.
+
+          Sta in un contenitore suo con lo stesso ingombro esterno di
+          `main` — stessa larghezza massima, stesso padding — cosi' si
+          allinea al resto della pagina ma prende tutta la riga.
+          ============================================================ */}
+      {/* ⚠️ NON AL COLLABORATORE. Le regole gli negano la fotografia,
+          quindi vedrebbe persone e denaro ma non attività: una
+          schermata a metà con un banner rosso. E non pretende di
+          nascondergli i saldi — quelli li legge già dalle tessere,
+          perché gli servono per le ricariche. Quello che resta al
+          presidente è il quadro d'insieme. */}
+      {scadenzaSessione == null && (
+      <div className="admin-larga">
+        <SezioneCollassabile
+          id="panoramica"
+          titolo="Panoramica Circolo"
+          descrizione="I numeri del circolo: persone, attività, denaro, e l'elenco per socio"
+          apertaDiPartenza
+        >
+          <SezionePanoramicaCircolo
+            circoloId={circolo.id}
+            statoCircolo={statoCircolo(circolo)}
+            soci={soci}
+            onSelezionaSocio={setSocioSelUid}
+          />
+        </SezioneCollassabile>
+      </div>
+      )}
+
       <main className="admin-main">
         <SezioneCollassabile id="test-reset" titolo="Test Reset" descrizione="Strumenti per ripartire puliti fra due sessioni di prova">
           <SezioneTestReset circolo={circolo} sfide={sfide} />
@@ -259,12 +298,21 @@ export default function AdminDashboard() {
         <SezioneCollassabile id="saldare" titolo="Tessere da saldare" descrizione="Ex soci con credito da restituire o debito da recuperare">
           <SezioneTessereDaSaldare circolo={circolo} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="soci" titolo="Soci/Tesserati e Ospiti" descrizione="Anagrafica e credito di Soci/Tesserati e Ospiti">
-          <SezioneSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
-        </SezioneCollassabile>
-        <SezioneCollassabile id="debiti" titolo="Debiti dei Soci/Tesserati e Ospiti" descrizione="Soci/Tesserati e Ospiti con credito negativo o Fido da saldare">
-          <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
-        </SezioneCollassabile>
+        {/* «Soci» e «Debiti dei Soci» sono sottosezioni della
+            Panoramica, in cima alla pagina. Non sono state duplicate:
+            due strade per la stessa cosa prima o poi divergono. Restano
+            qui, sciolte, solo per il Collaboratore, che la Panoramica
+            non ce l'ha: sono gli strumenti con cui lavora al banco. */}
+        {scadenzaSessione != null && (
+          <>
+            <SezioneCollassabile id="soci" {...ETICHETTA_SOCI}>
+              <SezioneSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
+            </SezioneCollassabile>
+            <SezioneCollassabile id="debiti" {...ETICHETTA_DEBITI}>
+              <SezioneDebitiSoci soci={soci} onSelezionaSocio={setSocioSelUid} />
+            </SezioneCollassabile>
+          </>
+        )}
         <SezioneCollassabile id="maestri" titolo="Maestri" descrizione="Anagrafica, account e accesso dei maestri del circolo">
           <SezioneMaestri circoloId={circolo.id} maestri={maestri} prenotazioni={prenotazioni} />
         </SezioneCollassabile>
