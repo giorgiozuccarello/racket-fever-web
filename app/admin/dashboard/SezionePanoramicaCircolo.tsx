@@ -40,9 +40,11 @@ import SezioneDebitiSoci, { ETICHETTA_DEBITI } from './SezioneDebitiSoci';
 import { SocioCircolo } from '../../../data/users';
 
 export default function SezionePanoramicaCircolo({
-  circoloId, statoCircolo, puoAggiornare = true, soci, onSelezionaSocio,
+  circoloId, statoCircolo, attivatoIlMs, puoAggiornare = true, soci, onSelezionaSocio,
 }: {
   circoloId: string;
+  // Ancora il periodo di fatturazione all'anniversario del circolo.
+  attivatoIlMs?: number | null;
   // Falso per il Collaboratore: legge i numeri come tutti, ma non ha il
   // tasto che li rifà — quello rilegge tutto lo storico del circolo, ed
   // è lavoro pesante che non si mette in mano a una password condivisa.
@@ -58,6 +60,7 @@ export default function SezionePanoramicaCircolo({
       <SchedaCircoloVista
         circoloId={circoloId} perAdmin
         statoCircolo={statoCircolo}
+        attivatoIlMs={attivatoIlMs}
         puoAggiornare={puoAggiornare}
       />
 

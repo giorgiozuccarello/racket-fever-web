@@ -1,4 +1,14 @@
 // ============================================================
+// ⚠️ FILE GEMELLO, identico a racket-fever/data/schedaCircolo.ts.
+// Non importa niente che esista solo in uno dei due progetti: legge un
+// documento e fa dei conti. Il terzo gemello, quello che i conti li
+// FA davvero, e' racket-fever/functions/src/scheda.ts — e' li' che si
+// decide cosa finisce dentro la fotografia.
+//
+// Se si tocca una riga qui, si tocca anche di la'.
+// ============================================================
+
+// ============================================================
 // SCHEDA CIRCOLO — i numeri che dicono come sta un circolo.
 //
 // È la pagina che deve bastare a chi il circolo non lo conosce: un
@@ -115,7 +125,31 @@ export interface VoceSocioFoto {
   ultimaPrenotazioneMs: number | null;
 }
 
+// ⚠️ Il conto su cui si emette la quota annuale, scritto dal giro
+// notturno insieme al resto (functions/src/index.ts). Facoltativo
+// perché le fotografie scattate prima del 19 agosto 2026 non ce
+// l'hanno: chi lo legge deve reggere la sua assenza.
+export interface FatturazioneFoto {
+  utenti: number;
+  accettatiMaiUsati: number;
+  usciteNelPeriodo: number;
+  fascia: string;
+  quota: number;
+  periodoInizioMs: number;
+  periodoFineMs: number;
+  periodoNumero: number;
+  // ⚠️ FALSO SE IL CIRCOLO NON HA UNA DATA DI ATTIVAZIONE, e allora
+  // `periodoFineMs` NON è una data di rinnovo: è «oggi», perché senza
+  // ancoraggio il periodo è l'ultimo anno che finisce adesso. Mostrarla
+  // come scadenza faceva risultare scaduti, ogni singolo giorno, tutti
+  // i circoli nati prima che il campo esistesse. Facoltativo perché le
+  // fotografie più vecchie non ce l'hanno: in loro assenza si legge
+  // come `false`, che è l'ipotesi prudente.
+  periodoAncorato?: boolean;
+}
+
 export interface Fotografia {
+  fatturazione?: FatturazioneFoto;
   circoloId: string;
   giorno: string;
   scattataIlMs: number;
@@ -183,6 +217,13 @@ export function ascoltaFotografia(
           addebiti30: v.registro?.addebiti30 ?? 0,
           movimenti30: v.registro?.movimenti30 ?? 0,
         },
+        // ⚠️ Il conto della quota va COPIATO QUI, e non c'era. Il campo
+        // veniva scritto dal giro notturno e dichiarato
+        // nell'interfaccia, ma questa funzione — che è l'unica strada
+        // per cui una fotografia arriva a una schermata — lo lasciava
+        // per terra. Chi lo leggeva trovava sempre `undefined`, e la
+        // schermata concludeva, in buona fede, «nessun conteggio».
+        fatturazione: (v.fatturazione as FatturazioneFoto | undefined) ?? undefined,
         perSocio: (v.perSocio ?? {}) as Record<string, VoceSocioFoto>,
       });
     },

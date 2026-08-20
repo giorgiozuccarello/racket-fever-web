@@ -17,7 +17,7 @@
 // ============================================================
 
 import {
-  collection, doc, query, where, onSnapshot, getDocs,
+  collection, doc, query, where, onSnapshot,
   setDoc, serverTimestamp, Transaction,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
@@ -392,69 +392,15 @@ export function esecutorePerAdmin(m: Movimento): string {
     case 'maestro': return `${nome} (maestro)`;
     case 'compagno': return `${nome} (compagno di gioco)`;
     case 'socio': return `${nome} (socio)`;
+    // ⚠️ 'sistema' con un nome scritto lo mostra, e non e' un dettaglio:
+    // le righe di apertura scritte dal server dopo un reset del circolo
+    // sono firmate «Racket Fever», e finivano tutte sotto un anonimo
+    // «Sistema» — cioe' il registro non diceva chi le aveva create.
+    case 'sistema': return m.eseguitoDaNome ? `${m.eseguitoDaNome} (sistema)` : 'Sistema';
     default: return 'Sistema';
   }
 }
 
-// Saldo di apertura per tutte le tessere di un circolo: si esegue una
-// sola volta, dopo il reset, cosi' la catena saldoPrima → saldoDopo
-// parte da una riga esplicita invece che da un buco.
-export async function creaAperturePerCircolo(circoloId: string): Promise<number> {
-  const q = query(collection(db, 'tessere'), where('circoloId', '==', circoloId));
-  const snap = await getDocs(q);
-  let create = 0;
-  for (const d of snap.docs) {
-    const v = d.data();
-    // ============================================================
-    // ⚠️ SOLO CHI FA ANCORA PARTE DEL CIRCOLO. Qui si apriva una riga
-    // per OGNI tessera trovata, e le tessere non si cancellano mai: chi
-    // e' stato rimosso dal circolo, chi si e' cancellato l'account, chi
-    // era stato rifiutato e perfino chi ha una richiesta ancora in
-    // attesa avevano tutti la loro. Dopo un Reset Completo Soci il
-    // registro appena riaperto elencava dodici portafogli mentre nella
-    // sezione Soci ce n'erano due — e i dieci di troppo erano persone
-    // che dal circolo erano uscite, alcune con il nome gia'
-    // anonimizzato in «Socio rimosso».
-    //
-    // ⚠️ 'sospesa' RESTA DENTRO, e non e' una dimenticanza: un socio
-    // sospeso e' ancora tesserato, il suo credito e' ancora denaro del
-    // circolo, e lasciarlo fuori dal registro vorrebbe dire aprire i
-    // conti nascondendo un saldo che esiste.
-    // ============================================================
-    const stato = v.stato as string | undefined;
-    if (stato !== 'approvata' && stato !== 'sospesa') continue;
-    const credito = (v.credito as number) ?? 0;
-    const debito = (v.sosUtilizzato as number) ?? 0;
-    try {
-      const rif = doc(collection(db, 'movimenti'));
-      await setDoc(rif, {
-        circoloId,
-        uid: v.uid,
-        socioNome: `${v.nome ?? ''} ${v.cognome ?? ''}`.trim(),
-        socioRuolo: v.ruolo ?? 'socio_tesserato',
-        tipo: 'apertura',
-        importo: 0,
-        saldoPrima: credito,
-        saldoDopo: credito,
-        debitoPrima: debito,
-        debitoDopo: debito,
-        // La riga la scrive un programma, ma a farlo partire e' stato
-        // qualcuno: le regole vogliono sapere chi, e il registro anche.
-        // Il ruolo resta 'sistema', che e' quello che si legge a schermo.
-        eseguitoDaUid: firmaDiChiScrive(),
-        eseguitoDaNome: null,
-        eseguitoDaRuolo: 'sistema',
-        prenotazioneId: null,
-        descrizione: 'Apertura del registro movimenti',
-        quando: serverTimestamp(),
-      });
-      create++;
-    } catch (e) {
-      console.warn('Apertura non creata per la tessera:', d.id, e);
-    }
-  }
-  return create;
-}
 
 // ============================================================
 // VISTA CARD — raggruppa i movimenti in "prenotazioni".

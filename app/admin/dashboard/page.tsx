@@ -8,7 +8,7 @@ import { allineaProfiliCircolo } from '../../../data/tessere';
 import { leggiResponsabile, ProfiloResponsabile } from '../../../data/responsabili';
 import { leggiSessioneCollaboratore, sessioneScaduta } from '../../../data/collaboratori';
 import { ascoltaSociCircolo, SocioCircolo } from '../../../data/users';
-import { Circolo, Campo, Blocco, statoCircolo } from '../../../data/circoli';
+import { Circolo, Campo, Blocco, statoCircolo, attivazioneCircoloMs } from '../../../data/circoli';
 import { ascoltaCircolo, ascoltaCampi, ascoltaBlocchi } from '../../../data/circoliRepo';
 import { ascoltaPrenotazioniCircolo, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
 import { Sfida, ascoltaSfideCircolo, risolviTimerAccordo, risolviTimerPrenotazione } from '../../../data/sfide';
@@ -31,7 +31,6 @@ import SezioneBlocchi from './SezioneBlocchi';
 import SezioneRichiesteTessera from './SezioneRichiesteTessera';
 import SezioneSegnalazioni from './SezioneSegnalazioni';
 import SezioneTessereDaSaldare from './SezioneTessereDaSaldare';
-import SezioneTestReset from './SezioneTestReset';
 import SchedaSocioModal from './SchedaSocioModal';
 import SezioneMaestri from './SezioneMaestri';
 import SezioneClassificaSociale from './SezioneClassificaSociale';
@@ -234,6 +233,7 @@ export default function AdminDashboard() {
           <SezionePanoramicaCircolo
             circoloId={circolo.id}
             statoCircolo={statoCircolo(circolo)}
+            attivatoIlMs={attivazioneCircoloMs(circolo)}
             soci={soci}
             onSelezionaSocio={setSocioSelUid}
             puoAggiornare={scadenzaSessione == null}
@@ -242,9 +242,13 @@ export default function AdminDashboard() {
       </div>
 
       <main className="admin-main">
-        <SezioneCollassabile id="test-reset" titolo="Test Reset" descrizione="Strumenti per ripartire puliti fra due sessioni di prova">
-          <SezioneTestReset circolo={circolo} sfide={sfide} />
-        </SezioneCollassabile>
+        {/* ⚠️ LA SEZIONE «TEST RESET» NON C'È PIÙ, ed è passata al Super
+            Admin. Azzerava crediti, prenotazioni, movimenti, avvisi,
+            sfide e lezioni di un intero circolo, e stava in cima alla
+            Dashboard di ogni presidente. Adesso è una funzione del
+            server (`resettaCircolo`), la chiama solo il team Racket
+            Fever dalla scheda del circolo, e prima del reset totale
+            propone di archiviare il registro. */}
         <SezioneCollassabile id="personalizza" titolo="Personalizza App" descrizione="Colori e logo dell'app mostrati ai soci">
           <SezionePersonalizzaApp circolo={circolo} />
         </SezioneCollassabile>
@@ -338,7 +342,7 @@ export default function AdminDashboard() {
           <SezioneClassificaSociale circolo={circolo} soci={soci} sfide={sfide} />
         </SezioneCollassabile>
         <SezioneCollassabile id="sfide" titolo="Sfide in Corso" descrizione="Sfide sociali dal lancio alla conclusione">
-          <SezioneSfideInCorso sfide={sfide} soci={soci} circolo={circolo} />
+          <SezioneSfideInCorso sfide={sfide} soci={soci} circolo={circolo} puoCambiareSfide={scadenzaSessione == null} />
         </SezioneCollassabile>
         <SchedaSocioModal
           circoloId={circolo.id}

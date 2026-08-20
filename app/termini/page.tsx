@@ -15,7 +15,7 @@
 // ============================================================
 
 import type { Metadata } from 'next';
-import { VERSIONE_DOCUMENTI, EMAIL_CONTATTO, SITO_NUDO } from '../../data/consenso';
+import { VERSIONE_DOCUMENTI, EMAIL_CONTATTO, SITO_NUDO, TITOLARE } from '../../data/consenso';
 
 export const metadata: Metadata = {
   title: 'Termini di servizio — Racket Fever',
@@ -45,13 +45,16 @@ export default function Termini() {
         {SITO_NUDO}.
       </p>
 
-      <div style={{
-        border: '2px solid #B3261E', borderRadius: 10, padding: '1rem 1.2rem',
-        margin: '1.5rem 0', background: '#FCF3F2',
-      }}>
-        <strong>Da compilare prima della pubblicazione:</strong> denominazione, sede e partita
-        IVA di chi fornisce il servizio.
-      </div>
+      {/* Chi fornisce il servizio: stessi dati dell'informativa, stessa
+          fonte (data/consenso.ts). */}
+      <p>
+        Racket Fever è fornita da <strong>{TITOLARE.nome}</strong>, con domicilio in{' '}
+        <strong>{TITOLARE.indirizzo}</strong>, codice fiscale{' '}
+        <strong>{TITOLARE.codiceFiscale}</strong>
+        {TITOLARE.telefono ? <>, telefono <strong>{TITOLARE.telefono}</strong></> : null}. Per
+        contattarci:{' '}
+        <a href={`mailto:${EMAIL_CONTATTO}`} style={{ color: '#0E3B2E' }}>{EMAIL_CONTATTO}</a>.
+      </p>
 
       <h2 style={H2}>Che cos’è Racket Fever</h2>
       <p>
@@ -67,10 +70,12 @@ export default function Termini() {
 
       <h2 style={H2}>Il tuo account</h2>
       <p>
-        Per registrarti servono nome, cognome, un indirizzo email valido e una password, e devi
-        avere <strong>almeno sedici anni compiuti</strong>: lo dichiari tu al momento della
-        registrazione. Sotto quell’età non ci si può iscrivere — un genitore può registrarsi con
-        il proprio account e prenotare il campo su cui il figlio giocherà.
+        Per registrarti servono nome, cognome, un indirizzo email valido, una password e la tua
+        <strong> data di nascita</strong>, e devi avere <strong>almeno sedici anni
+        compiuti</strong>. L’età la verifichiamo: non è una casella da spuntare, è un controllo
+        che fa l’app e che rifà anche il nostro server. Sotto quell’età non ci si può iscrivere —
+        un genitore può registrarsi con il proprio account e prenotare il campo su cui il figlio
+        giocherà.
       </p>
       <p>
         L’account è personale: la password non si presta. Se pensi che qualcuno stia usando il

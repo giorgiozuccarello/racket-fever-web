@@ -3,24 +3,29 @@
 // (collezione "utenti") per il profilo, incluso il credito wallet.
 // ============================================================
 
+// ⚠️ Sei nomi sono usciti da qui insieme a `registrati()`:
+// `createUserWithEmailAndPassword`, `deleteUser`, `setDoc`,
+// `runTransaction`, `registraMovimentoInTransazione` e
+// `VERSIONE_DOCUMENTI`. Nessuno era piu' usato, e non e' pulizia
+// estetica: lasciati li' erano un invito a riscrivere in questo file
+// la funzione appena tolta — cioe' a rifare esattamente il gemello
+// divergente che ci e' costato un audit. In piu' l'import di
+// `registraMovimentoInTransazione` teneva agganciato un modulo intero
+// al grafo di questo file per niente.
 import {
-  createUserWithEmailAndPassword,
   signInWithEmailAndPassword,
   signOut,
   sendEmailVerification,
   sendPasswordResetEmail,
   reload,
   User,
-  deleteUser,
 } from 'firebase/auth';
 import {
-  doc, setDoc, getDoc, updateDoc, onSnapshot,
-  collection, query, where, runTransaction,
+  doc, getDoc, updateDoc, onSnapshot,
+  collection, query, where,
 } from 'firebase/firestore';
 import { auth, db, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
-import { registraMovimentoInTransazione } from './movimenti';
-import { VERSIONE_DOCUMENTI } from './consenso';
 
 export interface ProfiloUtente {
   nome: string;
@@ -55,6 +60,14 @@ export interface ProfiloUtente {
   consensoVersione?: string;
   consensoIlMs?: number;
   eta16Dichiarata?: boolean;
+  // ⚠️ 'AAAA-MM-GG', e IMMUTABILE dopo la creazione: le regole
+  // Firestore la pretendono alla nascita del profilo, ne verificano
+  // l'eta' lato server e poi non lasciano piu' riscriverla — nemmeno
+  // all'interessato. Sta dichiarata qui anche se oggi nessuna
+  // schermata la legge: l'oggetto passato a `setDoc` in `registrati()`
+  // non e' tipizzato, e senza questa riga il giorno che qualcuno la
+  // mostrera' il compilatore non avrebbe niente da dire.
+  dataNascita?: string;
   torneiInEvidenza?: string[];
   bachecaLettaAlMs?: Record<string, number>;
   bachecaHomeSpentaAlMs?: Record<string, number>;
@@ -76,60 +89,28 @@ export interface SocioCircolo extends ProfiloUtente {
   statoTessera?: 'in_attesa' | 'approvata' | 'sospesa' | 'chiusa' | 'rifiutata';
 }
 
-/**
- * Crea l'account su Firebase Auth, il documento profilo su Firestore
- * (con credito iniziale a 0) e invia la vera email di conferma.
- * L'utente viene poi disconnesso: dovrà accedere esplicitamente
- * dopo aver confermato l'email.
- */
 // ============================================================
-// ⚠️ QUESTA COPIA ERA RIMASTA INDIETRO, ed era il pericolo peggiore
-// di tutta la tornata: le regole Firestore adesso RESPINGONO la
-// nascita di un profilo senza i campi del consenso, e questa versione
-// non li scriveva. Oggi non la chiama nessuna pagina del sito — è il
-// gemello di quella dell'app — ma un gemello che diverge è una mina
-// con la data sopra: la prima pagina web che avesse chiamato
-// `registrati()` avrebbe creato un'utenza Auth e poi si sarebbe vista
-// rifiutare il profilo, lasciando la persona murata fuori.
+// ⚠️ `registrati()` E' STATA TOLTA DA QUI, ed e' la seconda volta in
+// due tornate che un gemello morto di questo file si rivela una mina.
 //
-// Tenuta allineata riga per riga a data/users.ts dell'app.
+// Portava ancora la firma vecchia — `etaDichiarata: boolean`, la
+// casella da spuntare — e scriveva il profilo SENZA `dataNascita`. Da
+// questa tornata le regole Firestore pretendono quel campo alla
+// nascita di un profilo e ne verificano l'eta' lato server: la prima
+// pagina del sito che avesse chiamato questa funzione avrebbe creato
+// l'utenza su Firebase Auth e poi si sarebbe vista respingere il
+// profilo. La pulizia nel `catch` (`deleteUser`) qui non riesce quasi
+// mai, perche' gira sull'istanza principale e vuole un accesso
+// recentissimo: sarebbe rimasta un'utenza senza profilo, cioe' una
+// persona che non puo' entrare, non puo' registrarsi di nuovo
+// («email gia' in uso») e non puo' nemmeno cancellarsi.
+//
+// Il commento che stava qui sopra diceva «tenuta allineata riga per
+// riga»: non lo era. Ci si registra dall'app, ed e' giusto cosi'; se
+// un domani servira' dal sito, si copia quella dell'app — che e'
+// l'unica mantenuta, e l'unica su cui il compilatore ferma chi la
+// chiama con i parametri sbagliati.
 // ============================================================
-export async function registrati(
-  nome: string,
-  cognome: string,
-  email: string,
-  password: string,
-  consensi: { documentiAccettati: boolean; etaDichiarata: boolean },
-): Promise<void> {
-  if (!consensi.documentiAccettati || !consensi.etaDichiarata) {
-    throw new Error('CONSENSO_MANCANTE');
-  }
-
-  const cred = await createUserWithEmailAndPassword(auth, email.trim(), password.trim());
-
-  try {
-    await setDoc(doc(db, 'utenti', cred.user.uid), {
-      nome: nome.trim(),
-      cognome: cognome.trim(),
-      email: email.trim(),
-      circoloId: null,
-      credito: 0,
-      consensoVersione: VERSIONE_DOCUMENTI,
-      consensoIlMs: Date.now(),
-      eta16Dichiarata: consensi.etaDichiarata,
-    });
-  } catch (e) {
-    try {
-      await deleteUser(cred.user);
-    } catch {
-      // Vedi il commento nel gemello dell'app.
-    }
-    throw e;
-  }
-
-  await sendEmailVerification(cred.user);
-  await signOut(auth);
-}
 
 export async function accedi(email: string, password: string): Promise<User> {
   const cred = await signInWithEmailAndPassword(auth, email.trim(), password.trim());

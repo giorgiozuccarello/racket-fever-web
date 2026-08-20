@@ -15,6 +15,7 @@ import {
 import { db, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { Circolo, Campo, Blocco, StatoCircolo, statoCircolo } from './circoli';
+import { durataTimerMs } from './sfide';
 
 function suUnsub(errore: any) {
   console.warn('Ascolto Firestore interrotto (probabile logout):', errore?.message ?? errore);
@@ -126,7 +127,7 @@ export async function riattivaCircolo(circoloId: string) {
 // indice serve a scorrere migliaia di documenti — le sfide aperte di
 // un circolo sono decine.
 async function faiRipartireITimerDelleSfide(circoloId: string, circolo: Circolo) {
-  const durata = circolo.timerSfideVeloce ? 5 * 60 * 1000 : 24 * 60 * 60 * 1000;
+  const durata = durataTimerMs(circolo);
   const adesso = Date.now();
   try {
     const istantanea = await getDocs(query(collection(db, 'sfide'), where('circoloId', '==', circoloId)));

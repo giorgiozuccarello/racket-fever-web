@@ -7,7 +7,6 @@ import {
   ricaricaCredito, azzeraCredito, cancellaConRimborso, importoDaRimborsare, PrenotazioneAdmin,
 } from '../../../data/prenotazioniRepo';
 import { anteprimaRimozione, rimuoviSocioDaCircolo } from '../../../data/tessere';
-import { CONTENUTI_DEMO } from '../../../data/contenutiDemo';
 import Modal from './Modal';
 
 export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClose }: {
@@ -115,11 +114,16 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
 
   const numeroPrenotazioni = (uid: string) => prenotazioni.filter((p) => p.utenteId === uid).length;
 
-  const posizioneClassifica = (soc: SocioCircolo) => {
-    const nomeCompleto = `${soc.nome} ${soc.cognome}`;
-    const riga = CONTENUTI_DEMO[circoloId]?.classifica.find((r) => r.nome === nomeCompleto);
-    return riga ? `#${riga.pos}` : '-';
-  };
+  // ⚠️ DALLA CLASSIFICA VERA, non più da un file di contenuti finti.
+  // Prima questa riga cercava il socio per nome e cognome dentro
+  // `contenutiDemo.ts`, una classifica inventata del solo circolo
+  // «milazzo»: per ogni altro circolo la posizione era sempre «-», e
+  // per Milazzo era un numero che non veniva da nessuna parte. La
+  // posizione sta sulla tessera, la scrive il server dopo ogni sfida,
+  // ed è quella che il socio vede nella propria app.
+  const posizioneClassifica = (soc: SocioCircolo) => (
+    soc.posizioneClassificaSociale != null ? `#${soc.posizioneClassificaSociale}` : '-'
+  );
 
   const confermaRicarica = async () => {
     const v = parseFloat(importo.replace(',', '.'));

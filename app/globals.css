@@ -464,6 +464,79 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-saving{font-size:.75rem;color:var(--grigio);margin-top:.4rem}
 .admin-error-text{color:#B3261E;font-size:.82rem;margin-top:.6rem}
 
+/* ============================================================
+   RESET DEL CIRCOLO E ARCHIVI DEL REGISTRO (pannello Super Admin).
+   ============================================================ */
+/* L'esito riuscito ha una veste sua: prima l'unico riscontro colorato
+   era il rosso dell'errore, e un'operazione andata bene si annunciava
+   con lo stesso grigio di una nota qualunque. */
+.admin-ok-text{
+  color:#14532d;background:#EAF5EF;border:1px solid #BFE0CD;border-radius:8px;
+  padding:.55rem .7rem;font-size:.82rem;margin-top:.6rem;line-height:1.45;
+}
+.admin-btn-piccolo{
+  background:#fff;color:var(--pino);border:1.5px solid var(--pino);border-radius:8px;
+  padding:.45rem .75rem;font-size:.78rem;font-weight:800;cursor:pointer;white-space:nowrap;
+}
+.admin-btn-piccolo:hover{background:var(--riga)}
+.admin-btn-piccolo:disabled{opacity:.5;cursor:default}
+.admin-btn-piccolo.admin-btn-danger{background:#fff;color:#B3261E;border-color:#B3261E}
+.admin-btn-piccolo.admin-btn-danger:hover{background:#FCF3F2}
+
+.reset-livello{
+  border:1.5px solid #E4E0D5;border-radius:12px;padding:.8rem .9rem;margin-top:.7rem;background:#fff;
+}
+.reset-livello-testa{display:flex;align-items:center;justify-content:space-between;gap:.8rem}
+.reset-livello-nome{font-weight:800;font-size:.95rem;color:var(--pino)}
+.reset-livello-nome.grave{color:#B3261E}
+.reset-livello-cosa{margin-top:.4rem}
+.reset-livello-quando{margin-top:.25rem;font-style:italic}
+
+/* Il riquadro che propone l'archivio prima del reset totale: ambra,
+   perché è un avviso, non un errore — l'errore rosso lo si legge come
+   «è andato storto qualcosa», e qui non è ancora successo niente. */
+.reset-archivio-avviso{
+  border:2px solid #C9A94F;background:#FDF6E3;border-radius:10px;
+  padding:.8rem .9rem;margin-top:.8rem;font-size:.85rem;line-height:1.5;color:#5A4500;
+}
+
+.reset-archivio-riga{
+  border:1.5px solid #E4E0D5;border-radius:12px;padding:.7rem .85rem;margin-top:.6rem;background:#fff;
+}
+.reset-archivio-testa{display:flex;align-items:center;justify-content:space-between;gap:.8rem;flex-wrap:wrap}
+.reset-archivio-corpo{margin-top:.7rem;border-top:1px solid #E4E0D5;padding-top:.7rem}
+
+/* La riga con l'interruttore di un modulo: testo a sinistra che va a
+   capo, comando a destra allineato in alto. `align-items:flex-start`
+   e non `center`: con due righe di spiegazione, centrare fa ballare
+   l'interruttore rispetto al titolo. */
+.admin-riga-interruttore{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;
+  margin:.2rem 0 .8rem;cursor:pointer;
+}
+.admin-riga-interruttore>span:first-child{display:flex;flex-direction:column;gap:.15rem}
+.admin-riga-interruttore .admin-card-hint{margin:0}
+/* ⚠️ Anche il titolo, o non serve a niente. `.admin-label` porta
+   `margin:.9rem 0 .35rem`: con `align-items:flex-start` quel margine
+   spingeva giu' il testo e lasciava l'interruttore quattordici pixel
+   piu' in alto del titolo che dovrebbe affiancare — cioe' esattamente
+   il ballerino che `flex-start` era li' per evitare. */
+.admin-riga-interruttore .admin-label{margin:0}
+.admin-riga-interruttore input[type=checkbox]{
+  flex:none;width:2.6rem;height:1.5rem;accent-color:var(--pino);cursor:pointer;
+}
+
+/* Il regolatore del tempo di risposta alle sfide. */
+.timer-sfide-riga{display:flex;align-items:center;gap:.9rem;margin:.3rem 0 .7rem}
+.timer-sfide-cursore{flex:1;accent-color:var(--pino)}
+.timer-sfide-valore{
+  min-width:5.5rem;text-align:right;font-weight:900;font-size:1rem;color:var(--pino);
+}
+.timer-sfide-avviso{
+  background:#FBF3E2;border:1px solid #E6D5A8;border-radius:8px;
+  padding:.55rem .7rem;color:#8A6200;margin-top:.2rem;
+}
+
 /* ---------- Sponsor: una riga per immagine, fino a cinque ---------- */
 .sponsor-riga{margin-top:.6rem}
 /* La linea sta FRA due righe, non sulla prima: cosi' non dipende da

@@ -85,10 +85,54 @@ export interface Circolo {
   // chiama Racket Fever.
   comune?: string | null;
   limiteSfidaPosizioni?: number; // 0/assente = usa il default (5): quante posizioni sopra si può sfidare
+
+  // ============================================================
+  // ⚠️ LE SFIDE SI POSSONO SPEGNERE, CIRCOLO PER CIRCOLO.
+  //
+  // ASSENTE VUOL DIRE ACCESE, e non è una comodità: i circoli che
+  // esistono già non hanno questo campo, e leggerlo come «spente»
+  // vorrebbe dire far sparire il tabellone a tutti nel momento in cui
+  // si pubblica questa versione. Stessa lettura di `stato` più in
+  // basso, per la stessa ragione.
+  //
+  // Serve perché il sistema sfide di oggi applica UN regolamento solo,
+  // quello posizionale: chi ha regole diverse non «aspetta la versione
+  // modulare», la subisce — e la prima cosa che dice è che l'app fa una
+  // cosa sbagliata. Spento, il circolo non lo vede proprio.
+  //
+  // ⚠️ Spegnere NON è un gesto neutro sull'app del socio, e i tre
+  // effetti sono gestiti dove capitano, non qui: la voce della barra
+  // diventa «Classifica» (senza, la classifica sociale resterebbe
+  // irraggiungibile, perché oggi l'unica porta è dentro Sfide); le
+  // prenotazioni nate da una sfida tornano a comparire in Home (lì sono
+  // filtrate via apposta, perché normalmente si vedono dentro Sfide); e
+  // nella classifica il pulsante «Sfida» resta a schermo ma spento, e
+  // i riquadri verdi «questo lo puoi sfidare» diventano tutti rossi.
+  // ============================================================
+  sfideAttive?: boolean;
   // Solo web: sfumatura scelta dall'admin per la classifica sociale.
   // Non esiste nel mobile, va conservata quando si allineano i file.
   gradienteClassifica?: { da: string; a: string };
-  timerSfideVeloce?: boolean; // true = i 2 timer delle Sfide durano 5 minuti invece di 24 ore (solo per i test)
+  // ============================================================
+  // ⚠️ QUANTO DURANO I DUE TIMER DELLE SFIDE, in minuti, deciso dal
+  // circolo. Era un sì/no — «24 ore (reale)» oppure «5 minuti (test)» —
+  // e il nome del campo lo diceva: `timerSfideVeloce`, uno strumento di
+  // prova finito in mano ai presidenti. Ma la domanda che il circolo si
+  // pone è un'altra e non è di prova: quanto tempo do a un socio per
+  // rispondere a una sfida? Un club di pensionati che gioca la mattina
+  // e uno di impiegati che guarda il telefono la sera non hanno la
+  // stessa risposta.
+  //
+  // Assente = 24 ore, cioè quello che facevano tutti prima. I circoli
+  // che avevano acceso il vecchio interruttore continuano a leggere 5
+  // minuti finché non toccano il nuovo comando: `durataTimerMs` guarda
+  // prima questo campo e poi, se manca, il vecchio.
+  //
+  // ⚠️ Il campo VECCHIO non si cancella e non si rinomina: sta scritto
+  // sui documenti dei circoli che l'hanno usato.
+  // ============================================================
+  minutiTimerSfida?: number;
+  timerSfideVeloce?: boolean; // ⚠️ STORICO — vedi minutiTimerSfida qui sopra.
 
   // ============================================================
   // ANAGRAFICA DI RETE — la scrive e la legge il Super Admin.
@@ -107,6 +151,10 @@ export interface Circolo {
   // Quando e' entrato in rete. Millisecondi, come tutte le altre date
   // che si confrontano nell'app.
   creatoIlMs?: number;
+  // Lo stesso momento scritto dal server (Timestamp). E' quello che fa
+  // fede — `creatoIlMs` viene dall'orologio del PC di chi ha creato il
+  // circolo — e serve come ripiego: vedi attivazioneCircoloMs().
+  creatoIl?: unknown;
   sospesoIlMs?: number | null;
   chiusoIlMs?: number | null;
   // Chi ha chiesto l'adesione e chi ha firmato il contratto: sono due
@@ -462,4 +510,52 @@ export function slotNelPassato(data: string, orario: string, adesso: Date = new 
 // non affollarle): popup, avvisi/notifiche, storico prenotazioni.
 export function fasciaOraria(orario: string): string {
   return `${orario} - ${orarioFineSlot(orario)}`;
+}
+
+// ============================================================
+// QUANDO IL CIRCOLO E' ENTRATO IN RETE — la data su cui si ancora
+// l'anno di fatturazione.
+//
+// ⚠️ SI GUARDA ANCHE `creatoIl`, e non e' pignoleria. Il periodo di
+// fatturazione parte dall'anniversario dell'attivazione: senza data non
+// si puo' ancorare niente, e il conto ripiega su «gli ultimi dodici
+// mesi», che finiscono oggi. Il pannello leggeva quella fine come una
+// scadenza e dichiarava scaduto, ogni giorno, ogni circolo a cui
+// mancasse il campo. Bastava che ne mancasse UNO dei due: `creatoIlMs`
+// e' scritto dal browser di chi crea il circolo, `creatoIl` dal server.
+// Sono lo stesso istante, e chiederli tutti e due costa una riga.
+// ============================================================
+// ⚠️ PRIMA `creatoIl`, POI `creatoIlMs`, e l'ordine e' il punto. Sono
+// lo stesso istante scritto due volte: `creatoIlMs` dall'orologio del
+// PC di chi ha fatto l'onboarding, `creatoIl` dal server. Lo dice
+// onboarding.ts, dove sono scritti: «creatoIl e' quello che fa fede,
+// immune all'orologio sballato del PC di chi crea il circolo». Su
+// questa data si ancora la scadenza di un contratto annuale: leggere
+// per primo il numero del portatile e il timestamp del server solo come
+// ripiego era fare l'esatto contrario di quello che il commento
+// prometteva. `creatoIlMs` resta come ripiego perche' si legge subito,
+// anche mentre la scrittura del server e' ancora in volo.
+export function attivazioneCircoloMs(
+  circolo: { creatoIlMs?: number | null; creatoIl?: unknown } | null | undefined,
+): number | null {
+  if (!circolo) return null;
+  const t = circolo.creatoIl as { toMillis?: () => number; seconds?: number } | undefined;
+  if (t && typeof t.toMillis === 'function') return t.toMillis();
+  if (t && typeof t.seconds === 'number') return t.seconds * 1000;
+  const ms = circolo.creatoIlMs;
+  if (typeof ms === 'number' && Number.isFinite(ms) && ms > 0) return ms;
+  return null;
+}
+
+// ============================================================
+// SE IN QUESTO CIRCOLO LE SFIDE SONO ACCESE.
+//
+// ⚠️ Una funzione e non `circolo.sfideAttive` scritto in giro: la
+// lettura giusta è «assente vuol dire acceso», e ricopiarla a mano in
+// otto punti vuol dire che al nono qualcuno scriverà
+// `if (circolo.sfideAttive)` — che su un circolo senza il campo è
+// falso, cioè spegne le sfide a tutti i circoli che esistono già.
+// ============================================================
+export function sfideAccese(circolo?: { sfideAttive?: boolean } | null): boolean {
+  return circolo?.sfideAttive !== false;
 }

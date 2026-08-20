@@ -10,6 +10,7 @@ import SezioneRichieste from './SezioneRichieste';
 import SezioneSegnalazioni from './SezioneSegnalazioni';
 import SezioneCircoli from './SezioneCircoli';
 import SezioneBannerRete from './SezioneBannerRete';
+import SezioneFatturazione from './SezioneFatturazione';
 
 export default function SuperAdminDashboard() {
   const router = useRouter();
@@ -67,6 +68,7 @@ export default function SuperAdminDashboard() {
         <SezioneSegnalazioni />
         <SezioneCircoli />
         <SezioneBannerRete />
+        <SezioneFatturazione />
       </main>
     </div>
   );

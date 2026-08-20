@@ -5,7 +5,8 @@
 // (Accordo, Prenotazione), proposta formale con blocco reale
 // degli slot, prenotazione vera al termine. Sostituisce
 // interamente il vecchio motore a proposte automatiche
-// (conservato come riferimento in sfide.ts.OLD_SOLUZIONE_UNO).
+// (il file di riferimento sfide.ts.OLD_SOLUZIONE_UNO e' stato
+// cancellato il 19 agosto 2026: resta solo nella cronologia).
 // ============================================================
 
 import {
@@ -48,8 +49,40 @@ export async function notificaSfidaConRitentativi(uid: string, testo: string, ci
 // Admin → Sfide in Corso). La durata delle PENALITÀ (congelamento 7
 // giorni) resta sempre fissa: è un effetto reale sul gioco, non
 // un'attesa arbitraria.
-export function durataTimerMs(circolo: { timerSfideVeloce?: boolean } | null | undefined): number {
-  return circolo?.timerSfideVeloce ? 5 * 60 * 1000 : 24 * 60 * 60 * 1000;
+// ============================================================
+// ⚠️ I VALORI AMMESSI, in minuti: 5, poi da un'ora a ventiquattro.
+// Non è una scala continua e non è un caso. Cinque minuti serve a
+// provare il meccanismo senza aspettare un giorno; da lì in poi la
+// domanda che il circolo si pone si misura in ore, e mezz'ore o
+// settantatré minuti non li sceglierebbe nessuno. Un elenco chiuso
+// vuol dire anche che il server può rifiutare tutto il resto senza
+// interpretare.
+// ============================================================
+export const MINUTI_TIMER_AMMESSI = [5, ...Array.from({ length: 24 }, (_, i) => (i + 1) * 60)];
+export const MINUTI_TIMER_PREDEFINITI = 24 * 60;
+
+// ⚠️ DUE CAMPI LETTI IN ORDINE, e il secondo è storia. `minutiTimerSfida`
+// è il comando di oggi; `timerSfideVeloce` era il sì/no di prima, e sui
+// circoli che l'avevano acceso è ancora l'unica cosa scritta. Leggendo
+// solo il primo, il giorno del passaggio quei circoli si sarebbero
+// ritrovati i timer a 24 ore senza che nessuno avesse toccato niente —
+// e con le sfide in corso già scadute o già rimandate.
+export function durataTimerMs(
+  circolo: { minutiTimerSfida?: number; timerSfideVeloce?: boolean } | null | undefined,
+): number {
+  const minuti = circolo?.minutiTimerSfida;
+  if (typeof minuti === 'number' && MINUTI_TIMER_AMMESSI.includes(minuti)) {
+    return minuti * 60 * 1000;
+  }
+  if (circolo?.timerSfideVeloce) return 5 * 60 * 1000;
+  return MINUTI_TIMER_PREDEFINITI * 60 * 1000;
+}
+
+// Come si legge a schermo: «5 minuti», «1 ora», «24 ore».
+export function timerLeggibile(minuti: number): string {
+  if (minuti < 60) return `${minuti} minuti`;
+  const ore = Math.round(minuti / 60);
+  return ore === 1 ? '1 ora' : `${ore} ore`;
 }
 
 const GIORNI_CONGELAMENTO_PENALITA = 7;
@@ -74,6 +107,10 @@ export interface PropostaFormale {
 }
 
 export interface Sfida {
+  // Sotto quale regolamento è nata. Facoltativo: le sfide create prima
+  // del 20 agosto 2026 non ce l'hanno, e per quelle vale «la versione 1
+  // per assenza». Vedi VERSIONE_REGOLAMENTO_SFIDE in data/slotSfida.ts.
+  versioneRegolamento?: number;
   id: string;
   circoloId: string;
   sfidanteId: string; sfidanteNome: string; sfidanteCognome: string; posizioneSfidante: number;
@@ -367,13 +404,4 @@ export async function annullaSfida(sfida: Sfida): Promise<{ giaAnnullata: boolea
   const esito = await chiama({ sfidaId: sfida.id });
   const dati = (esito.data ?? {}) as { annullata?: boolean; giaAnnullata?: boolean; oreVere?: number };
   return { giaAnnullata: dati.giaAnnullata === true, oreVere: dati.oreVere ?? 0 };
-}
-
-// ---------------- Reset di test ----------------
-
-export async function resettaSfideTest(circoloId: string): Promise<{ cancellate: number; fallite: number }> {
-  const chiama = httpsCallable(functions, 'resettaSfideCircolo', { timeout: 540000 });
-  const esito = await chiama({ circoloId });
-  const dati = (esito.data ?? {}) as { cancellate?: number; fallite?: number };
-  return { cancellate: dati.cancellate ?? 0, fallite: dati.fallite ?? 0 };
 }

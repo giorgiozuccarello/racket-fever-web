@@ -36,6 +36,7 @@ import {
   ATTIVITA_SENZA_FOTO, REGISTRO_SENZA_FOTO,
   riepilogoPersone, riepilogoDenaro, righeSocio,
 } from '../../../data/schedaCircolo';
+import { riepilogoFatturazione, euro } from '../../../data/fatturazione';
 
 // ⚠️ Il denaro resta con il punto e due decimali, come in TUTTO il
 // resto dell'applicazione (registro, dashboard Admin, pop-up di
@@ -44,7 +45,9 @@ import {
 // il genere di dettaglio che fa dubitare del numero. I conteggi
 // invece sono grandi e si leggono meglio separati: "1.284" contro
 // "1284".
-const EURO = (n: number) => `€ ${n.toFixed(2)}`;
+// ⚠️ Dal modulo comune, non `toFixed`: quello scrive «200.00 €»,
+// col punto inglese, su un numero che diventa una fattura.
+const EURO = (n: number) => euro(n);
 const CONTA = (n: number) => n.toLocaleString('it-IT');
 const ORE = (n: number) => n.toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
@@ -110,7 +113,7 @@ function Dato({ valore, etichetta, allarme }: {
 //    respinta» e numeri incompleti. Ogni lettura nuova va verificata
 //    contro le regole per tutti e due i ruoli.
 export default function SchedaCircoloVista({
-  circoloId, perAdmin = false, statoCircolo, puoAggiornare = true,
+  circoloId, perAdmin = false, statoCircolo, attivatoIlMs, puoAggiornare = true,
 }: {
   circoloId: string;
   perAdmin?: boolean;
@@ -121,6 +124,10 @@ export default function SchedaCircoloVista({
   // essere indietro e invitava a premere un tasto che quel circolo lo
   // rifiuta. Campo assente = attivo, come ovunque nel progetto.
   statoCircolo?: string;
+  // Quando il circolo è entrato nella rete: ancora il periodo di
+  // fatturazione al suo anniversario. Senza, il conto si fa sugli
+  // ultimi dodici mesi e lo dice.
+  attivatoIlMs?: number | null;
   // ⚠️ Falso per il Collaboratore. LEGGE i numeri come tutti — dentro
   // la fotografia non c'è niente che non veda già nelle tessere che
   // maneggia ogni giorno alla cassa — ma non ha il tasto che la RIFÀ:
@@ -226,6 +233,16 @@ export default function SchedaCircoloVista({
   // non rifare il giro a ogni tocco sul pulsante dell'elenco, non a
   // salvare una situazione difficile.
   const persone = useMemo(() => riepilogoPersone(tessere, maestri.length), [tessere, maestri]);
+  // ⚠️ DAL VIVO, non dalla fotografia. La fotografia lo scrive lo stesso
+  // — serve all'elenco Fatturazione del pannello di rete, che non può
+  // leggere le tessere di tutti i circoli — ma qui le tessere sono già
+  // in memoria, quindi il numero che il circolo vede è quello di adesso
+  // e non quello di stanotte. Su un conto che diventa una fattura, la
+  // differenza si nota.
+  const fattura = useMemo(
+    () => riepilogoFatturazione(tessere, attivatoIlMs ?? null, Date.now()),
+    [tessere, attivatoIlMs],
+  );
   const denaro = useMemo(() => riepilogoDenaro(tessere), [tessere]);
   const righe = useMemo(
     () => righeSocio(tessere, conFoto?.perSocio ?? {}),
@@ -301,6 +318,41 @@ export default function SchedaCircoloVista({
         {persone.sospese === 0 && persone.chiuse === 0 && persone.inAttesa === 0
           ? 'Nessuna tessera in attesa, sospesa o chiusa.'
           : ''}
+      </p>
+
+      {/* ---------- FATTURAZIONE ---------- */}
+      {/* ⚠️ IL CIRCOLO LO VEDE MENTRE MATURA. È il numero su cui gli
+          verrà emessa la quota, e scoprirlo in fattura è il modo più
+          rapido di trasformare un rinnovo in una discussione. Detto
+          tutti i giorni, invece, è una cosa che si accetta — ed è anche
+          l'unico antidoto vero all'idea di non approvare le richieste
+          per risparmiare. */}
+      <div className="superadmin-subtitolo">Quota annuale</div>
+      <div className="scheda-conti">
+        <Dato valore={CONTA(fattura.utenti)} etichetta="utenti conteggiati" />
+        <Dato valore={fattura.fascia.nome} etichetta={`fascia · ${fattura.fascia.descrizione}`} />
+        <Dato valore={EURO(fattura.fascia.quota)} etichetta="quota dell’anno in corso" />
+      </div>
+      <p className="admin-card-hint scheda-nota">
+        Si contano le persone che il circolo ha accettato — soci, tesserati e ospiti allo stesso
+        modo — e che hanno aperto l’app almeno una volta. Chi è entrato conta anche se poi è
+        uscito: chiudere una tessera non fa scendere la quota.
+        {fattura.usciteNelPeriodo > 0
+          ? ` Di questi, ${fattura.usciteNelPeriodo} ${fattura.usciteNelPeriodo === 1 ? 'è uscito' : 'sono usciti'} durante l’anno.`
+          : ''}
+        {fattura.accettatiMaiUsati > 0
+          ? ` Altre ${fattura.accettatiMaiUsati === 1 ? 'persona è stata accettata ma non ha' : `${fattura.accettatiMaiUsati} persone sono state accettate ma non hanno`} mai aperto l’app: non si contano.`
+          : ''}
+        {' '}Fa <strong>{EURO(fattura.costoPerUtente)}</strong> a persona.
+      </p>
+      <p className="admin-card-hint scheda-nota">
+        {/* ⚠️ Si guarda `ancorato`, non `attivatoIlMs`: la condizione
+            di prima chiedeva anche `numero === 1`, e al tredicesimo
+            mese un circolo senza data di attivazione tornava a
+            stampare una scadenza che non esisteva. */}
+        {!fattura.periodo.ancorato
+          ? 'Periodo: gli ultimi dodici mesi. Il circolo non ha una data di attivazione scritta, quindi il conto non è ancora ancorato a un anniversario e non c’è una scadenza da mostrare.'
+          : `Anno ${fattura.periodo.numero} del contratto, dal ${quandoLeggibile(fattura.periodo.inizioMs)} al ${quandoLeggibile(fattura.periodo.fineMs)}. Il numero può ancora salire fino alla scadenza.`}
       </p>
 
       {/* ---------- ATTIVITÀ (dalla fotografia) ---------- */}

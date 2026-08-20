@@ -10,9 +10,9 @@
 // parla di cose che non fanno.
 //
 // ⚠️ E VA LETTA DA UN AVVOCATO PRIMA DI PUBBLICARLA. Questo è un testo
-// tecnico accurato, non un parere legale: i dati del titolare vanno
-// compilati, e la forma va validata da chi di mestiere risponde di
-// queste cose.
+// tecnico accurato, non un parere legale: i dati del titolare ci sono
+// (data/consenso.ts, costante TITOLARE), ma la forma va validata da chi
+// di mestiere risponde di queste cose.
 //
 // ⚠️ La data in cima deve restare uguale a VERSIONE_DOCUMENTI in
 // data/consenso.ts: sul profilo di ogni utente scriviamo quale versione
@@ -21,7 +21,7 @@
 
 import type { Metadata } from 'next';
 import {
-  VERSIONE_DOCUMENTI, EMAIL_CONTATTO, ETA_MINIMA_REGISTRAZIONE, SITO_NUDO,
+  VERSIONE_DOCUMENTI, EMAIL_CONTATTO, ETA_MINIMA_REGISTRAZIONE, SITO_NUDO, TITOLARE,
 } from '../../data/consenso';
 
 export const metadata: Metadata = {
@@ -83,9 +83,35 @@ const DATI: { dato: string; obbligatorio: string; perche: string; chi: string }[
       + 'che l’app scarica anche sui telefoni degli altri soci: nessuna schermata lo mostra loro.',
   },
   {
+    dato: 'Data di nascita',
+    obbligatorio: 'Sì',
+    // ⚠️ E' l'unico dato che raccogliamo per un obbligo e non per far
+    // funzionare qualcosa: serve a tenere fuori chi non ha l'eta'. Va
+    // detto per esteso, perche' e' anche il piu' facile da percepire
+    // come inutilmente invadente — e la risposta e' che senza non
+    // possiamo dire di aver verificato niente.
+    perche:
+      'Verifichiamo che tu abbia almeno l’età minima per iscriverti da solo. Il controllo lo '
+      + 'fa l’app e lo rifà il nostro server: non è una casella da spuntare.',
+    // ⚠️ NON «nessuno la vede». Le regole Firestore concedono la
+    // lettura del documento profilo INTERO ai soci dello stesso
+    // circolo — non sanno filtrare campo per campo — e l'app di ogni
+    // socio quel documento lo scarica davvero, per la lista dei
+    // compagni di gioco. Nessuna schermata mostra la data, ma chi
+    // guarda i dati grezzi ci arriva. E' la stessa correzione gia'
+    // fatta qui sotto per la foto profilo: un'informativa non descrive
+    // quello che si vede, descrive quello a cui si puo' arrivare.
+    chi:
+      'Nessuna schermata la mostra ad altri soci. Tecnicamente viaggia sul tuo profilo, che '
+      + 'l’app scarica anche sui telefoni degli altri soci del tuo circolo per la lista dei '
+      + 'compagni di gioco.',
+  },
+  {
     dato: 'Anno di nascita',
     obbligatorio: 'No',
-    perche: 'Mostra la tua età nella scheda, utile per organizzare partite fra pari.',
+    perche:
+      'Mostra la tua età nella scheda, utile per organizzare partite fra pari. Si compila da '
+      + 'sé con l’anno della data che hai dato in registrazione, e puoi svuotarlo quando vuoi.',
     chi: 'I soci del tuo circolo',
   },
   {
@@ -185,23 +211,18 @@ export default function Privacy() {
         Versione del {VERSIONE_DOCUMENTI}. Riguarda l’app Racket Fever e il sito {SITO_NUDO}.
       </p>
 
-      {/* ⚠️ SENZA QUESTI DATI L'INFORMATIVA NON VALE NIENTE, e Play
-          Console e App Store Connect la rifiutano: un'informativa
-          privacy deve dire chi risponde del trattamento. */}
-      <div style={{
-        border: '2px solid #B3261E', borderRadius: 10, padding: '1rem 1.2rem',
-        margin: '1.5rem 0', background: '#FCF3F2',
-      }}>
-        <strong>Da compilare prima della pubblicazione:</strong> titolare del trattamento
-        (denominazione, sede, partita IVA, PEC). Senza questi dati l’informativa non è valida e
-        gli store la rifiutano.
-      </div>
-
       <h2 style={H2}>Chi tratta i tuoi dati</h2>
+      {/* ⚠️ I dati arrivano da data/consenso.ts, non sono scritti qui:
+          compaiono anche nei termini e, il giorno che servirà, nelle
+          schede degli store. Tre copie a mano di un dato legale sono
+          tre occasioni di divergere. */}
       <p>
-        Il titolare del trattamento è <strong>[denominazione]</strong>, con sede in{' '}
-        <strong>[indirizzo]</strong>, partita IVA <strong>[numero]</strong>. Per qualsiasi
-        questione riguardante i tuoi dati puoi scrivere a{' '}
+        Il titolare del trattamento è <strong>{TITOLARE.nome}</strong>, residente in{' '}
+        <strong>{TITOLARE.indirizzo}</strong>, codice fiscale{' '}
+        <strong>{TITOLARE.codiceFiscale}</strong>
+        {TITOLARE.telefono ? <>, telefono <strong>{TITOLARE.telefono}</strong></> : null}. Per
+        qualsiasi questione riguardante i tuoi
+        dati puoi scrivere a{' '}
         <a href={`mailto:${EMAIL_CONTATTO}`} style={{ color: '#0E3B2E' }}>{EMAIL_CONTATTO}</a>.
       </p>
       <p>
@@ -297,8 +318,10 @@ export default function Privacy() {
         chiedi di entrare in un circolo: senza, il servizio non può funzionare. Il registro
         contabile e le segnalazioni li conserviamo per un <strong>legittimo interesse</strong>
         del circolo e nostro: poter rispondere di incassi e di comportamenti se qualcuno
-        contesta. I dati facoltativi — telefono, anno di nascita, foto, racchetta, classifica —
-        li tratti <strong>tu, scegliendo di compilarli</strong>.
+        contesta. La data di nascita la
+        trattiamo per <strong>adempiere a un obbligo</strong>: verificare che tu abbia l’età
+        per iscriverti. I dati facoltativi — telefono, foto, racchetta, classifica, e l’anno di
+        nascita mostrato nella scheda — li tratti <strong>tu, scegliendo di compilarli</strong>.
       </p>
 
       <h2 style={H2}>A chi li comunichiamo</h2>
@@ -350,6 +373,21 @@ export default function Privacy() {
         sulla tessera di quel circolo finché il conto non è chiuso: è una partita aperta fra
         due persone, e farne sparire una significherebbe cancellare il credito di qualcuno.
       </p>
+      {/* ⚠️ QUESTA RIGA NASCE INSIEME AL COMANDO CHE DESCRIVE. Il
+          paragrafo qui sopra dice, in grassetto, che il registro resta:
+          da oggi esiste uno strumento che lo azzera, e un'informativa
+          che non lo dichiara è un'informativa che mente su un punto che
+          riguarda soldi. Vale anche per l'archivio: una copia dei conti
+          nominativi di un circolo, conservata da noi, va detta. */}
+      <p>
+        <strong>Il registro può essere azzerato su richiesta del circolo.</strong> Succede solo
+        per un guasto tecnico che blocca il club, e lo fa il team Racket Fever, mai il circolo
+        da solo. Di norma, prima di azzerarlo, ne conserviamo una copia integrale — le stesse
+        righe, con i nomi — che restituiamo al circolo su richiesta; quella copia la teniamo
+        finché il circolo è nella rete e sparisce insieme a lui. Serve a poter rispondere di
+        quei conti anche dopo: senza copia, azzerare il registro vorrebbe dire togliere a te e
+        al circolo la prova di quello che è stato pagato.
+      </p>
       {/* ⚠️ QUI C'ERA UNA PROMESSA SU UNA MISURA CHE NESSUNO HA
           PREDISPOSTO: «le copie di sicurezza si sovrascrivono da sole
           entro trenta giorni». Non c'è nessun backup programmato di
@@ -373,10 +411,18 @@ export default function Privacy() {
           in una bugia. */}
       <p>
         Da <strong>{ETA_MINIMA_REGISTRAZIONE} anni compiuti</strong>. Al momento della
-        registrazione lo dichiari, e non è una casella già segnata: devi toccarla tu. Sotto
-        quell’età <strong>non ci si può iscrivere</strong>, e non c’è nessun’altra strada: un
-        genitore può registrarsi con il proprio account e prenotare il campo su cui il figlio
-        giocherà.
+        registrazione ti chiediamo la <strong>data di nascita</strong> e verifichiamo l’età:
+        non è una casella da spuntare, è un controllo che l’app fa e che rifà anche il nostro
+        server. Sotto quell’età <strong>non ci si può iscrivere</strong>, e non c’è
+        nessun’altra strada: un genitore può registrarsi con il proprio account e prenotare il
+        campo su cui il figlio giocherà.
+      </p>
+      <p>
+        La data di nascita la usiamo <strong>solo</strong> per questo controllo e per riempire
+        l’anno di nascita della tua scheda, che puoi svuotare quando vuoi. Non serve a
+        nient’altro, e nessuna schermata dell’app la mostra ad altri soci — ma, come per gli
+        altri dati della tua scheda, viaggia sul profilo che l’app scarica anche sui telefoni
+        dei tuoi compagni di circolo.
       </p>
       <p>
         Se ci accorgiamo che un account è di un minore di {ETA_MINIMA_REGISTRAZIONE} anni lo

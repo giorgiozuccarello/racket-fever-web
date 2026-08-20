@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { SocioCircolo, impostaPosizioneClassificaSociale, rimuoviDaClassificaSociale } from '../../../data/users';
 import { Circolo, GRADIENTI_CLASSIFICA } from '../../../data/circoli';
 import { aggiornaCircolo } from '../../../data/circoliRepo';
-import { Sfida, resettaSfideTest } from '../../../data/sfide';
+import { Sfida } from '../../../data/sfide';
 import Modal from './Modal';
 
 export default function SezioneClassificaSociale({ circolo, soci, sfide }: { circolo: Circolo; soci: SocioCircolo[]; sfide: Sfida[] }) {
@@ -80,21 +80,11 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
     setSalvandoGradiente(false);
   };
 
-  const [confermaResetAperta, setConfermaResetAperta] = useState(false);
-  const [resettando, setResettando] = useState(false);
-  const [erroreReset, setErroreReset] = useState('');
-  const confermaReset = async () => {
-    setErroreReset('');
-    setResettando(true);
-    try {
-      await resettaSfideTest(circolo.id);
-      setConfermaResetAperta(false);
-    } catch (e: unknown) {
-      setErroreReset(e instanceof Error ? e.message : 'Errore sconosciuto — controlla la connessione e riprova.');
-    } finally {
-      setResettando(false);
-    }
-  };
+  // ⚠️ Il «Reset Sfide (solo test)» che stava qui è passato al Super
+  // Admin, insieme a tutta la sezione Test Reset: cancellava tutte le
+  // sfide del circolo, concluse comprese, e stava in mano al
+  // presidente. Adesso è `resettaCircolo`, livello «Sfide», nella
+  // scheda del circolo del pannello di rete.
 
   return (
     <div className="admin-card">
@@ -206,34 +196,8 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
         <div style={{ fontSize: '.68rem', fontWeight: 800, color: '#B3261E', textTransform: 'uppercase', letterSpacing: '.03em', marginBottom: '.4rem' }}>
           Solo per i test — rimuovere prima del lancio
         </div>
-        <button
-          type="button"
-          onClick={() => setConfermaResetAperta(true)}
-          style={{
-            width: '100%', background: 'transparent', color: '#B3261E', border: '2px solid #B3261E',
-            borderRadius: 10, padding: '.7rem', fontWeight: 700, fontSize: '.85rem', cursor: 'pointer',
-          }}
-        >
-          Reset Sfide (solo test)
-        </button>
       </div>
 
-      <Modal visible={confermaResetAperta} onClose={() => setConfermaResetAperta(false)}>
-        <div className="admin-modal-title">Reset Sfide di test</div>
-        <p className="admin-card-hint" style={{ textAlign: 'center' }}>
-          Cancella TUTTE le sfide di questo circolo (comprese quelle già concluse) e le
-          prenotazioni collegate — le posizioni in classifica già aggiornate NON vengono
-          toccate. Serve a ripartire puliti tra due test, senza restare bloccati dal limite
-          &quot;stessa sfida non prima di 2 settimane&quot;.
-        </p>
-        {!!erroreReset && <div className="admin-error-text">{erroreReset}</div>}
-        <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setConfermaResetAperta(false)}>Annulla</button>
-          <button className="admin-modal-btn-confirm danger" onClick={confermaReset} disabled={resettando}>
-            {resettando ? 'Attendere…' : 'Reset'}
-          </button>
-        </div>
-      </Modal>
     </div>
   );
 }

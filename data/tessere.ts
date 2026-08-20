@@ -17,15 +17,13 @@
 // ============================================================
 
 import {
-  doc, getDoc, setDoc, updateDoc, collection, query, where,
-  onSnapshot, getDocs, serverTimestamp, deleteField, deleteDoc,
+  doc, getDoc, updateDoc, collection, query, where,
+  onSnapshot, getDocs, serverTimestamp, deleteField,
 } from 'firebase/firestore';
 import { db, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
-import { creaAperturePerCircolo } from './movimenti';
 import { raggruppaConsecutive } from './raggruppamento';
 import { chiudiConversazioneLezione } from './conversazioneLezione';
-import { resettaSfideTest } from './sfide';
 
 export type StatoTessera = 'in_attesa' | 'approvata' | 'sospesa' | 'chiusa' | 'rifiutata';
 
@@ -55,6 +53,27 @@ export interface Tessera {
   richiestaIl?: unknown;
   approvataIl?: unknown;
   approvataDa?: string | null;
+  // ============================================================
+  // ⚠️ LE TRE DATE IN MILLISECONDI, ricavate dai campi qui sopra.
+  //
+  // Servono alla fatturazione, che conta le persone accettate e attive
+  // in un periodo: per farlo deve poter confrontare dei numeri, e i
+  // Timestamp di Firestore in un modulo puro non si toccano.
+  //
+  // ⚠️ NON SONO CAMPI NUOVI DA SCRIVERE: `normalizza` li ricava dai
+  // Timestamp che il progetto scrive da sempre (`approvataIl`,
+  // `chiusaIl`). Vuol dire che la storia dei circoli che gia' esistono
+  // e' gia' tutta li', senza nessuna migrazione.
+  // ============================================================
+  chiusaIlMs?: number | null;
+  // ⚠️ QUESTO INVECE E' NUOVO, e lo scrive l'app la prima volta che il
+  // socio entra nel circolo con la tessera approvata. E' cio' che
+  // distingue un utente da una riga di anagrafica: una tessera creata
+  // dalla segreteria per qualcuno che non ha mai installato niente non
+  // e' un utente, e farla pagare al circolo vorrebbe dire fatturare
+  // l'anagrafica invece del servizio. Si scrive UNA VOLTA SOLA e non si
+  // puo' cancellare (firestore.rules).
+  primoUsoMs?: number | null;
   // Dati anagrafici duplicati dal profilo: servono all'admin per
   // elencare e cercare i propri tesserati senza dover leggere il
   // documento utente di ognuno.
@@ -109,6 +128,18 @@ export function ascoltaTessereCircolo(
   );
 }
 
+// ⚠️ Firestore restituisce Timestamp, il resto del progetto lavora in
+// millisecondi, e i documenti piu' vecchi possono avere gia' un numero.
+// Un solo posto che li riconosce tutti e tre, invece di tre `as any`
+// sparsi.
+function msDa(v: unknown): number | null {
+  if (typeof v === 'number' && Number.isFinite(v)) return v;
+  if (v && typeof (v as { toMillis?: () => number }).toMillis === 'function') {
+    return (v as { toMillis: () => number }).toMillis();
+  }
+  return null;
+}
+
 function normalizza(id: string, v: Record<string, unknown>): Tessera {
   return {
     id,
@@ -127,6 +158,18 @@ function normalizza(id: string, v: Record<string, unknown>): Tessera {
     richiestaIl: v.richiestaIl,
     approvataIl: v.approvataIl,
     approvataDa: (v.approvataDa as string | null) ?? null,
+    // ⚠️ SOLO `chiusaIl`, NON `chiusaIlMs`. Il ripiego sembrava
+    // prudenza e apriva una porta: `chiusaIlMs` non lo scrive nessuno —
+    // verificato su tutti e due i progetti e sulle Cloud Functions — e
+    // un campo che nessuno scrive, se compare su un documento, puo'
+    // venire da un posto solo. Vale a dire dal browser di un Admin che
+    // voleva vedere il proprio conteggio scendere: `chiusaIlMs: 0` su
+    // tutti i soci portava la Panoramica a zero utenti lasciando i soci
+    // dentro il circolo — e la fotografia notturna, che legge
+    // `chiusaIl`, continuava a dire il numero vero. Due numeri diversi
+    // per la stessa cosa, e nessuna delle due schermate lo diceva.
+    chiusaIlMs: msDa(v.chiusaIl),
+    primoUsoMs: msDa(v.primoUsoMs),
     nome: (v.nome as string) ?? '',
     cognome: (v.cognome as string) ?? '',
     email: (v.email as string) ?? '',
@@ -135,35 +178,29 @@ function normalizza(id: string, v: Record<string, unknown>): Tessera {
 
 // ---------- SCRITTURA ----------
 
-export async function creaRichiestaTessera(params: {
-  uid: string;
-  circoloId: string;
-  ruolo: RuoloTessera;
-  principale: boolean;
-  nome: string;
-  cognome: string;
-  email: string;
-  telefono?: string;
-}): Promise<void> {
-  const id = idTessera(params.uid, params.circoloId);
-  await setDoc(doc(db, 'tessere', id), {
-    uid: params.uid,
-    circoloId: params.circoloId,
-    stato: 'in_attesa',
-    ruolo: params.ruolo,
-    principale: params.principale,
-    credito: 0,
-    sosUtilizzato: 0,
-    limiteRicaricaSOS: 0,
-    limitePrenotazioniPersonale: 0,
-    posizioneClassificaSociale: null,
-    nome: params.nome,
-    cognome: params.cognome,
-    email: params.email,
-    telefono: params.telefono?.trim() || null,
-    richiestaIl: serverTimestamp(),
-  }, { merge: true });
-}
+// ============================================================
+// ⚠️ `creaRichiestaTessera` E' STATA TOLTA DA QUI, e non e' una
+// semplificazione: era una trappola armata.
+//
+// Nessuna schermata del sito la chiamava — le richieste di tessera si
+// fanno dall'app, ed e' giusto cosi'. Ma la copia web era rimasta
+// indietro rispetto a quella dell'app su tre cose, e tutte e tre si
+// sarebbero viste solo dopo averla collegata a un bottone:
+//  · non guardava lo stato del circolo (si entrava anche in un circolo
+//    sospeso);
+//  · non guardava se la tessera c'era gia', quindi chi rientrava con un
+//    conto aperto si prendeva il rifiuto grezzo delle regole invece di
+//    «passa in segreteria»;
+//  · non ripuliva `chiusaIl`, `approvataIl`, `accountCancellato` e
+//    `saldoDaSistemare`. Un rientro dal sito avrebbe quindi lasciato la
+//    data di uscita su una tessera riaperta: quella persona sarebbe
+//    rimasta FUORI dal conto della fatturazione pur essendo dentro il
+//    circolo, e insieme sarebbe ricomparsa fra le «Tessere da saldare».
+//
+// Un gemello che diverge in silenzio e' peggio di un pezzo mancante: il
+// pezzo mancante si nota il giorno in cui serve. Se un domani serve dal
+// web, si copia quella dell'app — che e' l'unica mantenuta.
+// ============================================================
 
 // Le sole richieste ancora da valutare da parte dell'admin.
 export function ascoltaRichiesteInSospeso(circoloId: string, callback: (tessere: Tessera[]) => void) {
@@ -178,15 +215,61 @@ export function ascoltaRichiesteInSospeso(circoloId: string, callback: (tessere:
 }
 
 // Rifiuto: la tessera resta come traccia dell'esito, ma il socio può
-// ripresentare la richiesta (creaRichiestaTessera la riporta in
-// "in_attesa" con merge). Nessun blocco permanente.
+// ripresentare la richiesta dall'app (`creaRichiestaTessera`, che vive
+// solo nel progetto mobile, la riporta in "in_attesa" con un merge).
+// Nessun blocco permanente.
+// ⚠️ SE LA TESSERA ERA GIA' APPROVATA, RIFIUTARLA E' UN'USCITA, e va
+// datata come tale. La schermata da cui si chiama questa funzione
+// mostra solo le richieste ancora in attesa, quindi in pratica lo stato
+// di partenza e' sempre «in_attesa» — ma «in pratica» non regge il
+// conto della fatturazione. Una tessera che passa da approvata a
+// rifiutata senza `chiusaIl` resta nel conto per sempre: la persona e'
+// fuori dal circolo e il circolo continua a pagarla, anno dopo anno,
+// senza che nessuno dei due possa piu' rimediare. Costa una lettura e
+// chiude il caso.
 export async function rifiutaTessera(uid: string, circoloId: string): Promise<void> {
-  await updateDoc(doc(db, 'tessere', idTessera(uid, circoloId)), {
+  const rifTessera = doc(db, 'tessere', idTessera(uid, circoloId));
+  let eraDentro = false;
+  let uscitaGiaScritta = false;
+  try {
+    const snap = await getDoc(rifTessera);
+    const dati = snap.exists() ? snap.data() : null;
+    const stato = dati?.stato ?? null;
+    uscitaGiaScritta = dati?.chiusaIl != null;
+    // ⚠️ E ANCHE CHI HA GIA' APERTO L'APP, qualunque sia il suo stato di
+    // adesso. Il caso che sfuggiva: un ex socio uscito due anni fa
+    // ricompare nello switcher, tocca «chiedi tessera» — e la richiesta
+    // azzera `chiusaIl`, quindi da quel momento torna dentro il conto
+    // della fatturazione. Se l'Admin lo rifiuta e il rifiuto non data
+    // l'uscita, quella persona resta nel conto PER SEMPRE, in questo
+    // periodo e in tutti i successivi, e il circolo non ha nessuna
+    // strada per toglierla. Bastavano venti ex soci arrabbiati per
+    // spostare un circolo di fascia.
+    eraDentro = stato === 'approvata' || stato === 'sospesa' || dati?.primoUsoMs != null;
+  } catch {
+    // Se non si riesce a leggere si procede col rifiuto semplice: e'
+    // il caso normale, e bloccare l'Admin qui sarebbe peggio.
+  }
+  await updateDoc(rifTessera, {
     stato: 'rifiutata',
     rifiutataIl: serverTimestamp(),
-    // Il numero era stato dato per essere ricontattati su QUESTA
-    // richiesta: se il circolo rifiuta, non ha piu' motivo di tenerlo.
-    telefono: deleteField(),
+    // ⚠️ La data di uscita si scrive solo se non c'e' gia'. Rifiutare
+    // una tessera gia' chiusa non e' una seconda uscita, e spostare la
+    // data in avanti rimetterebbe quella persona nel periodo di
+    // fatturazione corrente. Oggi nessuna schermata ci arriva, ma la
+    // funzione non deve dipendere da questo.
+    ...(eraDentro && !uscitaGiaScritta ? { chiusaIl: serverTimestamp(), principale: false } : {}),
+    // ⚠️ IL NUMERO SI CANCELLA SOLO SE ERA UNA RICHIESTA. Era stato dato
+    // per essere ricontattati su QUELLA richiesta, e se il circolo la
+    // rifiuta non ha piu' motivo di tenerlo. Ma da questa tornata
+    // «rifiuta» su una tessera gia' dentro e' un'ESPULSIONE, e puo'
+    // lasciare un conto aperto: la persona compare in «Tessere da
+    // saldare» e l'app le dice di passare in segreteria. Cancellando il
+    // numero nella stessa scrittura che crea la pendenza, il circolo si
+    // ritrovava una riga da chiudere e nessun modo di chiamare chi
+    // riguarda — mentre dall'altra parte qualcuno aspetta indietro i
+    // propri soldi.
+    ...(eraDentro ? {} : { telefono: deleteField() }),
   });
 }
 
@@ -213,10 +296,6 @@ export async function approvaTessera(uid: string, circoloId: string, approvataDa
   } catch (e) {
     console.warn('Profilo non allineato dopo approvazione tessera:', uid, e);
   }
-}
-
-export async function cambiaStatoTessera(uid: string, circoloId: string, stato: StatoTessera): Promise<void> {
-  await updateDoc(doc(db, 'tessere', idTessera(uid, circoloId)), { stato });
 }
 
 // ⚠️ QUESTA FUNZIONE NON E' COLLEGATA A NIENTE, E OGGI NON
@@ -357,10 +436,18 @@ export async function anteprimaRimozione(uid: string, circoloId: string): Promis
 // la segreteria deve regolare (restituire un credito o recuperare un
 // debito). Chi ha saldo zero non compare: non c'e' nulla da fare.
 export function ascoltaTessereDaSaldare(circoloId: string, callback: (t: Tessera[]) => void) {
+  // ⚠️ ANCHE 'rifiutata', e non e' un dettaglio. Da quando rifiutare
+  // una tessera gia' approvata e' un'espulsione, esiste un socio
+  // rifiutato che ha ancora dei soldi in mezzo — e l'app gli dice
+  // «passa in segreteria a chiudere la posizione, poi potrai chiedere
+  // di rientrare». Con il filtro sul solo stato 'chiusa', quella
+  // persona non compariva su NESSUNA schermata del circolo: la
+  // segreteria a cui veniva mandata non aveva niente da vedere e
+  // niente da fare, e il rientro restava impossibile per sempre.
   const q = query(
     collection(db, 'tessere'),
     where('circoloId', '==', circoloId),
-    where('stato', '==', 'chiusa')
+    where('stato', 'in', ['chiusa', 'rifiutata'])
   );
   return onSnapshot(q, (snap) => {
     const elenco = snap.docs
@@ -377,7 +464,10 @@ export function ascoltaPendenzeUtente(uid: string, callback: (t: Tessera[]) => v
   return onSnapshot(q, (snap) => {
     const elenco = snap.docs
       .map((d) => normalizza(d.id, d.data()))
-      .filter((t) => t.stato === 'chiusa' && ((t.credito ?? 0) > 0 || (t.sosUtilizzato ?? 0) > 0));
+      // Stessa ragione di ascoltaTessereDaSaldare: un rifiutato con del
+      // credito residuo ha una pendenza vera, e deve vederla.
+      .filter((t) => (t.stato === 'chiusa' || t.stato === 'rifiutata')
+        && ((t.credito ?? 0) > 0 || (t.sosUtilizzato ?? 0) > 0));
     callback(elenco);
   });
 }
@@ -394,254 +484,6 @@ export async function saldaTessera(uid: string, circoloId: string): Promise<void
   await updateDoc(doc(db, 'tessere', idTessera(uid, circoloId)), {
     saldataIl: serverTimestamp(),
   });
-}
-
-// ============================================================
-// RESET DI TEST — azzera crediti, debiti e prenotazioni dei soci
-// di un circolo. Serve a ripartire puliti fra due sessioni di prova.
-//
-// ATTENZIONE: cancella dati reali. Le prenotazioni eliminate
-// spariscono anche dalle card in Home e dalla griglia oraria,
-// perché sono la stessa cosa: un documento per mezz'ora.
-//
-// Non tocca: le tessere in sé (nessuno viene espulso dal circolo),
-// le posizioni in classifica, le sfide (per quelle c'è il reset
-// dedicato).
-// ============================================================
-export async function resettaSociTest(circoloId: string): Promise<{
-  // ⚠️ DUE NUMERI E NON UNO. C'era il solo totale delle tessere
-  // azzerate, e a schermo diventava «Azzerati 12 portafogli» su un
-  // circolo che di soci ne ha due: gli altri dieci sono tessere di chi
-  // dal circolo e' uscito, che si azzerano lo stesso — se restassero
-  // con un debito addosso ricomparirebbero in «Tessere da saldare»
-  // dopo un reset che dichiara di aver pulito. Il lavoro era giusto,
-  // era il numero a raccontarlo male.
-  sociAzzerati: number;
-  tessereChiuseAzzerate: number;
-  prenotazioniCancellate: number;
-  movimentiCancellati: number;
-  aperture: number;
-  avvisiCancellati: number;
-  sfideCancellate: number;
-  richiesteCancellate: number;
-  // -1 = l'elenco non si e' proprio potuto leggere (regole non
-  // pubblicate?); >0 = lette ma alcune non cancellate.
-  richiesteFallite: number;
-  // Il motivo vero della prima che non e' andata, da mostrare
-  // all'Admin: senza, un fallimento resta un mistero.
-  motivoRichieste: string;
-}> {
-  // Primo passo: portafogli a zero, tessera per tessera.
-  const qT = query(collection(db, 'tessere'), where('circoloId', '==', circoloId));
-  const snapT = await getDocs(qT);
-  let sociAzzerati = 0;
-  let tessereChiuseAzzerate = 0;
-  for (const d of snapT.docs) {
-    try {
-      await updateDoc(d.ref, { credito: 0, sosUtilizzato: 0 });
-      // Gli stessi due stati che decidono chi ha una riga nel registro
-      // riaperto: cosi' i due numeri della stessa frase parlano della
-      // stessa cosa.
-      const stato = d.data().stato as string | undefined;
-      if (stato === 'approvata' || stato === 'sospesa') sociAzzerati++;
-      else tessereChiuseAzzerate++;
-    } catch (e) {
-      console.warn('Tessera non azzerata durante il reset:', d.id, e);
-    }
-  }
-
-
-  // ⚠️ PRIMA le richieste di lezione e le loro conversazioni, POI le
-  // prenotazioni. Nell'ordine inverso, per tutta la durata del reset
-  // ogni richiesta confermata del circolo risulta "confermata senza
-  // campi" — che e' la fotografia di una conferma andata a meta' — e i
-  // soci collegati si vedono comparire in Home "Lezione confermata ma
-  // campi non occupati".
-  // I messaggi stanno in una sottocollezione e Firestore NON li elimina
-  // insieme al documento padre: vanno cancellati PRIMA, o resterebbero
-  // conversazioni orfane che nessuno puo' piu' ne' leggere ne'
-  // ripulire — nemmeno un reset successivo, che le cerca partendo dal
-  // padre.
-  let richiesteCancellate = 0;
-  let richiesteFallite = 0;
-  // ⚠️ Il motivo del fallimento va PORTATO A SCHERMO. Prima finiva solo
-  // in console: l'Admin leggeva "una richiesta non cancellata" e non
-  // aveva modo di sapere perche', ne' quale.
-  let motivoRichieste = '';
-
-  // Cancella una conversazione e i suoi messaggi. Il padre va per
-  // ULTIMO e solo a sottocollezione vuota: un messaggio scritto fra la
-  // lettura e la cancellazione sopravviverebbe al padre, e da quel
-  // momento sarebbe illeggibile e incancellabile per chiunque —
-  // nemmeno un reset successivo lo raggiunge, perche' lo cerca
-  // partendo dal padre. E un messaggio che non si lascia cancellare
-  // non deve far rinunciare a tutti gli altri.
-  // (Sul mobile lo stesso giro sta in eliminaRichiesta; qui il modulo
-  // delle lezioni non esiste, l'app Maestro e' solo li'.)
-  const eliminaConversazione = async (richiestaId: string) => {
-    const messaggi = collection(db, 'richieste_lezione', richiestaId, 'messaggi');
-    let ultimoErrore: any = null;
-    for (let giro = 0; giro < 4; giro++) {
-      const msg = await getDocs(messaggi);
-      if (msg.empty) break;
-      ultimoErrore = null;
-      let qualcunoTolto = false;
-      for (const m of msg.docs) {
-        try { await deleteDoc(m.ref); qualcunoTolto = true; }
-        catch (e) { ultimoErrore = e; }
-      }
-      if (!qualcunoTolto) break;
-    }
-    const rimasti = await getDocs(messaggi);
-    if (!rimasti.empty) {
-      const codice = ultimoErrore?.code ?? 'sconosciuto';
-      const dettaglio = ultimoErrore?.message ?? 'nessun errore riportato';
-      throw new Error(`MESSAGGI_NON_CANCELLATI (${rimasti.size} rimasti, ${codice}: ${dettaglio})`);
-    }
-    await deleteDoc(doc(db, 'richieste_lezione', richiestaId));
-  };
-
-  try {
-    // Due giri, non uno: il primo puo' fallire su una conversazione per
-    // un motivo passeggero (un messaggio scritto proprio in quel
-    // momento), e il secondo la prende.
-    for (let giro = 0; giro < 2; giro++) {
-      const snap = await getDocs(query(collection(db, 'richieste_lezione'), where('circoloId', '==', circoloId)));
-      if (snap.empty) break;
-      richiesteFallite = 0;
-      motivoRichieste = '';
-      for (const d of snap.docs) {
-        try {
-          await eliminaConversazione(d.id);
-          richiesteCancellate++;
-        } catch (e: any) {
-          richiesteFallite++;
-          if (!motivoRichieste) motivoRichieste = `${d.id}: ${e?.code ?? ''} ${e?.message ?? e}`.trim();
-          console.warn('Richiesta di lezione non cancellata:', d.id, e);
-        }
-      }
-      if (richiesteFallite === 0) break;
-    }
-  } catch (e: any) {
-    // Distinto dal "non ce n'erano": senza, l'Admin legge "0 richieste
-    // cancellate" e non ha modo di capire se il reset ha funzionato o
-    // se le regole non sono pubblicate.
-    richiesteFallite = -1;
-    motivoRichieste = `${e?.code ?? ''} ${e?.message ?? e}`.trim();
-    console.warn('Richieste di lezione non lette durante il reset:', e);
-  }
-
-  // Secondo passo: tutte le prenotazioni del circolo, anche passate —
-  // il reset serve a ripartire da zero, non a fare pulizia parziale.
-  const qP = query(collection(db, 'prenotazioni'), where('circoloId', '==', circoloId));
-  const snapP = await getDocs(qP);
-  let prenotazioniCancellate = 0;
-  for (const d of snapP.docs) {
-    try {
-      await deleteDoc(d.ref);
-      prenotazioniCancellate++;
-    } catch (e) {
-      console.warn('Prenotazione già assente durante il reset:', d.id, e);
-    }
-  }
-
-  // Terzo passo: svuota il registro movimenti di questo circolo e
-  // riscrive una riga di apertura per ogni tessera. Senza, il registro
-  // conterrebbe la storia di prenotazioni che non esistono piu' e la
-  // catena saldoPrima → saldoDopo risulterebbe incoerente.
-  const qM = query(collection(db, 'movimenti'), where('circoloId', '==', circoloId));
-  const snapM = await getDocs(qM);
-  let movimentiCancellati = 0;
-  for (const d of snapM.docs) {
-    try {
-      await deleteDoc(d.ref);
-      movimentiCancellati++;
-    } catch (e) {
-      console.warn('Movimento non cancellato durante il reset:', d.id, e);
-    }
-  }
-
-  // Quarto passo: gli avvisi. Restando, l'utente si ritroverebbe
-  // notifiche che rimandano a prenotazioni e sfide non piu' esistenti.
-  // Tre collezioni, non due: anche il Maestro ha le sue, e prima
-  // erano le uniche a sopravvivere al reset.
-  let avvisiCancellati = 0;
-  const giaVisti = new Set<string>();
-  for (const raccolta of ['notifiche', 'notifiche_admin', 'notifiche_maestro']) {
-    try {
-      const snap = await getDocs(query(collection(db, raccolta), where('circoloId', '==', circoloId)));
-      for (const d of snap.docs) {
-        try {
-          await deleteDoc(d.ref);
-          giaVisti.add(`${raccolta}/${d.id}`);
-          avvisiCancellati++;
-        } catch (e) { console.warn('Avviso non cancellato:', d.id, e); }
-      }
-    } catch (e) {
-      console.warn('Avvisi non letti durante il reset:', raccolta, e);
-    }
-  }
-
-  // Recupero per gli avvisi nati SENZA circoloId — le vecchie notifiche
-  // delle Sfide, e tutto cio' che e' stato scritto prima che il campo
-  // esistesse. Il filtro per circolo non li trova, quindi si passa dai
-  // destinatari: le tessere di questo circolo, una per una.
-  //
-  // ⚠️ Solo le tessere PRINCIPALI: la regola che permette all'Admin di
-  // leggere gli avvisi di un socio passa dal circolo scritto sul suo
-  // profilo, quindi per un Ospite — che ha il profilo su un altro club
-  // — la query viene respinta in blocco e non si cancella niente.
-  // ⚠️ E si saltano gli avvisi che un circolo ce l'hanno gia': quella
-  // regola concede TUTTA la collezione del socio, compresi gli avvisi
-  // di un altro club dove e' Ospite, e il reset del circolo A stava
-  // cancellando roba del circolo B.
-  for (const d of snapT.docs) {
-    const uid = d.data().uid as string | undefined;
-    if (!uid || d.data().principale !== true) continue;
-    try {
-      const snap = await getDocs(query(collection(db, 'notifiche'), where('utenteId', '==', uid)));
-      for (const n of snap.docs) {
-        if (giaVisti.has(`notifiche/${n.id}`)) continue;
-        if (n.data().circoloId) continue;
-        try { await deleteDoc(n.ref); avvisiCancellati++; } catch (e) { console.warn('Avviso non cancellato:', n.id, e); }
-      }
-    } catch (e) {
-      console.warn('Avvisi del socio non letti durante il reset:', uid, e);
-    }
-  }
-
-  // ============================================================
-  // Quinto passo: le sfide.
-  //
-  // ⚠️ QUI SI CANCELLAVANO A MANO, ED ERA UNA FABBRICA DI RIFIUTI. Il
-  // `deleteDoc` portava via il documento della sfida e lasciava dentro
-  // la sottocollezione `messaggi` — e la regola che permette di
-  // cancellare un messaggio legge il documento della sfida per sapere
-  // chi comanda. Senza piu' quel documento, quelle chat non le poteva
-  // togliere piu' nessun client: restavano in Firestore per sempre,
-  // invisibili, dopo OGNI «Reset Completo Soci». L'unica traccia era
-  // un avviso in console che non guardava nessuno.
-  //
-  // Adesso passa dalla stessa Cloud Function di «Reset Sfide», che con
-  // l'Admin SDK svuota chat e segnaposto prima di togliere la sfida.
-  // Due pulsanti vicini che facevano la stessa cosa in due modi
-  // diversi, e uno dei due sbagliato, sono un difetto in se'.
-  // ============================================================
-  let sfideCancellate = 0;
-  try {
-    const r = await resettaSfideTest(circoloId);
-    sfideCancellate = r.cancellate;
-  } catch (e) {
-    console.warn('Sfide non azzerate durante il reset:', e);
-  }
-
-  const aperture = await creaAperturePerCircolo(circoloId);
-
-  return {
-    sociAzzerati, tessereChiuseAzzerate, prenotazioniCancellate, movimentiCancellati,
-    aperture, avvisiCancellati, sfideCancellate, richiesteCancellate, richiesteFallite,
-    motivoRichieste,
-  };
 }
 
 // ============================================================

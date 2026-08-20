@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { Circolo, statoCircolo, etichettaStatoCircolo, StatoCircolo } from '../../../data/circoli';
+import { Circolo, statoCircolo, etichettaStatoCircolo, StatoCircolo, attivazioneCircoloMs } from '../../../data/circoli';
 import { REGIONI_ITALIA, provinceDi } from '../../../data/tornei';
 import {
   ascoltaCircoli, aggiornaAnagraficaCircolo, AnagraficaCircolo,
@@ -23,6 +23,7 @@ import {
   eliminaCircoloDefinitivo, impostaApprovazioneAutomatica,
 } from '../../../data/circoliRepo';
 import SchedaCircoloVista from './SchedaCircoloVista';
+import SezioneResetCircolo from './SezioneResetCircolo';
 
 // I circoli si ordinano per stato e poi per nome: quelli che
 // funzionano stanno in cima, i chiusi in fondo — sono quelli che si
@@ -263,7 +264,11 @@ export default function SezioneCircoli() {
         {/* ⚠️ Come sta il circolo PRIMA dei campi da correggere: chi
             apre un circolo quasi sempre vuole sapere come va, non
             correggergli la sigla. */}
-        <SchedaCircoloVista circoloId={aperto.id} statoCircolo={statoCircolo(aperto)} />
+        <SchedaCircoloVista
+          circoloId={aperto.id}
+          statoCircolo={statoCircolo(aperto)}
+          attivatoIlMs={attivazioneCircoloMs(aperto)}
+        />
 
         <div className="superadmin-subtitolo">Anagrafica</div>
 
@@ -440,6 +445,12 @@ export default function SezioneCircoli() {
             ? 'Approvazione automatica ACCESA — spegnila'
             : 'Accendi l’approvazione automatica'}
         </button>
+
+        {/* ⚠️ Il reset sta PRIMA dell'eliminazione definitiva, e non è
+            un dettaglio d'ordine: sono i due gesti più distruttivi del
+            pannello, e chi arriva qui con un circolo che si è impuntato
+            deve incontrare prima quello che si può disfare. */}
+        <SezioneResetCircolo circoloId={aperto.id} nomeCircolo={aperto.nome} />
 
         <div className="superadmin-subtitolo">Eliminazione definitiva</div>
         <p className="admin-card-hint">

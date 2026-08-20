@@ -1,12 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Circolo } from '../../../data/circoli';
+import { Circolo, sfideAccese } from '../../../data/circoli';
 import { SocioCircolo } from '../../../data/users';
 import {
   Sfida, concludiSfida, annullaSfida, notificaSfidaConRitentativi,
   nonPresentatoSfidante, nonPresentatoSfidato, modificaRisultatoUfficiale,
+  MINUTI_TIMER_AMMESSI, MINUTI_TIMER_PREDEFINITI, timerLeggibile,
 } from '../../../data/sfide';
+
+// Legge il campo nuovo e, se manca, il vecchio sì/no: la stessa scala di
+// `durataTimerMs`, altrimenti il valore a schermo direbbe una cosa e il
+// server ne applicherebbe un'altra.
+function minutiTimerDi(circolo: { minutiTimerSfida?: number; timerSfideVeloce?: boolean }): number {
+  const m = circolo.minutiTimerSfida;
+  if (typeof m === 'number' && MINUTI_TIMER_AMMESSI.includes(m)) return m;
+  if (circolo.timerSfideVeloce) return 5;
+  return MINUTI_TIMER_PREDEFINITI;
+}
 import { aggiornaCircolo } from '../../../data/circoliRepo';
 import Modal from './Modal';
 
@@ -28,7 +39,7 @@ function CountdownAdmin({ scadenza }: { scadenza: number }) {
 
 const CINQUE_GIORNI_MS = 5 * 24 * 60 * 60 * 1000;
 
-export default function SezioneSfideInCorso({ sfide, soci, circolo }: { sfide: Sfida[]; soci: SocioCircolo[]; circolo: Circolo }) {
+export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareSfide = true }: { sfide: Sfida[]; soci: SocioCircolo[]; circolo: Circolo; puoCambiareSfide?: boolean }) {
   const [daConcludere, setDaConcludere] = useState<Sfida | null>(null);
   const [vincitoreScelto, setVincitoreScelto] = useState<string | null>(null);
   const [risultatoTesto, setRisultatoTesto] = useState('');
@@ -193,10 +204,57 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo }: { sfide: S
     }
   };
 
-  const impostaTimerVeloce = async (veloce: boolean) => {
+  // ⚠️ UN VALORE, NON PIÙ UN SÌ/NO. Erano due chip, «24 ore (reale)» e
+  // «5 minuti (test)»: uno strumento di prova finito in mano ai
+  // presidenti. La domanda vera del circolo non è di prova — quanto
+  // tempo do a un socio per rispondere a una sfida — e cambia da club
+  // a club.
+  //
+  // ⚠️ E si scrive sempre anche `timerSfideVeloce: false`: se restasse
+  // acceso dal vecchio comando, il ripiego di `durataTimerMs` lo
+  // rileggerebbe e il circolo si ritroverebbe cinque minuti senza
+  // capire da dove arrivano.
+  const minutiTimer = minutiTimerDi(circolo);
+  const impostaMinutiTimer = async (minuti: number) => {
     setSalvandoTimer(true);
     try {
-      await aggiornaCircolo(circolo.id, { timerSfideVeloce: veloce });
+      await aggiornaCircolo(circolo.id, { minutiTimerSfida: minuti, timerSfideVeloce: false });
+    } finally {
+      setSalvandoTimer(false);
+    }
+  };
+
+  // ============================================================
+  // ⚠️ SPEGNERE LE SFIDE NON SI PUÒ FARE CON DELLE SFIDE APERTE.
+  //
+  // Spegnendo, la voce sparisce dall'app dei soci: i due che hanno una
+  // sfida in corso non possono più né rispondere né accordarsi, mentre
+  // i timer continuano a correre e alla scadenza uno dei due perde la
+  // posizione in classifica e si prende sette giorni di congelamento.
+  // Una penalità per una decisione presa dall'Admin dopo, che il socio
+  // non ha nemmeno potuto vedere.
+  //
+  // Le sfide aperte stanno qui sotto, in questa stessa card, con
+  // «Concludi» e «Annulla». Deve passare di lì.
+  // ============================================================
+  const accese = sfideAccese(circolo);
+  const cambiaSfideAttive = async (attivo: boolean) => {
+    if (!attivo && attive.length > 0) {
+      window.alert(
+        `${attive.length === 1 ? 'C’è ancora una sfida aperta' : `Ci sono ancora ${attive.length} sfide aperte`}. `
+        + 'Concludile o annullale qui sotto, poi potrai spegnere le Sfide: se le spegni adesso, '
+        + 'i soci coinvolti non possono più rispondere e alla scadenza del timer prendono la penalità.',
+      );
+      return;
+    }
+    setSalvandoTimer(true);
+    try {
+      await aggiornaCircolo(circolo.id, { sfideAttive: attivo });
+    } catch {
+      // Senza questo, un rifiuto del server restava un errore non
+      // gestito nella console del browser e la casella tornava indietro
+      // da sola: chi l'aveva toccata non vedeva niente e riprovava.
+      window.alert('Il cambiamento non è stato salvato. Riprova, oppure chiedi al presidente del circolo.');
     } finally {
       setSalvandoTimer(false);
     }
@@ -237,24 +295,89 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo }: { sfide: S
         Dal lancio alla conclusione — qui trovi anche le eventuali discrepanze tra i due risultati dichiarati.
       </p>
 
+      {/* ⚠️ L'interruttore sta in cima, prima del timer: con le sfide
+          spente il tempo di risposta non ha nessun significato. */}
+      {/* ⚠️ AL COLLABORATORE NON SI MOSTRA UN COMANDO CHE VERRÀ
+          RESPINTO. Le regole Firestore lasciano cambiare questo campo
+          solo al presidente — spegnere le sfide è una scelta di
+          regolamento, non un'operazione di giornata — e una casella che
+          si spunta e torna indietro da sola è peggio di una casella
+          assente: è la stessa cura già usata per la Password Circolo e
+          per i Collaboratori. */}
+      <div className="admin-riga-interruttore">
+        <span>
+          <span className="admin-label">Sfide attive nel circolo</span>
+          <span className="admin-card-hint">
+            {accese
+              ? 'I soci vedono il tabellone delle sfide e possono sfidarsi fra loro.'
+              : 'Il tabellone è nascosto ai soci. Al suo posto, nella barra dell’app, trovano la Classifica.'}
+            {!puoCambiareSfide ? ' Solo il presidente può cambiarlo.' : ''}
+          </span>
+        </span>
+        {puoCambiareSfide ? (
+          <input
+            type="checkbox"
+            role="switch"
+            aria-label="Sfide attive nel circolo"
+            checked={accese}
+            onChange={(e) => cambiaSfideAttive(e.target.checked)}
+            disabled={salvandoTimer}
+          />
+        ) : (
+          <span className="timer-sfide-valore">{accese ? 'Attive' : 'Spente'}</span>
+        )}
+      </div>
+      {!accese && (
+        <p className="admin-card-hint timer-sfide-avviso">
+          Le sfide restano spente finché non le riaccendi. La Classifica Sociale continua a
+          funzionare e i soci la vedono: si aggiorna a mano dalla sezione qui sopra.
+        </p>
+      )}
+
+      {accese && <>
+      {/* Sul sito il cursore vero non costa niente — è un elemento del
+          browser — quindi qui c'è quello, con lo stesso elenco chiuso di
+          valori del telefono: 5 minuti, poi da un'ora a ventiquattro. */}
+      <label className="admin-label" htmlFor="timer-sfide">Tempo per rispondere a una sfida</label>
+      <div className="timer-sfide-riga">
+        <input
+          id="timer-sfide"
+          type="range"
+          min={0}
+          max={MINUTI_TIMER_AMMESSI.length - 1}
+          step={1}
+          value={Math.max(0, MINUTI_TIMER_AMMESSI.indexOf(minutiTimer))}
+          onChange={(e) => impostaMinutiTimer(MINUTI_TIMER_AMMESSI[Number(e.target.value)])}
+          disabled={salvandoTimer}
+          className="timer-sfide-cursore"
+        />
+        <span className="timer-sfide-valore">{timerLeggibile(minutiTimer)}</span>
+      </div>
       <div className="admin-chip-row">
         <button
           type="button"
-          className={`admin-chip${!circolo.timerSfideVeloce ? ' selected' : ''}`}
-          onClick={() => impostaTimerVeloce(false)}
+          className={`admin-chip${minutiTimer === 5 ? ' selected' : ''}`}
+          onClick={() => impostaMinutiTimer(5)}
           disabled={salvandoTimer}
         >
-          24 ore (reale)
+          5 minuti
         </button>
         <button
           type="button"
-          className={`admin-chip${circolo.timerSfideVeloce ? ' selected' : ''}`}
-          onClick={() => impostaTimerVeloce(true)}
+          className={`admin-chip${minutiTimer === 1440 ? ' selected' : ''}`}
+          onClick={() => impostaMinutiTimer(1440)}
           disabled={salvandoTimer}
         >
-          5 minuti (test)
+          24 ore
         </button>
       </div>
+      {minutiTimer < 60 && (
+        <p className="admin-card-hint timer-sfide-avviso">
+          Con un tempo così corto un socio che non guarda il telefono prende la penalità: tienilo
+          per le prove, non per il gioco vero.
+        </p>
+      )}
+      </>}
 
       {attive.length === 0 && <p className="admin-empty-text">Nessuna sfida in corso al momento.</p>}
 
