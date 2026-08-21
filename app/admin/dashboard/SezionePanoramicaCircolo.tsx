@@ -43,7 +43,7 @@ export default function SezionePanoramicaCircolo({
   circoloId, statoCircolo, attivatoIlMs, puoAggiornare = true, soci, onSelezionaSocio,
 }: {
   circoloId: string;
-  // Ancora il periodo di fatturazione all'anniversario del circolo.
+  // Ancora il periodo del conteggio all'anniversario del circolo.
   attivatoIlMs?: number | null;
   // Falso per il Collaboratore: legge i numeri come tutti, ma non ha il
   // tasto che li rifà — quello rilegge tutto lo storico del circolo, ed

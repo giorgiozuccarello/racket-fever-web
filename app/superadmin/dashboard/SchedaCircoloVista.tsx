@@ -46,7 +46,8 @@ import { riepilogoFatturazione, euro } from '../../../data/fatturazione';
 // invece sono grandi e si leggono meglio separati: "1.284" contro
 // "1284".
 // ⚠️ Dal modulo comune, non `toFixed`: quello scrive «200.00 €»,
-// col punto inglese, su un numero che diventa una fattura.
+// col punto inglese, sul credito o sul debito di un socio — cioè su
+// soldi veri che qualcuno ha versato in segreteria.
 const EURO = (n: number) => euro(n);
 const CONTA = (n: number) => n.toLocaleString('it-IT');
 const ORE = (n: number) => n.toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
@@ -124,9 +125,9 @@ export default function SchedaCircoloVista({
   // essere indietro e invitava a premere un tasto che quel circolo lo
   // rifiuta. Campo assente = attivo, come ovunque nel progetto.
   statoCircolo?: string;
-  // Quando il circolo è entrato nella rete: ancora il periodo di
-  // fatturazione al suo anniversario. Senza, il conto si fa sugli
-  // ultimi dodici mesi e lo dice.
+  // Quando il circolo è entrato nella rete: ancora il periodo del
+  // conteggio al suo anniversario. Senza, il conto si fa sugli ultimi
+  // dodici mesi, e la scheda lo dichiara invece di inventare una data.
   attivatoIlMs?: number | null;
   // ⚠️ Falso per il Collaboratore. LEGGE i numeri come tutti — dentro
   // la fotografia non c'è niente che non veda già nelle tessere che
@@ -237,8 +238,12 @@ export default function SchedaCircoloVista({
   // — serve all'elenco Fatturazione del pannello di rete, che non può
   // leggere le tessere di tutti i circoli — ma qui le tessere sono già
   // in memoria, quindi il numero che il circolo vede è quello di adesso
-  // e non quello di stanotte. Su un conto che diventa una fattura, la
-  // differenza si nota.
+  // e non quello di stanotte. Un socio approvato stamattina che apre
+  // l'app deve comparire stamattina: se comparisse domani, la prima
+  // cosa che il circolo impara è che il numero non è affidabile.
+  // ⚠️ Il nome `fattura` è rimasto, il contenuto no: dal 21 agosto 2026
+  // qui dentro non ci sono più euro né fasce, solo il conto delle
+  // persone. Il prezzo sta nel contratto.
   const fattura = useMemo(
     () => riepilogoFatturazione(tessere, attivatoIlMs ?? null, Date.now()),
     [tessere, attivatoIlMs],
@@ -320,30 +325,37 @@ export default function SchedaCircoloVista({
           : ''}
       </p>
 
-      {/* ---------- FATTURAZIONE ---------- */}
-      {/* ⚠️ IL CIRCOLO LO VEDE MENTRE MATURA. È il numero su cui gli
-          verrà emessa la quota, e scoprirlo in fattura è il modo più
-          rapido di trasformare un rinnovo in una discussione. Detto
-          tutti i giorni, invece, è una cosa che si accetta — ed è anche
-          l'unico antidoto vero all'idea di non approvare le richieste
-          per risparmiare. */}
-      <div className="superadmin-subtitolo">Quota annuale</div>
+      {/* ---------- CHI USA L'APP ---------- */}
+      {/* ⚠️ QUI C'ERA «QUOTA ANNUALE», CON LA FASCIA E GLI EURO. Tolti
+          il 21 agosto 2026 da tutto il progetto: quanto un circolo paga
+          a Racket Fever si scrive nel contratto fra le due parti, e non
+          in una schermata. Un listino nel software è un listino che
+          cambia da trattativa a trattativa mentre le versioni in giro
+          restano quelle vecchie — e ogni schermata che lo mostra è una
+          schermata che prima o poi dice un prezzo che non è più quello.
+
+          ⚠️ IL CONTEGGIO INVECE RESTA, ED È IL PUNTO. Quante persone
+          hanno scaricato e aperto l'app è la misura di quanto il
+          servizio è entrato davvero nel circolo: serve a noi per
+          l'assistenza, e serve al circolo per sapere quanti dei suoi
+          soci non stanno usando quello che gli è stato messo in mano.
+          È lo stesso numero che si legge nella Panoramica dentro
+          l'app — stesso `riepilogoFatturazione`, stessi campi — così
+          non esistono due versioni dello stesso dato. */}
+      <div className="superadmin-subtitolo">Chi usa l’app</div>
       <div className="scheda-conti">
-        <Dato valore={CONTA(fattura.utenti)} etichetta="utenti conteggiati" />
-        <Dato valore={fattura.fascia.nome} etichetta={`fascia · ${fattura.fascia.descrizione}`} />
-        <Dato valore={EURO(fattura.fascia.quota)} etichetta="quota dell’anno in corso" />
+        <Dato valore={CONTA(fattura.utenti)} etichetta="hanno aperto l’app" />
+        <Dato valore={CONTA(fattura.accettatiMaiUsati)} etichetta="accettati, mai entrati" />
+        <Dato valore={CONTA(fattura.usciteNelPeriodo)} etichetta="usciti nel periodo" />
       </div>
       <p className="admin-card-hint scheda-nota">
         Si contano le persone che il circolo ha accettato — soci, tesserati e ospiti allo stesso
         modo — e che hanno aperto l’app almeno una volta. Chi è entrato conta anche se poi è
-        uscito: chiudere una tessera non fa scendere la quota.
-        {fattura.usciteNelPeriodo > 0
-          ? ` Di questi, ${fattura.usciteNelPeriodo} ${fattura.usciteNelPeriodo === 1 ? 'è uscito' : 'sono usciti'} durante l’anno.`
-          : ''}
+        uscito: il numero dice quante persone il servizio ha raggiunto nel periodo, non quante
+        ce ne sono stamattina.
         {fattura.accettatiMaiUsati > 0
-          ? ` Altre ${fattura.accettatiMaiUsati === 1 ? 'persona è stata accettata ma non ha' : `${fattura.accettatiMaiUsati} persone sono state accettate ma non hanno`} mai aperto l’app: non si contano.`
+          ? ` ${fattura.accettatiMaiUsati === 1 ? 'Una persona è stata accettata ma non ha' : `${fattura.accettatiMaiUsati} persone sono state accettate ma non hanno`} mai aperto l’app: ${fattura.accettatiMaiUsati === 1 ? 'non è' : 'non sono'} nel conteggio.`
           : ''}
-        {' '}Fa <strong>{EURO(fattura.costoPerUtente)}</strong> a persona.
       </p>
       <p className="admin-card-hint scheda-nota">
         {/* ⚠️ Si guarda `ancorato`, non `attivatoIlMs`: la condizione
@@ -351,8 +363,8 @@ export default function SchedaCircoloVista({
             mese un circolo senza data di attivazione tornava a
             stampare una scadenza che non esisteva. */}
         {!fattura.periodo.ancorato
-          ? 'Periodo: gli ultimi dodici mesi. Il circolo non ha una data di attivazione scritta, quindi il conto non è ancora ancorato a un anniversario e non c’è una scadenza da mostrare.'
-          : `Anno ${fattura.periodo.numero} del contratto, dal ${quandoLeggibile(fattura.periodo.inizioMs)} al ${quandoLeggibile(fattura.periodo.fineMs)}. Il numero può ancora salire fino alla scadenza.`}
+          ? 'Periodo: gli ultimi dodici mesi. Il circolo non ha una data di attivazione scritta, quindi il conto non è ancorato a un anniversario.'
+          : `Anno ${fattura.periodo.numero} dall’attivazione, dal ${quandoLeggibile(fattura.periodo.inizioMs)} al ${quandoLeggibile(fattura.periodo.fineMs)}. Il numero può ancora salire fino a quella data.`}
       </p>
 
       {/* ---------- ATTIVITÀ (dalla fotografia) ---------- */}

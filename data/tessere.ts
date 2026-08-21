@@ -222,9 +222,9 @@ export function ascoltaRichiesteInSospeso(circoloId: string, callback: (tessere:
 // datata come tale. La schermata da cui si chiama questa funzione
 // mostra solo le richieste ancora in attesa, quindi in pratica lo stato
 // di partenza e' sempre «in_attesa» — ma «in pratica» non regge il
-// conto della fatturazione. Una tessera che passa da approvata a
-// rifiutata senza `chiusaIl` resta nel conto per sempre: la persona e'
-// fuori dal circolo e il circolo continua a pagarla, anno dopo anno,
+// conto delle persone. Una tessera che passa da approvata a rifiutata
+// senza `chiusaIl` resta nel conto per sempre: la persona e' fuori dal
+// circolo e continua a comparire fra chi usa l'app, anno dopo anno,
 // senza che nessuno dei due possa piu' rimediare. Costa una lettura e
 // chiude il caso.
 export async function rifiutaTessera(uid: string, circoloId: string): Promise<void> {
@@ -240,11 +240,11 @@ export async function rifiutaTessera(uid: string, circoloId: string): Promise<vo
     // adesso. Il caso che sfuggiva: un ex socio uscito due anni fa
     // ricompare nello switcher, tocca «chiedi tessera» — e la richiesta
     // azzera `chiusaIl`, quindi da quel momento torna dentro il conto
-    // della fatturazione. Se l'Admin lo rifiuta e il rifiuto non data
+    // delle persone. Se l'Admin lo rifiuta e il rifiuto non data
     // l'uscita, quella persona resta nel conto PER SEMPRE, in questo
     // periodo e in tutti i successivi, e il circolo non ha nessuna
-    // strada per toglierla. Bastavano venti ex soci arrabbiati per
-    // spostare un circolo di fascia.
+    // strada per toglierla. Bastavano venti ex soci arrabbiati perche'
+    // il circolo leggesse un numero che non era il suo.
     eraDentro = stato === 'approvata' || stato === 'sospesa' || dati?.primoUsoMs != null;
   } catch {
     // Se non si riesce a leggere si procede col rifiuto semplice: e'

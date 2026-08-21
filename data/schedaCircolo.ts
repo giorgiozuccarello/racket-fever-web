@@ -125,16 +125,20 @@ export interface VoceSocioFoto {
   ultimaPrenotazioneMs: number | null;
 }
 
-// ⚠️ Il conto su cui si emette la quota annuale, scritto dal giro
-// notturno insieme al resto (functions/src/index.ts). Facoltativo
+// ⚠️ Quante persone di questo circolo hanno aperto l'app, scritto dal
+// giro notturno insieme al resto (functions/src/index.ts). Facoltativo
 // perché le fotografie scattate prima del 19 agosto 2026 non ce
 // l'hanno: chi lo legge deve reggere la sua assenza.
 export interface FatturazioneFoto {
   utenti: number;
   accettatiMaiUsati: number;
   usciteNelPeriodo: number;
-  fascia: string;
-  quota: number;
+  // ⚠️ C'ERANO ANCHE `fascia` (il nome dello scaglione) E `quota` (gli
+  // euro dell'anno). Tolte il 21 agosto 2026 da tutto il progetto: il
+  // prezzo vive nei contratti, il software conta le persone. Le
+  // fotografie scritte prima di quella data hanno ancora i due campi
+  // sul database; qui non li dichiariamo apposta, così nessuna
+  // schermata può tornare a mostrarli per distrazione.
   periodoInizioMs: number;
   periodoFineMs: number;
   periodoNumero: number;
@@ -217,12 +221,21 @@ export function ascoltaFotografia(
           addebiti30: v.registro?.addebiti30 ?? 0,
           movimenti30: v.registro?.movimenti30 ?? 0,
         },
-        // ⚠️ Il conto della quota va COPIATO QUI, e non c'era. Il campo
-        // veniva scritto dal giro notturno e dichiarato
-        // nell'interfaccia, ma questa funzione — che è l'unica strada
-        // per cui una fotografia arriva a una schermata — lo lasciava
-        // per terra. Chi lo leggeva trovava sempre `undefined`, e la
-        // schermata concludeva, in buona fede, «nessun conteggio».
+        // ⚠️ Il conteggio delle persone va COPIATO QUI, e non c'era: il
+        // campo veniva scritto dal giro notturno e dichiarato
+        // nell'interfaccia, ma questa funzione lo lasciava per terra, e
+        // chi lo leggeva trovava sempre `undefined`.
+        //
+        // ⚠️ OGGI NESSUNO LO LEGGE DA QUI, e va detto invece di lasciar
+        // credere il contrario. Le due schede — Panoramica nell'app e
+        // scheda del circolo sul sito — il conteggio lo rifanno dal
+        // vivo sulle tessere, che a quel punto hanno già in memoria;
+        // l'unico posto che usa il numero della fotografia è l'elenco
+        // di rete del Super Admin, che legge il documento grezzo con
+        // `getDoc` e non passa di qui. Il campo resta copiato perché è
+        // dichiarato nel tipo e costa niente: una `Fotografia` che
+        // arriva a una schermata monca in un campo solo è una trappola
+        // per il primo che vorrà leggerlo.
         fatturazione: (v.fatturazione as FatturazioneFoto | undefined) ?? undefined,
         perSocio: (v.perSocio ?? {}) as Record<string, VoceSocioFoto>,
       });

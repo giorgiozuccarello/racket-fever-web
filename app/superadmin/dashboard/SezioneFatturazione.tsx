@@ -1,7 +1,19 @@
 'use client';
 
 // ============================================================
-// FATTURAZIONE — quanto deve ogni circolo, e quando scade.
+// FATTURAZIONE — quante persone usano l'app in ogni circolo, e quando
+// scade il periodo.
+//
+// ⚠️ QUI NON CI SONO PIU' EURO, dal 21 agosto 2026, e non e' una
+// dimenticanza. Le colonne «Fascia» e «Quota» e il totale «di quote
+// sull'anno in corso» sono stati tolti: quanto ogni circolo paga si
+// scrive nel contratto fra le due parti, e un listino replicato in una
+// schermata e' un listino che diverge dal contratto il giorno che una
+// trattativa va diversamente dalle altre. Questo elenco resta perche'
+// serve, ma per quello che sa davvero: quante persone hanno aperto
+// l'app in ogni circolo, quante sono state accettate e non l'hanno mai
+// aperta, e quando scade il periodo di ognuno — cioe' l'ordine in cui
+// vanno richiamati.
 //
 // ⚠️ I NUMERI ARRIVANO DALLA FOTOGRAFIA NOTTURNA, non dalle tessere. È
 // l'unica scelta possibile: contare dal vivo vorrebbe dire leggere le
@@ -12,10 +24,11 @@
 //
 // ⚠️ E LA DATA DELLO SCATTO SI DICE, riga per riga. Il giro notturno
 // fotografa un numero limitato di circoli per notte: un circolo può
-// essere rimasto indietro di qualche giorno, e su un numero che diventa
-// una fattura la differenza va vista, non nascosta. Il circolo, nella
-// propria Panoramica, vede invece il conto dal vivo — lì le tessere
-// sono già in memoria.
+// essere rimasto indietro di qualche giorno, e un numero fermo a
+// martedì letto come se fosse di oggi è il modo più rapido di fare una
+// telefonata sbagliata a un circolo. Il circolo, nella propria
+// Panoramica, vede invece il conto dal vivo — lì le tessere sono già in
+// memoria.
 // ============================================================
 
 import { useEffect, useMemo, useState } from 'react';
@@ -25,7 +38,9 @@ import SezioneCollassabile from '../../admin/dashboard/SezioneCollassabile';
 import { Circolo, statoCircolo, etichettaStatoCircolo } from '../../../data/circoli';
 import { ascoltaCircoli } from '../../../data/circoliRepo';
 import { FatturazioneFoto } from '../../../data/schedaCircolo';
-import { FASCE, euro } from '../../../data/fatturazione';
+// ⚠️ NESSUN IMPORT DA `data/fatturazione`, e prima ce n'erano due:
+// `FASCE` (il listino) e `euro` (per stamparlo). Questa pagina non
+// mostra piu' importi, quindi non le serve piu' niente da li'.
 
 interface Riga {
   circolo: Circolo;
@@ -40,7 +55,6 @@ interface Riga {
   respinta: boolean;
 }
 
-const EURO = (n: number) => euro(n ?? 0);
 const giorno = (ms: number | null | undefined) =>
   (ms && ms > 0 ? new Date(ms).toLocaleDateString('it-IT') : '—');
 
@@ -87,8 +101,19 @@ export default function SezioneFatturazione() {
       // fotografie senza ancoraggio hanno `periodoFineMs` uguale a
       // oggi: ordinando alla cieca finivano tutte in testa all'elenco,
       // proprio davanti ai circoli che scadono davvero.
-      esiti.sort((a, b) => (haScadenzaVera(a.conto) ? a.conto!.periodoFineMs : Infinity)
-        - (haScadenzaVera(b.conto) ? b.conto!.periodoFineMs : Infinity));
+      // ⚠️ NON UNA SOTTRAZIONE FRA I DUE VALORI: con due righe senza
+      // scadenza vera faceva `Infinity - Infinity`, cioe' `NaN`, e per
+      // `sort` un comparatore che restituisce NaN ha esito non
+      // specificato — l'ordine reciproco dei circoli «data da
+      // impostare» cambiava senza motivo fra una lettura e l'altra.
+      // Confronto a gradini: prima chi ha una scadenza, poi per data,
+      // e a parita' per nome, cosi' l'elenco e' sempre lo stesso.
+      esiti.sort((a, b) => {
+        const sa = haScadenzaVera(a.conto), sb = haScadenzaVera(b.conto);
+        if (sa && sb) return a.conto!.periodoFineMs - b.conto!.periodoFineMs;
+        if (sa !== sb) return sa ? -1 : 1;
+        return a.circolo.nome.localeCompare(b.circolo.nome, 'it');
+      });
       setRighe(esiti);
     } catch (e: unknown) {
       setErrore(e instanceof Error ? e.message : 'Lettura non riuscita.');
@@ -99,9 +124,11 @@ export default function SezioneFatturazione() {
 
   const totali = useMemo(() => {
     if (!righe) return null;
-    // ⚠️ I TOTALI GUARDANO SOLO I CIRCOLI ATTIVI: un circolo sospeso o
-    // chiuso non si fattura, e sommarne la quota gonfierebbe il numero
-    // che si guarda per capire quanto incassa la rete.
+    // ⚠️ I TOTALI GUARDANO SOLO I CIRCOLI ATTIVI: su un circolo
+    // sospeso o chiuso il giro notturno non passa piu', quindi i suoi
+    // numeri sono fermi al giorno della sospensione. Sommarli vorrebbe
+    // dire raccontare come utenti di oggi delle persone che l'app non
+    // la aprono da mesi.
     const conConto = righe.filter((r) => r.conto && statoCircolo(r.circolo) === 'attivo');
     return {
       circoli: conConto.length,
@@ -113,7 +140,10 @@ export default function SezioneFatturazione() {
       senzaConto: righe.filter((r) => !r.conto && !r.respinta && statoCircolo(r.circolo) === 'attivo').length,
       respinte: righe.filter((r) => r.respinta).length,
       utenti: conConto.reduce((s, r) => s + (r.conto?.utenti ?? 0), 0),
-      atteso: conConto.reduce((s, r) => s + (r.conto?.quota ?? 0), 0),
+      // ⚠️ QUI C'ERA `atteso`, la somma delle quote in euro. Tolto: il
+      // fatturato della rete non si legge da una schermata che somma un
+      // listino scritto nel codice — si legge dai contratti firmati.
+      maiUsata: conConto.reduce((s, r) => s + (r.conto?.accettatiMaiUsati ?? 0), 0),
     };
   }, [righe]);
 
@@ -121,25 +151,48 @@ export default function SezioneFatturazione() {
     <SezioneCollassabile
       id="fatturazione"
       titolo="Fatturazione"
-      descrizione="Utenti conteggiati, fascia e quota di ogni circolo, in ordine di scadenza"
+      descrizione="Quante persone usano l’app in ogni circolo, in ordine di scadenza del periodo"
     >
       <div className="admin-card">
-        <div className="admin-card-title">Quote annuali della rete</div>
+        <div className="admin-card-title">Chi usa l’app, circolo per circolo</div>
         <p className="admin-card-hint">
           Si contano le persone che ogni circolo ha accettato — soci, tesserati e ospiti allo
           stesso modo — e che hanno aperto l’app almeno una volta. Chi è entrato conta anche se
-          poi è uscito. Le fasce: {FASCE.map((f) => `${f.descrizione} → ${EURO(f.quota)}`).join(' · ')}.
+          poi è uscito: il numero dice quante persone l’app ha raggiunto nel periodo, non quante
+          ce ne sono stamattina. Gli importi non stanno qui: quanto ogni circolo paga è scritto
+          nel contratto fra le parti.
         </p>
 
         <button className="admin-btn-full" onClick={carica} disabled={caricando || circoli.length === 0}>
-          {caricando ? 'Lettura in corso…' : (righe ? 'Rileggi' : 'Calcola le quote')}
+          {caricando ? 'Lettura in corso…' : (righe ? 'Rileggi' : 'Leggi i conteggi')}
         </button>
         {!!errore && <div className="admin-error-text">{errore}</div>}
 
         {totali && (
           <div className="admin-ok-text">
-            {totali.circoli} circoli attivi con un conteggio, {totali.utenti} utenti in tutto,{' '}
-            <strong>{EURO(totali.atteso)}</strong> di quote sull’anno in corso.
+            {/* ⚠️ CINQUE FRASI, CINQUE SINGOLARI — circoli, utenti,
+                mai usate, senza conteggio, respinte — e le prime tre
+                erano nate senza: «1 circoli attivi», «1 persone che
+                hanno aperto», «Altre 1 sono state accettate». Su una
+                rete che comincia da un circolo solo, quella riga e' la
+                prima che si legge. Chi ne aggiunge una sesta la provi
+                con 0, 1 e 2 prima di consegnarla. */}
+            {totali.circoli === 0
+              ? 'Nessun circolo attivo ha ancora un conteggio.'
+              : (
+                <>
+                  {totali.circoli === 1
+                    ? 'Un circolo attivo con un conteggio'
+                    : `${totali.circoli} circoli attivi con un conteggio`},{' '}
+                  <strong>{totali.utenti}</strong>{' '}
+                  {totali.utenti === 1 ? 'persona che ha' : 'persone che hanno'} aperto l’app in tutto.
+                </>
+              )}
+            {totali.maiUsata > 0
+              ? ` ${totali.maiUsata === 1
+                ? 'Un’altra persona è stata accettata'
+                : `Altre ${totali.maiUsata} persone sono state accettate`} senza mai aprirla.`
+              : ''}
             {totali.senzaConto > 0
               ? ` ${totali.senzaConto === 1 ? 'Un circolo attivo non ha' : `${totali.senzaConto} circoli attivi non hanno`} ancora una fotografia: il conteggio arriva con il primo giro notturno.`
               : ''}
@@ -154,7 +207,7 @@ export default function SezioneFatturazione() {
             <table className="scheda-tabella">
               <thead>
                 <tr>
-                  <th>Circolo</th><th>Utenti</th><th>Fascia</th><th>Quota</th>
+                  <th>Circolo</th><th>Hanno aperto l’app</th>
                   <th>Rinnovo</th><th>Mai usata</th><th>Aggiornato al</th>
                 </tr>
               </thead>
@@ -177,16 +230,16 @@ export default function SezioneFatturazione() {
                         </div>
                       </td>
                       <td>{r.conto ? r.conto.utenti : '—'}</td>
-                      <td>{r.conto ? r.conto.fascia : '—'}</td>
-                      <td>{r.conto ? EURO(r.conto.quota) : '—'}</td>
                       <td className={scade !== null && scade <= 30 ? 'scheda-td-debito' : undefined}>
                         {scade !== null ? giorno(r.conto!.periodoFineMs) : (r.conto ? 'data da impostare' : '—')}
                         {scade !== null && scade <= 30 && scade >= 0 ? ` · fra ${scade} gg` : ''}
                         {scade !== null && scade < 0 ? ' · scaduto' : ''}
                       </td>
                       {/* Accettati e mai entrati nell'app: non si
-                          contano, ma dicono al circolo quanti dei suoi
-                          soci non stanno usando quello per cui paga. */}
+                          contano, ma dicono quanti soci di quel circolo
+                          non stanno usando quello che gli e' stato
+                          messo in mano. E' il numero da cui parte una
+                          telefonata utile all'assistenza. */}
                       <td>{r.conto ? r.conto.accettatiMaiUsati : '—'}</td>
                       <td>{r.respinta ? 'lettura respinta' : giorno(r.scattataIlMs)}</td>
                     </tr>
@@ -197,8 +250,14 @@ export default function SezioneFatturazione() {
           </div>
         )}
 
-        {righe && righe.length === 0 && (
-          <p className="admin-empty-text">Nessun circolo nella rete.</p>
+        {/* ⚠️ IL VUOTO SI DICE PRIMA DI PREMERE, non dopo. Il ramo di
+            prima era `righe && righe.length === 0`, e non poteva
+            comparire mai: il pulsante e' disattivato quando la rete e'
+            vuota, quindi `righe` non diventa mai un elenco vuoto. Chi
+            apriva il pannello su una rete senza circoli trovava un
+            tasto spento e nessuna spiegazione. */}
+        {circoli.length === 0 && (
+          <p className="admin-empty-text">Nessun circolo nella rete: non c’è ancora niente da contare.</p>
         )}
       </div>
     </SezioneCollassabile>

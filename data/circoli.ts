@@ -535,6 +535,18 @@ export function fasciaOraria(orario: string): string {
 // ripiego era fare l'esatto contrario di quello che il commento
 // prometteva. `creatoIlMs` resta come ripiego perche' si legge subito,
 // anche mentre la scrittura del server e' ancora in volo.
+// ⚠️ CHIAMATA DA TUTTI E TRE I PUNTI CHE MONTANO LA SCHEDA, e la nota
+// di prima diceva il contrario. Fino al 20 agosto 2026 il progetto
+// mobile non la usava — il riquadro «Quota annuale» era stato tolto
+// dalla Panoramica dentro l'app, e con lui l'unico chiamante — e il
+// commento lo scriveva. Dal 21 agosto il riquadro e' tornato senza gli
+// euro, come «Chi usa l'app», e i chiamanti sono tre:
+// racket-fever/app/admin/dashboard.tsx nel mobile,
+// racket-fever-web/app/admin/dashboard/page.tsx e
+// racket-fever-web/app/superadmin/dashboard/SezioneCircoli.tsx sul
+// sito. Un commento che dice «nessun chiamante» e' peggio di nessun
+// commento: e' un invito a cancellare la funzione, ed e' la prima cosa
+// che fa chi passa a fare pulizia.
 export function attivazioneCircoloMs(
   circolo: { creatoIlMs?: number | null; creatoIl?: unknown } | null | undefined,
 ): number | null {
