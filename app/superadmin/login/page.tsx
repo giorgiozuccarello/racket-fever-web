@@ -31,8 +31,14 @@ export default function SuperAdminLogin() {
         return;
       }
       router.replace('/superadmin/dashboard');
-    } catch (err: any) {
-      if (['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found'].includes(err.code)) {
+    } catch (err: unknown) {
+      // ⚠️ Il codice si estrae difensivamente. Con `err.code` secco,
+      // qualunque lancio senza `.code` — o un `null` — genera un
+      // TypeError DENTRO il catch: nessun messaggio a schermo, il
+      // `finally` riabilita il pulsante, e chi guarda vede una form
+      // che non reagisce e ripreme all'infinito.
+      const codice = String((err as { code?: string })?.code ?? '');
+      if (['auth/invalid-credential', 'auth/wrong-password', 'auth/user-not-found'].includes(codice)) {
         setErrore('Email o password non corretti.');
       } else {
         setErrore('Si è verificato un errore. Riprova.');
@@ -52,10 +58,15 @@ export default function SuperAdminLogin() {
         </div>
 
         <label htmlFor="email">Email</label>
+        {/* ⚠️ Segnaposto generico: prima era `team@`, cioè esattamente
+            l'indirizzo dell'account vero. Un segnaposto che suggerisce
+            un account esistente regala metà credenziale a chiunque
+            apra questa pagina, che è pubblica. `nome@` non indica
+            nessuno. */}
         <input
           id="email" type="email" value={email} autoComplete="username"
           onChange={(e) => { setEmail(e.target.value); setErrore(''); }}
-          placeholder={`team@${SITO_NUDO}`}
+          placeholder={`nome@${SITO_NUDO}`}
         />
 
         <label htmlFor="password">Password</label>

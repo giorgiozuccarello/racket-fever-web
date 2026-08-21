@@ -29,6 +29,27 @@ const firebaseConfig = {
 const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
 
 export const auth = getAuth(app);
+
+// ============================================================
+// ⚠️ LE EMAIL DI FIREBASE IN ITALIANO, e non era così.
+//
+// Senza questa riga ogni messaggio che Firebase manda per conto nostro
+// — reimpostazione password, conferma di un cambio di indirizzo — parte
+// con il testo predefinito, cioè in inglese. Arriva da un mittente che
+// il destinatario non conosce (`noreply@racquet-fever.firebaseapp.com`)
+// e porta un link su un dominio che non ha mai visto: un'email in
+// inglese, da uno sconosciuto, con dentro un link. È la descrizione di
+// un tentativo di truffa, e finisce cestinata o nello spam.
+//
+// ⚠️ E non è un dettaglio di cortesia: su quell'email si regge l'unica
+// strada di recupero di un account. Il giorno che serve, deve essere
+// riconoscibile al primo sguardo.
+//
+// ⚠️ Resta da fare, e va fatto dalla console (non dal codice):
+// personalizzare i modelli in Authentication → Templates, almeno
+// «Password reset» e «Email address change».
+// ============================================================
+auth.languageCode = 'it';
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
