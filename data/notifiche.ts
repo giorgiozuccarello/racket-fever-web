@@ -66,9 +66,18 @@ export async function creaNotifica(
   circoloId?: string,
   globale?: boolean,
   richiestaId?: string,
-  motivo?: 'messaggio',
+  // ⚠️ Allineato al gemello dell'app: 'annullamento' e 'sfida' non
+  // cambiano niente qui, ma decidono la FACCIA che l'avviso avra' nella
+  // Home del socio — icona, colore, fascetta. Un annullamento scritto
+  // da questa dashboard senza il motivo arriverebbe al socio con
+  // l'aspetto neutro di una prenotazione qualunque, cioe' esattamente
+  // come la bella notizia che gli somiglia.
+  motivo?: 'messaggio' | 'annullamento' | 'sfida',
   categoria?: CategoriaNotifica,
   origineUid?: string | null,
+  // La prenotazione a cui l'avviso si riferisce: toccando la notifica,
+  // la Home del socio scorre fino a quella card e la fa pulsare.
+  cardId?: string | null,
 ): Promise<void> {
   const origine = origineUid !== undefined ? origineUid : (auth.currentUser?.uid ?? null);
   await addDoc(collection(db, 'notifiche'), {
@@ -82,6 +91,7 @@ export async function creaNotifica(
     ...(motivo ? { motivo } : {}),
     ...(categoria ? { categoria } : {}),
     ...(origine ? { origineUid: origine } : {}),
+    ...(cardId ? { cardId } : {}),
     creataIl: serverTimestamp(),
   });
 }

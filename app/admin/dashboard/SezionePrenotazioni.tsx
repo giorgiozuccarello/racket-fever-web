@@ -420,7 +420,13 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua quota: € ${miaQuota}.`,
           undefined,
           circolo.id,
-          undefined, undefined, undefined,
+          undefined, undefined,
+          // ⚠️ 'annullamento' non sposta la notifica sotto un altro
+          // interruttore — resta «Le mie partite» — ma le da' la faccia
+          // che si nota nella Home del socio: fascetta ambra e icona
+          // d'allarme. Senza, l'avviso che gli dice di non venire
+          // sarebbe disegnato identico a quello che lo invita.
+          'annullamento',
           'prenotazioni',
         ));
         for (const g of altri) {
@@ -429,7 +435,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             `Il circolo ha annullato la prenotazione con ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua quota: € ${g.quota.toFixed(2)}.`,
             undefined,
             circolo.id,
-            undefined, undefined, undefined,
+            undefined, undefined, 'annullamento',
             'prenotazioni',
           ));
         }
@@ -461,7 +467,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             + (importoDaRimborsare(daAnnullare) > 0 ? ` Credito rimborsato: € ${importoDaRimborsare(daAnnullare).toFixed(2)}.` : ''),
           undefined,
           circolo.id,
-          undefined, undefined, undefined,
+          undefined, undefined, 'annullamento',
           'prenotazioni',
         ));
       }

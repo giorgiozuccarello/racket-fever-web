@@ -156,7 +156,13 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
     await azzeraCredito(socio.uid, circoloId);
     await creaNotifica(
       socio.uid,
-      `Il circolo ha azzerato il tuo credito wallet (era € ${(socio.credito ?? 0).toFixed(2)}). Se non ti torna, rivolgiti alla segreteria.`
+      `Il circolo ha azzerato il tuo credito wallet (era € ${(socio.credito ?? 0).toFixed(2)}). Se non ti torna, rivolgiti alla segreteria.`,
+      // ⚠️ IL CIRCOLO MANCAVA, e il gemello dell'app lo passava. Senza,
+      // l'avviso finisce legato al circolo principale del socio — quello
+      // sbagliato, se qui e' Ospite — e la notifica sul telefono perde
+      // il nome del club nel titolo.
+      undefined,
+      circoloId,
     );
     setAzzerando(false);
     setConfermaAzzeraAperta(false);

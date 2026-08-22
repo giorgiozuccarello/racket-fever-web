@@ -34,7 +34,7 @@ export async function notificaSfidaConRitentativi(uid: string, testo: string, ci
   let ultimoErrore: any;
   for (let i = 0; i < TENTATIVI; i++) {
     try {
-      await creaNotifica(uid, testo, undefined, circoloId, undefined, undefined, undefined, 'circolo');
+      await creaNotifica(uid, testo, undefined, circoloId, undefined, undefined, 'sfida', 'circolo');
       return;
     } catch (e) {
       ultimoErrore = e;

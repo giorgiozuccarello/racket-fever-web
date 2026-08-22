@@ -235,7 +235,7 @@ export async function annullaLezioneIntera(
     try {
       await creaNotifica(
         lezione.allievoUid, testo, 'lezione', lezione.circoloId,
-        undefined, undefined, undefined, 'lezioni',
+        undefined, undefined, 'annullamento', 'lezioni',
       );
     }
     catch (e) {
