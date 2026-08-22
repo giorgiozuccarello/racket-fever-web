@@ -25,9 +25,23 @@ import {
 } from '../../../data/bacheca';
 import { pubblicaAvviso, aggiornaAvviso, rimuoviAvviso, ascoltaBachecaAdmin, spostaAvviso } from '../../../data/bachecaRepo';
 import { caricaVolantino, rimuoviVolantino } from '../../../data/storage';
+import { httpsCallable } from 'firebase/functions';
+import { functions } from '../../../lib/firebase';
 import { oggiIso, fraGiorni, dataNumerica } from '../../../data/giorni';
 
-export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circolo; autoreNome: string }) {
+export default function SezioneBacheca({
+  circolo, autoreNome, puoNotificare,
+}: {
+  circolo: Circolo;
+  autoreNome: string;
+  // ⚠️ Falso per il Collaboratore. `avvisaBacheca` pretende il
+  // responsabile — il Collaboratore e' un accesso con password
+  // condivisa e senza nome, va bene per la segreteria e non per far
+  // squillare i telefoni di tutto il circolo — quindi il comando non
+  // gli si mostra nemmeno: un pulsante destinato a essere respinto e'
+  // peggio di un pulsante che non c'e'.
+  puoNotificare: boolean;
+}) {
   const [titolo, setTitolo] = useState('');
   const [testo, setTesto] = useState('');
   const [categoria, setCategoria] = useState(CATEGORIE_AVVISO[0].chiave);
@@ -43,6 +57,37 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
   const [errore, setErrore] = useState('');
   const [archivio, setArchivio] = useState<Avviso[]>([]);
   const [daRimuovere, setDaRimuovere] = useState<Avviso | null>(null);
+  // ⚠️ LA NOTIFICA C'ERA SOLO SULL'APP, e questa dashboard e' quella su
+  // cui l'Admin lavora davvero: pubblicava l'avviso e non aveva nessun
+  // modo di farlo sapere. Due dashboard che fanno cose diverse sullo
+  // stesso oggetto sono la ragione per cui un circolo finisce per
+  // usarne una sola.
+  const [conNotifica, setConNotifica] = useState(false);
+  const [avvisati, setAvvisati] = useState<{ inHome: number; sulTelefono: number } | null>(null);
+  const [daNotificare, setDaNotificare] = useState<Avviso | null>(null);
+  const [notificando, setNotificando] = useState(false);
+  // ⚠️ UN ERRORE SUO, e non quello del modulo. Con lo stesso stato, un
+  // Admin che aveva appena letto «la notifica non è partita, puoi
+  // rimandarla con la campanella» apriva la campanella e si ritrovava
+  // quella stessa frase stampata DENTRO la finestra di conferma, come
+  // se riguardasse il tentativo nuovo — e l'errore di un'altra
+  // operazione, tipo uno spostamento fallito, compariva li' identico.
+  const [erroreNotifica, setErroreNotifica] = useState('');
+
+  // Una funzione sola per i due percorsi — l'interruttore alla
+  // pubblicazione e la campanella dell'elenco — cosi' i due non possono
+  // raccontare l'esito in due modi diversi.
+  const mandaNotifica = async (avvisoId: string) => {
+    const manda = httpsCallable<
+      { circoloId: string; avvisoId: string },
+      { avvisati: number; notificati?: number }
+    >(functions, 'avvisaBacheca');
+    const esito = await manda({ circoloId: circolo.id, avvisoId });
+    setAvvisati({
+      inHome: esito.data?.avvisati ?? 0,
+      sulTelefono: esito.data?.notificati ?? 0,
+    });
+  };
   // ⚠️ "Vuoto" e "non riesco a leggere" non sono la stessa cosa, e
   // qui la differenza costa cara: con le regole non ancora pubblicate
   // l'Admin leggeva «La bacheca è ancora vuota» e ripubblicava gli
@@ -84,6 +129,10 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
 
   const pubblica = async () => {
     setErrore('');
+    // ⚠️ Si azzera PRIMA. Restando acceso, il conteggio della
+    // pubblicazione precedente comparirebbe sotto il modulo di quella
+    // dopo — anche di una pubblicata senza notifica.
+    setAvvisati(null);
     const manca = cosaMancaPerPubblicare({ titolo, testo, volantinoUrl: volantino, visibileFinoA: fino });
     if (manca) { setErrore(manca); return; }
     // ⚠️ Una data gia' passata non e' un errore di battitura innocuo:
@@ -92,7 +141,7 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
     if (fino < oggiIso()) { setErrore('La data di scadenza è già passata: l’avviso non lo vedrebbe nessuno.'); return; }
     setSalvando(true);
     try {
-      await pubblicaAvviso({
+      const nuovoId = await pubblicaAvviso({
         circoloId: circolo.id,
         categoria,
         titolo: titolo.trim(),
@@ -102,8 +151,22 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
         visibileFinoA: fino,
         autoreNome,
       });
+
+      // ⚠️ LA NOTIFICA DOPO, E SEPARATA. Se l'invio fallisce, l'avviso
+      // resta in bacheca: la pubblicazione e' la cosa che conta. Legarle
+      // in un'operazione sola vorrebbe dire perdere l'avviso per un
+      // problema di rete sulla parte accessoria.
+      if (conNotifica && puoNotificare) {
+        try {
+          await mandaNotifica(nuovoId);
+        } catch {
+          setErrore('L’avviso è stato pubblicato, ma la notifica non è partita. Puoi rimandarla con la campanella, nell’elenco qui sotto.');
+        }
+      }
+
       setTitolo(''); setTesto(''); setLink('');
       setVolantino(null);
+      setConNotifica(false);
       setFino(scadenzaPredefinita());
     } catch (e: any) {
       setErrore(e?.message ?? 'Non sono riuscito a pubblicare. Riprova.');
@@ -228,6 +291,58 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
 
       {!!errore && <div className="admin-error-text" style={{ marginTop: '.6rem' }}>{errore}</div>}
 
+      {/* ============================================================
+          ⚠️ L'INTERRUTTORE CHE FA SQUILLARE DUECENTO TELEFONI.
+          Sta qui, subito sopra il pulsante di pubblicazione e non
+          sepolto fra i campi, perche' non riguarda COSA si scrive ma CHI
+          viene disturbato. Ed e' spento di partenza, e va lasciato
+          spento: acceso di serie diventerebbe la cosa che ci si
+          dimentica di togliere, e anche «campo 3 bagnato» sveglierebbe
+          tutto il circolo.
+          ============================================================ */}
+      {puoNotificare && (
+        <label
+          className="admin-row"
+          style={{ alignItems: 'flex-start', gap: '.6rem', marginTop: '.9rem', cursor: 'pointer' }}
+        >
+          <input
+            type="checkbox"
+            checked={conNotifica}
+            onChange={(e) => setConNotifica(e.target.checked)}
+            disabled={salvando}
+            style={{ marginTop: '.2rem' }}
+          />
+          <span>
+            <span className="admin-card-hint" style={{ fontWeight: 800, display: 'block' }}>
+              Manda anche una notifica
+            </span>
+            <span className="admin-card-hint">
+              Arriva sul telefono di tutti i soci del circolo. Non la riceve chi ha spento gli
+              avvisi del circolo dalle proprie impostazioni, né — fra le 22 e le 8 — chi ha
+              lasciato acceso il «Non disturbare la notte». Per loro l&apos;avviso resta comunque
+              in bacheca e in Home: salta il suono, non l&apos;avviso.
+            </span>
+          </span>
+        </label>
+      )}
+
+      {/* ⚠️ DUE NUMERI, e la differenza va detta. «Inviata a 200 soci»
+          quando ne hanno sentito squillare il telefono 140 e' una bugia
+          che l'Admin scopre da solo, e da quel momento non crede piu' a
+          nessun numero. */}
+      {avvisati !== null && (
+        <div className="admin-card-hint" style={{ color: '#1C5F06', fontWeight: 800, marginTop: '.6rem' }}>
+          {avvisati.inHome === 0
+            ? 'Nessun altro socio da avvisare: nel circolo, per ora, ci sei solo tu.'
+            : `L’avviso è in Home di ${avvisati.inHome} ${avvisati.inHome === 1 ? 'socio' : 'soci'}.`
+              + (avvisati.sulTelefono === 0
+                ? ' Nessuno di loro ha il telefono pronto a riceverla: o non hanno ancora installato l’app, o hanno negato il permesso alle notifiche, o hanno spento gli avvisi del circolo, o sono le ore del «Non disturbare».'
+                : avvisati.sulTelefono === avvisati.inHome
+                  ? ' La notifica è partita verso tutti.'
+                  : ` La notifica è partita verso ${avvisati.sulTelefono} ${avvisati.sulTelefono === 1 ? 'socio' : 'soci'}: gli altri non hanno l’app installata, hanno negato il permesso alle notifiche, hanno spento gli avvisi del circolo, o sono nelle ore del «Non disturbare».`)}
+        </div>
+      )}
+
       <button className="admin-btn-full" onClick={pubblica} disabled={salvando || caricando}>
         {salvando ? 'Attendere…' : '+ Appendi in bacheca'}
       </button>
@@ -315,10 +430,81 @@ export default function SezioneBacheca({ circolo, autoreNome }: { circolo: Circo
                 </button>
               </>
             )}
+            {puoNotificare && (
+              <button
+                type="button"
+                className="admin-icon-btn"
+                title="Manda una notifica per questo avviso"
+                aria-label="Manda una notifica per questo avviso"
+                disabled={notificando}
+                onClick={() => { setErroreNotifica(''); setDaNotificare(a); }}
+              >
+                🔔
+              </button>
+            )}
             <button className="admin-icon-btn danger" onClick={() => setDaRimuovere(a)} aria-label="Rimuovi">🗑</button>
           </div>
         );
       })}
+
+      {daNotificare && (
+        <div className="admin-modal-backdrop" onClick={() => { if (!notificando) setDaNotificare(null); }}>
+          <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-card-title">Mandare la notifica?</div>
+            <p className="admin-card-hint">
+              &laquo;{daNotificare.titolo}&raquo; arriverà sul telefono di tutti i soci del
+              circolo. Non la riceve chi ha spento gli avvisi del circolo dalle proprie
+              impostazioni, né — fra le 22 e le 8 — chi ha lasciato acceso il «Non disturbare la
+              notte». Puoi rimandarla: in bacheca e in Home resta un avviso solo, quello di prima
+              si aggiorna — ma il telefono di tutti squilla di nuovo.
+            </p>
+            {/* ⚠️ Un avviso scaduto si puo' comunque notificare, ma va
+                detto: manderebbe duecento persone a cercare in bacheca
+                un foglio che dalla bacheca e' gia' sparito. */}
+            {!avvisoDaMostrare(daNotificare) && (
+              <p className="admin-error-text">
+                Attenzione: questo avviso è scaduto il {dataNumerica(daNotificare.visibileFinoA)} e
+                dalla bacheca dei soci non si vede più. Chi tocca la notifica non lo troverebbe:
+                allungalo con «+30» prima di mandarla.
+              </p>
+            )}
+            <div className="admin-row" style={{ marginTop: '.8rem' }}>
+              <button
+                className="admin-input" style={{ cursor: 'pointer' }}
+                disabled={notificando}
+                onClick={() => setDaNotificare(null)}
+              >
+                Indietro
+              </button>
+              <button
+                className="admin-btn-full"
+                disabled={notificando}
+                onClick={async () => {
+                  const a = daNotificare;
+                  setNotificando(true);
+                  setErroreNotifica('');
+                  try {
+                    await mandaNotifica(a.id);
+                    setDaNotificare(null);
+                  } catch (e: any) {
+                    // ⚠️ La finestra resta aperta: chiudendosi, l'Admin
+                    // non saprebbe se ritentare, e la volta dopo
+                    // manderebbe un doppione per sicurezza.
+                    setErroreNotifica(e?.message ?? 'La notifica non è partita. Riprova.');
+                  } finally {
+                    setNotificando(false);
+                  }
+                }}
+              >
+                {notificando ? 'Attendere…' : 'Sì, manda'}
+              </button>
+            </div>
+            {!!erroreNotifica && (
+              <div className="admin-error-text" style={{ marginTop: '.6rem' }}>{erroreNotifica}</div>
+            )}
+          </div>
+        </div>
+      )}
 
       {daRimuovere && (
         <div className="admin-modal-backdrop" onClick={() => setDaRimuovere(null)}>

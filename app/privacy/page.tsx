@@ -454,7 +454,9 @@ export default function Privacy() {
           strada onesta è dire a chi legge quella vera: scriverci. */}
       <p>
         Anno di nascita, racchetta e classifica FITP li svuoti quando vuoi dalle Impostazioni
-        dell’app, e spariscono. Le notifiche le spegni dalle impostazioni del telefono. Per{' '}
+        dell’app, e spariscono. Le notifiche le scegli una per una dalle Impostazioni dell’app,
+        dove puoi anche accendere il «Non disturbare la notte»: non serve spegnerle tutte dal
+        telefono. Per{' '}
         <strong>togliere la foto del profilo o il numero di telefono</strong> scrivici a{' '}
         <a href={`mailto:${EMAIL_CONTATTO}`} style={{ color: '#0E3B2E' }}>{EMAIL_CONTATTO}</a>:
         oggi dall’app si possono solo sostituire, e ce ne occupiamo noi finché non ci sarà il

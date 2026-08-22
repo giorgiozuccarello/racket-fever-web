@@ -6,7 +6,7 @@
 // ============================================================
 
 import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { auth, db } from '../lib/firebase';
 
 export interface NotificaMaestro {
   id: string;
@@ -34,7 +34,15 @@ export function ascoltaNotificheMaestro(maestroId: string, callback: (n: Notific
   );
 }
 
-export async function creaNotificaMaestro(maestroId: string, testo: string, circoloId: string) {
+// ⚠️ Dal 22 agosto 2026 questa scrittura fa squillare il telefono del
+// Maestro: `pushDaAvvisoMaestro` ascolta la creazione di questi
+// documenti. `categoria` distingue le lezioni (accese di partenza) dai
+// messaggi delle loro chat ('chat', spenta di partenza).
+// ⚠️ FILE GEMELLO, allineato a racket-fever/data/notificheMaestro.ts.
+export async function creaNotificaMaestro(
+  maestroId: string, testo: string, circoloId: string,
+  categoria?: 'lezioni' | 'chat',
+) {
   // ⚠️ SI RINUNCIA ALL'AVVISO PIUTTOSTO CHE SCRIVERLO SENZA CIRCOLO.
   // Prima il campo si aggiungeva "se c'era", ed era pure facoltativo
   // nella firma. Un avviso senza non e' solo incompleto: e' spazzatura
@@ -48,6 +56,8 @@ export async function creaNotificaMaestro(maestroId: string, testo: string, circ
   }
   await addDoc(collection(db, 'notifiche_maestro'), {
     maestroId, testo, letta: false, circoloId,
+    ...(categoria ? { categoria } : {}),
+    ...(auth.currentUser?.uid ? { origineUid: auth.currentUser.uid } : {}),
     creataIl: serverTimestamp(),
   });
 }

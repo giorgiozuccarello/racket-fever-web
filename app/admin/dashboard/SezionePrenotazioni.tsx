@@ -326,7 +326,9 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           socioScelto.uid,
           `Il circolo ha prenotato per te ${campoSel.nome} il ${dataLeggibile} ${daA}.`
             + (senzaAddebito ? ' Nessun addebito sul tuo credito.' : ''),
-          undefined, circolo.id
+          undefined, circolo.id, undefined, undefined, undefined,
+          // Cade sotto «Le mie partite», dove il socio la cerca.
+          'prenotazioni',
         );
       }
       chiudiTutto();
@@ -418,6 +420,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua quota: € ${miaQuota}.`,
           undefined,
           circolo.id,
+          undefined, undefined, undefined,
+          'prenotazioni',
         ));
         for (const g of altri) {
           await senzaBloccare(() => creaNotifica(
@@ -425,6 +429,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             `Il circolo ha annullato la prenotazione con ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua quota: € ${g.quota.toFixed(2)}.`,
             undefined,
             circolo.id,
+            undefined, undefined, undefined,
+            'prenotazioni',
           ));
         }
       } else {
@@ -455,6 +461,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             + (importoDaRimborsare(daAnnullare) > 0 ? ` Credito rimborsato: € ${importoDaRimborsare(daAnnullare).toFixed(2)}.` : ''),
           undefined,
           circolo.id,
+          undefined, undefined, undefined,
+          'prenotazioni',
         ));
       }
       setDaAnnullare(null);

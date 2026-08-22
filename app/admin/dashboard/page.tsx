@@ -285,7 +285,10 @@ export default function AdminDashboard() {
             un avviso — mentre un torneo si pubblica ogni tanto. Quello
             che si usa tutti i giorni sta sopra. */}
         <SezioneCollassabile id="bacheca" titolo="Bacheca" descrizione="Avvisi, volantini e comunicazioni per i tuoi soci">
-          <SezioneBacheca circolo={circolo} autoreNome={circolo.nome} />
+          {/* ⚠️ Il Collaboratore vede la bacheca ma non il comando che fa
+              squillare i telefoni: `avvisaBacheca` pretende il
+              responsabile. Stessa regola dell'app. */}
+          <SezioneBacheca circolo={circolo} autoreNome={circolo.nome} puoNotificare={scadenzaSessione == null} />
         </SezioneCollassabile>
         <SezioneCollassabile id="tornei" titolo="Tornei" descrizione="Pubblica un torneo sulla bacheca della rete">
           <SezioneTornei circolo={circolo} />

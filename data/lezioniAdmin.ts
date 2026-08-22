@@ -232,7 +232,12 @@ export async function annullaLezioneIntera(
     + (orario ? ` alle ${orario}` : '') + '.';
   const nonAvvisati: string[] = [];
   if (lezione.allievoUid) {
-    try { await creaNotifica(lezione.allievoUid, testo, 'lezione', lezione.circoloId); }
+    try {
+      await creaNotifica(
+        lezione.allievoUid, testo, 'lezione', lezione.circoloId,
+        undefined, undefined, undefined, 'lezioni',
+      );
+    }
     catch (e) {
       console.warn('Avviso al socio non inviato:', e);
       nonAvvisati.push(lezione.allievoNome);
