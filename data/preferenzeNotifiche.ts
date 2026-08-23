@@ -58,10 +58,19 @@ export type CategoriaNotifica =
   // questo elenco.
   | 'circolo'
   // I messaggi delle conversazioni con il Maestro.
-  // ⚠️ SPENTA DI PARTENZA, ed e' l'unica. Una conversazione produce
-  // decine di righe: notificarle tutte e' il modo piu' rapido di far
-  // spegnere all'utente ogni notifica dell'app, comprese quelle che
-  // gli servono. Chi la vuole se la accende.
+  // ⚠️ ACCESA DI PARTENZA COME TUTTE LE ALTRE, dal 23 agosto 2026.
+  // Fino a quel giorno era l'unica spenta, con questo ragionamento: una
+  // conversazione produce decine di righe, e notificarle tutte e' il
+  // modo piu' rapido di far spegnere all'utente OGNI notifica dell'app,
+  // comprese quelle che gli servono. Il ragionamento non era sbagliato,
+  // ma trascurava il caso che conta di piu': il MAESTRO, per cui un
+  // messaggio non e' rumore ma una richiesta a cui deve rispondere — e
+  // che con la categoria spenta non sapeva nemmeno di averla ricevuta.
+  //
+  // ⚠️ IL RISCHIO RESTA, E VA TENUTO D'OCCHIO. Chi si stufa deve
+  // trovare facilmente l'interruttore, o spegnera' tutto dalle
+  // impostazioni del telefono — che e' il danno peggiore, perche' porta
+  // via anche i promemoria delle partite, che nessuno voleva spegnere.
   | 'chat';
 
 export const CATEGORIE: CategoriaNotifica[] = [
@@ -83,11 +92,11 @@ export const SPIEGA_CATEGORIA: Record<CategoriaNotifica, string> = {
   promemoria: 'Un avviso prima di scendere in campo, per non dimenticare l’ora.',
   bacheca: 'Quando il circolo pubblica un avviso importante in bacheca.',
   circolo: 'Ammissione approvata, tessera sospesa, credito ricaricato — e tutto quello che riguarda le sfide: match fissati, penalità, posizione in classifica.',
-  chat: 'Ogni messaggio nella conversazione con il Maestro. Sono tanti: acceso solo se lo vuoi davvero.',
+  chat: 'Ogni messaggio nella conversazione con il Maestro. Sono tanti: spegnilo se ti disturbano.',
 };
 
 export interface PreferenzeNotifiche {
-  // Un interruttore per categoria. Assente = acceso, tranne 'chat'.
+  // Un interruttore per categoria. Assente = acceso, TUTTE comprese.
   // ⚠️ ASSENTE VUOL DIRE ACCESO, e non e' pigrizia: chi installa l'app
   // oggi non ha nessun documento di preferenze, e con il valore di
   // ripiego a «spento» non riceverebbe niente finche' non entra in una
@@ -98,13 +107,21 @@ export interface PreferenzeNotifiche {
   silenzioNotturno?: boolean;
 }
 
-// ⚠️ SPENTA DI PARTENZA SOLO 'chat'. Vedi il commento sulla categoria.
+// ⚠️ TUTTE ACCESE DI PARTENZA, NESSUNA ESCLUSA. Decisione di Giorgio
+// del 23 agosto 2026: prima 'chat' faceva eccezione, e l'eccezione
+// aveva l'effetto di rendere irraggiungibili le push del Maestro —
+// codice scritto, eseguito, e scartato in silenzio all'ultimo
+// passaggio. Chi non le vuole le spegne; il silenzio si sceglie, non si
+// eredita.
+//
+// ⚠️ SOLO `true` E `false` CONTANO. Un campo scritto male, o un valore
+// che non e' un booleano, vale «acceso»: un dato sporco non deve poter
+// zittire un telefono senza che nessuno l'abbia deciso.
 export function categoriaAccesa(
   pref: PreferenzeNotifiche | null | undefined, cat: CategoriaNotifica,
 ): boolean {
   const scelta = pref?.categorie?.[cat];
-  if (typeof scelta === 'boolean') return scelta;
-  return cat !== 'chat';
+  return typeof scelta === 'boolean' ? scelta : true;
 }
 
 export function silenzioNotturnoAcceso(pref: PreferenzeNotifiche | null | undefined): boolean {
