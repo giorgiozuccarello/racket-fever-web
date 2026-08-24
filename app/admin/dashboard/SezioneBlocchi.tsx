@@ -1,255 +1,128 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Campo, Blocco, ORARI_ESTESI } from '../../../data/circoli';
-import { aggiungiBlocco, modificaBlocco, rimuoviBlocco } from '../../../data/circoliRepo';
+import { useState } from 'react';
+import { Campo, Blocco } from '../../../data/circoli';
+import { rimuoviBlocco } from '../../../data/circoliRepo';
 import Modal from './Modal';
 
-const GIORNI_SETTIMANA = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+// ============================================================
+// ORARI RISERVATI — sola consultazione e rimozione.
+//
+// ⚠️ RISCRITTA IL 24 AGOSTO 2026 per allinearla al mobile, che era
+// avanti di un sistema intero. Qui c'era ancora il modo vecchio:
+// scegli il campo, «Ogni settimana» oppure «Data singola», i sette
+// chip dei giorni, due tendine per l'ora di inizio e di fine,
+// l'etichetta, la casella «Nascondi informazioni», più una finestra di
+// modifica con gli stessi campi in duplicato. Ottanta righe di modulo
+// per dire una cosa che sulla griglia si dice con un dito.
+//
+// La CREAZIONE non avviene più qui: si fa dalla griglia (sezione
+// Prenotazione Campi), tenendo premuto su uno slot libero, estendendo
+// la selezione agli slot accanto e scegliendo «Riserva». È più
+// immediato che compilare date e orari a mano, e soprattutto si vede
+// subito cosa è già occupato — che è proprio l'informazione che manca
+// quando si scrive un orario dentro una tendina.
+//
+// ⚠️ Le RICORRENZE settimanali non si creano più, né qui né altrove.
+// Quelle già esistenti restano visibili e rimovibili qui sotto, con
+// l'etichetta che dice da dove vengono: cancellarle d'ufficio avrebbe
+// riaperto alla prenotazione ore che qualche circolo tiene chiuse da
+// mesi.
+//
+// ⚠️ È caduta anche «Nascondi informazioni sulla griglia», che sul
+// mobile non è mai esistita: decisione di Giorgio, «lasciamo morire».
+// I blocchi che ce l'hanno già la conservano — il campo si continua a
+// leggere — ma non se ne creano più.
+// ============================================================
+
+const GIORNI_NOMI = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
 
 export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
   circoloId: string; campi: Campo[]; blocchi: Blocco[];
 }) {
-  const [campoId, setCampoId] = useState('');
-  const [tipo, setTipo] = useState<'ricorrente' | 'data'>('ricorrente');
-  const [giorniSel, setGiorniSel] = useState<number[]>([]);
-  const [data, setData] = useState('');
-  const [orarioInizio, setOrarioInizio] = useState('');
-  const [orarioFine, setOrarioFine] = useState('');
-  const [etichetta, setEtichetta] = useState('');
-  const [nascondiInfo, setNascondiInfo] = useState(false);
+  const [daRimuovere, setDaRimuovere] = useState<Blocco | null>(null);
+  const [inCorso, setInCorso] = useState(false);
   const [errore, setErrore] = useState('');
 
-  const [modificaBloccoObj, setModificaBloccoObj] = useState<Blocco | null>(null);
-  const [modCampoId, setModCampoId] = useState('');
-  const [modTipo, setModTipo] = useState<'ricorrente' | 'data'>('ricorrente');
-  const [modGiorniSel, setModGiorniSel] = useState<number[]>([]);
-  const [modData, setModData] = useState('');
-  const [modOrarioInizio, setModOrarioInizio] = useState('');
-  const [modOrarioFine, setModOrarioFine] = useState('');
-  const [modEtichetta, setModEtichetta] = useState('');
-  const [modNascondiInfo, setModNascondiInfo] = useState(false);
-  const [modErrore, setModErrore] = useState('');
+  const oggi = new Date().toISOString().slice(0, 10);
 
-  useEffect(() => {
-    if (!campoId && campi[0]) setCampoId(campi[0].id);
-  }, [campi]);
+  // I blocchi su data passata non servono più: restano nel database ma
+  // non ingombrano l'elenco. Le ricorrenti non hanno data e finiscono
+  // in fondo, per via della chiave di ripiego.
+  const visibili = blocchi
+    .filter((b) => b.tipo === 'ricorrente' || !b.data || b.data >= oggi)
+    .sort((a, b) => (a.data ?? '9999').localeCompare(b.data ?? '9999'));
 
-  const toggleGiorno = (i: number) => {
-    setGiorniSel((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
-  };
-
-  const aggiungi = async () => {
+  const conferma = async () => {
+    if (!daRimuovere || inCorso) return;
+    setInCorso(true);
     setErrore('');
-    if (!campoId) { setErrore('Seleziona un campo.'); return; }
-    if (!orarioInizio || !orarioFine) { setErrore("Seleziona l'orario di inizio e di fine."); return; }
-    if (!etichetta.trim()) { setErrore("Inserisci un'etichetta."); return; }
-    if (tipo === 'ricorrente' && giorniSel.length === 0) { setErrore('Seleziona almeno un giorno.'); return; }
-    if (tipo === 'data' && !data.trim()) { setErrore('Inserisci una data.'); return; }
-
-    const nuovoBlocco: any = { campoId, tipo, orarioInizio, orarioFine, etichetta: etichetta.trim(), nascondiInfo };
-    if (tipo === 'ricorrente') nuovoBlocco.giorniSettimana = giorniSel;
-    else nuovoBlocco.data = data.trim();
-
-    await aggiungiBlocco(circoloId, nuovoBlocco);
-    setEtichetta('');
-    setData('');
-    setGiorniSel([]);
-    setNascondiInfo(false);
+    try {
+      await rimuoviBlocco(circoloId, daRimuovere.id);
+      setDaRimuovere(null);
+    } catch {
+      setErrore('Non è stato possibile rimuovere l’orario riservato. Riprova.');
+    } finally {
+      setInCorso(false);
+    }
   };
-
-  const apriModifica = (b: Blocco) => {
-    setModificaBloccoObj(b);
-    setModCampoId(b.campoId);
-    setModTipo(b.tipo);
-    setModGiorniSel(b.giorniSettimana ?? []);
-    setModData(b.data ?? '');
-    setModOrarioInizio(b.orarioInizio);
-    setModOrarioFine(b.orarioFine);
-    setModEtichetta(b.etichetta);
-    setModNascondiInfo(!!b.nascondiInfo);
-    setModErrore('');
-  };
-
-  const toggleModGiorno = (i: number) => {
-    setModGiorniSel((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
-  };
-
-  const salvaModifica = async () => {
-    if (!modificaBloccoObj) return;
-    setModErrore('');
-    if (!modCampoId) { setModErrore('Seleziona un campo.'); return; }
-    if (!modOrarioInizio || !modOrarioFine) { setModErrore("Seleziona l'orario di inizio e di fine."); return; }
-    if (!modEtichetta.trim()) { setModErrore("Inserisci un'etichetta."); return; }
-    if (modTipo === 'ricorrente' && modGiorniSel.length === 0) { setModErrore('Seleziona almeno un giorno.'); return; }
-    if (modTipo === 'data' && !modData.trim()) { setModErrore('Inserisci una data.'); return; }
-
-    const dati: any = {
-      campoId: modCampoId, tipo: modTipo, orarioInizio: modOrarioInizio, orarioFine: modOrarioFine,
-      etichetta: modEtichetta.trim(), nascondiInfo: modNascondiInfo,
-    };
-    if (modTipo === 'ricorrente') dati.giorniSettimana = modGiorniSel;
-    else dati.data = modData.trim();
-
-    await modificaBlocco(circoloId, modificaBloccoObj.id, dati);
-    setModificaBloccoObj(null);
-  };
-
-  const nomeCampo = (id: string) => campi.find((c) => c.id === id)?.nome ?? '—';
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Orari riservati</div>
+      <div className="admin-card-title">Orari Riservati</div>
       <p className="admin-card-hint">
-        Nascondi ore di un campo per scuola tennis, tornei o altre attività.
-        I soci non potranno prenotare in questi orari.
+        Per riservare un orario vai su Prenotazione Campi, tieni premuto su uno slot
+        libero della griglia, estendi la selezione agli slot accanto e scegli
+        &quot;Riserva&quot;. Dal modulo puoi aggiungere altri giorni e altri campi allo
+        stesso orario riservato, scrivendo etichetta e descrizione una volta sola.
       </p>
 
-      {blocchi.map((b) => (
-        <div key={b.id} className="admin-list-row">
-          <div style={{ flex: 1 }}>
-            <div className="admin-list-main">{nomeCampo(b.campoId)} · {b.etichetta}</div>
-            <div className="admin-list-sub">
-              {b.tipo === 'ricorrente'
-                ? `Ogni ${(b.giorniSettimana ?? []).map((g) => GIORNI_SETTIMANA[g].slice(0, 3)).join(', ')}`
-                : b.data}
-              {'  '}{b.orarioInizio}–{b.orarioFine}
-            </div>
-          </div>
-          <button className="admin-icon-btn" onClick={() => apriModifica(b)} aria-label="Modifica">✎</button>
-          <button className="admin-icon-btn danger" onClick={() => rimuoviBlocco(circoloId, b.id)} aria-label="Rimuovi">🗑</button>
-        </div>
-      ))}
-      {blocchi.length === 0 && <p className="admin-empty-text">Nessun orario riservato al momento.</p>}
-
-      <label className="admin-label">Campo</label>
-      <div className="admin-chip-row">
-        {campi.map((c) => (
-          <button key={c.id} className={`admin-chip ${campoId === c.id ? 'selected' : ''}`} onClick={() => setCampoId(c.id)}>
-            {c.nome}
-          </button>
-        ))}
-      </div>
-
-      <label className="admin-label">Ricorrenza</label>
-      <div className="admin-chip-row">
-        <button className={`admin-chip ${tipo === 'ricorrente' ? 'selected' : ''}`} onClick={() => setTipo('ricorrente')}>Ogni settimana</button>
-        <button className={`admin-chip ${tipo === 'data' ? 'selected' : ''}`} onClick={() => setTipo('data')}>Data singola</button>
-      </div>
-
-      {tipo === 'ricorrente' ? (
-        <>
-          <label className="admin-label">Giorni</label>
-          <div className="admin-chip-row">
-            {GIORNI_SETTIMANA.map((g, i) => (
-              <button key={i} className={`admin-chip ${giorniSel.includes(i) ? 'selected' : ''}`} onClick={() => toggleGiorno(i)}>
-                {g.slice(0, 3)}
-              </button>
-            ))}
-          </div>
-        </>
-      ) : (
-        <>
-          <label className="admin-label">Data (AAAA-MM-GG)</label>
-          <input className="admin-input" value={data} onChange={(e) => setData(e.target.value)} placeholder="2026-08-15" />
-        </>
+      {visibili.length === 0 && (
+        <p className="admin-empty-text">Nessun orario riservato.</p>
       )}
 
-      <div className="admin-row">
-        <div>
-          <label className="admin-label">Dalle</label>
-          <select className="admin-select" value={orarioInizio} onChange={(e) => setOrarioInizio(e.target.value)}>
-            <option value="">--</option>
-            {ORARI_ESTESI.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="admin-label">Alle</label>
-          <select className="admin-select" value={orarioFine} onChange={(e) => setOrarioFine(e.target.value)}>
-            <option value="">--</option>
-            {ORARI_ESTESI.map((o) => <option key={o} value={o}>{o}</option>)}
-          </select>
-        </div>
-      </div>
-
-      <label className="admin-label">Etichetta</label>
-      <input className="admin-input" value={etichetta} onChange={(e) => setEtichetta(e.target.value)} placeholder="Scuola Tennis" />
-
-      <label className="admin-checkbox-row">
-        <input type="checkbox" checked={nascondiInfo} onChange={(e) => setNascondiInfo(e.target.checked)} />
-        <span>Nascondi Informazioni sulla griglia (i soci vedranno solo &quot;Riservato&quot;)</span>
-      </label>
-
-      {errore && <div className="admin-error-text">{errore}</div>}
-
-      <button className="admin-btn-full" onClick={aggiungi}>+ Aggiungi blocco</button>
-
-      <Modal visible={!!modificaBloccoObj} onClose={() => setModificaBloccoObj(null)}>
-        <div className="admin-modal-title">Modifica orario riservato</div>
-
-        <label className="admin-label">Campo</label>
-        <div className="admin-chip-row">
-          {campi.map((c) => (
-            <button key={c.id} className={`admin-chip ${modCampoId === c.id ? 'selected' : ''}`} onClick={() => setModCampoId(c.id)}>
-              {c.nome}
-            </button>
-          ))}
-        </div>
-
-        <label className="admin-label">Ricorrenza</label>
-        <div className="admin-chip-row">
-          <button className={`admin-chip ${modTipo === 'ricorrente' ? 'selected' : ''}`} onClick={() => setModTipo('ricorrente')}>Ogni settimana</button>
-          <button className={`admin-chip ${modTipo === 'data' ? 'selected' : ''}`} onClick={() => setModTipo('data')}>Data singola</button>
-        </div>
-
-        {modTipo === 'ricorrente' ? (
-          <>
-            <label className="admin-label">Giorni</label>
-            <div className="admin-chip-row">
-              {GIORNI_SETTIMANA.map((g, i) => (
-                <button key={i} className={`admin-chip ${modGiorniSel.includes(i) ? 'selected' : ''}`} onClick={() => toggleModGiorno(i)}>
-                  {g.slice(0, 3)}
-                </button>
-              ))}
+      {visibili.map((b) => {
+        const campo = campi.find((c) => c.id === b.campoId);
+        const quando = b.tipo === 'ricorrente'
+          ? `Ogni ${(b.giorniSettimana ?? []).map((g) => GIORNI_NOMI[g]).join(', ')}`
+          : b.data ?? '';
+        return (
+          <div key={b.id} className="admin-list-row">
+            <div style={{ flex: 1 }}>
+              <div className="admin-list-main">{b.etichetta}</div>
+              <div className="admin-list-sub">
+                {campo?.nome ?? 'Campo rimosso'} · {quando} · {b.orarioInizio}–{b.orarioFine}
+              </div>
+              {!!b.descrizione && (
+                <div className="admin-list-sub" style={{ fontStyle: 'italic' }}>{b.descrizione}</div>
+              )}
+              {b.tipo === 'ricorrente' && (
+                <div className="admin-list-sub" style={{ color: '#8A6200', fontWeight: 700 }}>
+                  Ricorrente — creato col sistema precedente
+                </div>
+              )}
             </div>
-          </>
-        ) : (
-          <>
-            <label className="admin-label">Data (AAAA-MM-GG)</label>
-            <input className="admin-input" value={modData} onChange={(e) => setModData(e.target.value)} placeholder="2026-08-15" />
-          </>
-        )}
-
-        <div className="admin-row">
-          <div>
-            <label className="admin-label">Dalle</label>
-            <select className="admin-select" value={modOrarioInizio} onChange={(e) => setModOrarioInizio(e.target.value)}>
-              <option value="">--</option>
-              {ORARI_ESTESI.map((o) => <option key={o} value={o}>{o}</option>)}
-            </select>
+            <button className="admin-btn-piccolo-rosso" onClick={() => setDaRimuovere(b)}>
+              Rimuovi
+            </button>
           </div>
-          <div>
-            <label className="admin-label">Alle</label>
-            <select className="admin-select" value={modOrarioFine} onChange={(e) => setModOrarioFine(e.target.value)}>
-              <option value="">--</option>
-              {ORARI_ESTESI.map((o) => <option key={o} value={o}>{o}</option>)}
-            </select>
-          </div>
-        </div>
+        );
+      })}
 
-        <label className="admin-label">Etichetta</label>
-        <input className="admin-input" value={modEtichetta} onChange={(e) => setModEtichetta(e.target.value)} placeholder="Scuola Tennis" />
-
-        <label className="admin-checkbox-row">
-          <input type="checkbox" checked={modNascondiInfo} onChange={(e) => setModNascondiInfo(e.target.checked)} />
-          <span>Nascondi Informazioni sulla griglia (i soci vedranno solo &quot;Riservato&quot;)</span>
-        </label>
-
-        {modErrore && <div className="admin-error-text">{modErrore}</div>}
-
+      <Modal visible={!!daRimuovere} onClose={() => setDaRimuovere(null)}>
+        <div className="admin-modal-title">Rimuovere l&apos;orario riservato?</div>
+        <p className="admin-card-hint">
+          {daRimuovere?.etichetta} · {daRimuovere?.orarioInizio}–{daRimuovere?.orarioFine}
+        </p>
+        <p className="admin-card-hint">Gli slot torneranno prenotabili dai soci.</p>
+        {!!errore && <div className="admin-error-text">{errore}</div>}
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setModificaBloccoObj(null)}>Annulla</button>
-          <button className="admin-modal-btn-confirm" onClick={salvaModifica}>Salva</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setDaRimuovere(null)} disabled={inCorso}>
+            Annulla
+          </button>
+          <button className="admin-btn-danger" onClick={conferma} disabled={inCorso}>
+            {inCorso ? 'Attendere…' : 'Rimuovi'}
+          </button>
         </div>
       </Modal>
     </div>
