@@ -486,6 +486,25 @@ export async function prenotaConGiocatori(params: {
   // allo sfidato. Per una partita normale restano vuoti: chi e' stato
   // aggiunto guarda e basta, la gestisce chi ha prenotato.
   compagnoLegacy?: boolean;
+  // ============================================================
+  // ⚠️ QUANDO A PRENOTARE E' IL CIRCOLO E NON IL SOCIO.
+  //
+  // Portato dal mobile il 24 agosto 2026. L'Admin che allunga la
+  // partita di un socio con dei compagni passava da
+  // `prenotaPerSocioDaAdmin`, che i giocatori non li scrive proprio: la
+  // mezz'ora aggiunta nasceva SENZA compagni, il socio se la ritrovava
+  // addebitata per intero mentre sulle altre pagava una frazione, e i
+  // compagni non venivano nemmeno avvisati. In Home la card restava una
+  // sola, quindi non si vedeva: si vedeva solo sul portafoglio.
+  //
+  // Passa di qui invece di duplicare tutta la transazione altrove:
+  // divisione delle quote, addebiti, movimenti e riletture sono gli
+  // stessi. Cambia solo CHI risulta aver eseguito, che nel registro non
+  // e' un dettaglio — e' la riga che si guarda in caso di contestazione.
+  //
+  // Lasciato assente, tutto si comporta come prima.
+  // ============================================================
+  daAdmin?: { uid: string | null; nome: string | null };
 }): Promise<{ id: string; sosUsatoUtente: boolean; sosUsatoDaAltri: string[] }> {
   const altri = params.giocatori;
   if (altri.length === 0) throw new Error('NESSUN_GIOCATORE');
@@ -537,11 +556,20 @@ export async function prenotaConGiocatori(params: {
       importo: -miaQuota,
       saldoPrima: creditoUtente, saldoDopo: creditoUtente - mio.daCredito,
       debitoPrima: sosUtente, debitoDopo: sosUtente + mio.daSOS,
-      eseguitoDaUid: params.uid, eseguitoDaNome: nomeChiPrenota, eseguitoDaRuolo: 'socio',
+      // ⚠️ `eseguitoDaUid` si passa ma non conta: il registro movimenti
+      // lo sovrascrive con la firma di chi sta scrivendo davvero.
+      eseguitoDaUid: params.uid,
+      eseguitoDaNome: params.daAdmin ? params.daAdmin.nome : nomeChiPrenota,
+      eseguitoDaRuolo: params.daAdmin ? 'admin' : 'socio',
       prenotazioneId: prenotazioneRef.id,
       compagnoNome: conMe,
       sonoCompagno: false,
-      descrizione: `Prenotazione con ${conMe} — la tua quota`,
+      // A quota zero «la tua quota» fa cercare un addebito che non c'e'.
+      descrizione: params.daAdmin
+        ? (miaQuota === 0
+          ? `Prenotazione del circolo con ${conMe} (senza addebito)`
+          : `Prenotazione del circolo con ${conMe} — la tua quota`)
+        : `Prenotazione con ${conMe} — la tua quota`,
     });
 
     altri.forEach((g, i) => {
@@ -562,13 +590,18 @@ export async function prenotaConGiocatori(params: {
         importo: -quotaCiascuno,
         saldoPrima: credito, saldoDopo: credito - suo.daCredito,
         debitoPrima: sos, debitoDopo: sos + suo.daSOS,
-        eseguitoDaUid: params.uid, eseguitoDaNome: nomeChiPrenota,
+        eseguitoDaUid: params.uid,
+        eseguitoDaNome: params.daAdmin ? params.daAdmin.nome : nomeChiPrenota,
         // Chi ha prenotato non e' il titolare di questo portafoglio.
-        eseguitoDaRuolo: 'compagno',
+        eseguitoDaRuolo: params.daAdmin ? 'admin' : 'compagno',
         prenotazioneId: prenotazioneRef.id,
         compagnoNome: nomeChiPrenota,
         sonoCompagno: true,
-        descrizione: `Sei stato aggiunto da ${nomeChiPrenota} — la tua quota`,
+        descrizione: params.daAdmin
+          ? (quotaCiascuno === 0
+            ? `Il circolo ti ha aggiunto alla partita di ${nomeChiPrenota} (senza addebito)`
+            : `Il circolo ti ha aggiunto alla partita di ${nomeChiPrenota} — la tua quota`)
+          : `Sei stato aggiunto da ${nomeChiPrenota} — la tua quota`,
       });
     });
 
@@ -601,6 +634,9 @@ export async function prenotaConGiocatori(params: {
       cardId: params.cardId ?? null,
       tipoUtente: params.tipoUtente ?? 'socio',
       sfidaId: params.sfidaId ?? null,
+      // ⚠️ L'origine si scrive solo quando c'e': lasciandola sempre, una
+      // prenotazione del socio si sarebbe dichiarata «fatta dal circolo».
+      ...(params.daAdmin ? { prenotataDa: 'admin', tipo: 'campo' } : {}),
       creataIl: serverTimestamp(),
     });
   });
@@ -933,6 +969,31 @@ export function importoDaRimborsare(
 // passano ancora — semplicemente non servono piu' a niente, e non
 // vanno tolti finche' non si ripuliscono i chiamanti con calma.
 // ============================================================
+// ============================================================
+// ⚠️ QUANTE MEZZ'ORE RESTANO, DETTO DAL SERVER.
+//
+// Portato dal mobile il 24 agosto 2026. `annullaPrenotazione`
+// restituisce `restano`: quante mezz'ore della stessa card sono ancora
+// in piedi dopo la cancellazione. E' quel numero a decidere se
+// l'avviso deve dire «cancellata» o «modificata», di che colore sara'
+// la sua fascetta, e se portare o no il codice della card.
+//
+// ⚠️ NON SI CONTA NELLA SCHERMATA. L'elenco che la dashboard tiene in
+// memoria arriva da un ascolto ed e' indietro di un giro proprio
+// nell'istante dopo una cancellazione: contando di li', la risposta
+// era sbagliata quasi sempre — ed e' il motivo per cui sul web usciva
+// sempre «Annullato».
+//
+// Zero anche quando il campo manca o non e' un numero: nel dubbio si
+// dice «cancellata», che e' l'errore innocuo dei due — la card e' li'
+// e si vede. Dire «modificata» su una partita che non esiste piu'
+// manderebbe qualcuno a cercarla.
+// ============================================================
+function mezzoreSuperstiti(esito: unknown): number {
+  const dati = ((esito as { data?: unknown })?.data ?? {}) as { restano?: unknown };
+  return typeof dati.restano === 'number' && dati.restano > 0 ? dati.restano : 0;
+}
+
 export async function cancellaConRimborso(params: {
   uid: string;
   circoloId: string;
@@ -952,13 +1013,14 @@ export async function cancellaConRimborso(params: {
   campoId?: string;
   orario?: string;
   parziale?: boolean;
-}): Promise<void> {
+}): Promise<number> {
   const chiama = httpsCallable(functions, 'annullaPrenotazione');
-  await chiama({
+  const esito = await chiama({
     prenotazioneId: params.prenotazioneId,
     parziale: !!params.parziale,
     descrizione: params.descrizione ?? null,
   });
+  return mezzoreSuperstiti(esito);
 }
 
 // Stessa Function della cancellazione singola: il server guarda il
@@ -987,13 +1049,14 @@ export async function cancellaConRimborsoDiviso(params: {
   campoId?: string;
   orario?: string;
   parziale?: boolean;
-}): Promise<void> {
+}): Promise<number> {
   const chiama = httpsCallable(functions, 'annullaPrenotazione');
-  await chiama({
+  const esito = await chiama({
     prenotazioneId: params.prenotazioneId,
     parziale: !!params.parziale,
     descrizione: params.descrizione ?? null,
   });
+  return mezzoreSuperstiti(esito);
 }
 
 // Cancella una lezione con un allievo NON socio: nessun wallet da cui
@@ -1009,9 +1072,10 @@ export async function cancellaConRimborsoDiviso(params: {
 // che lavora solo con allievi esterni: un numero falso, e credibile.
 // Nessun client può scrivere quella traccia — le regole la vietano —
 // quindi l'unica strada è questa.
-export async function cancellaSenzaRimborso(prenotazioneId: string): Promise<void> {
+export async function cancellaSenzaRimborso(prenotazioneId: string): Promise<number> {
   const chiama = httpsCallable(functions, 'annullaPrenotazione');
-  await chiama({ prenotazioneId, parziale: false, descrizione: null });
+  const esito = await chiama({ prenotazioneId, parziale: false, descrizione: null });
+  return mezzoreSuperstiti(esito);
 }
 
 // Ricarica del wallet da parte della segreteria/Admin Circolo.

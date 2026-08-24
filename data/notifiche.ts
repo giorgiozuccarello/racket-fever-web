@@ -72,7 +72,14 @@ export async function creaNotifica(
   // da questa dashboard senza il motivo arriverebbe al socio con
   // l'aspetto neutro di una prenotazione qualunque, cioe' esattamente
   // come la bella notizia che gli somiglia.
-  motivo?: 'messaggio' | 'annullamento' | 'sfida',
+  // ⚠️ E 'modifica', che sul web mancava. E' la famiglia introdotta con
+  // la Tornata 95 e usata da tutte le cancellazioni PARZIALI: togliendo
+  // una mezz'ora a una prenotazione piu' lunga l'avviso non deve dire
+  // «cancellata» ma «modificata», con il suo colore e la sua parola.
+  // Senza questo valore nel tipo, la dashboard web non poteva nemmeno
+  // provarci — ed e' il motivo per cui dal sito usciva sempre
+  // «Annullato».
+  motivo?: 'messaggio' | 'annullamento' | 'sfida' | 'modifica',
   categoria?: CategoriaNotifica,
   origineUid?: string | null,
   // La prenotazione a cui l'avviso si riferisce: toccando la notifica,

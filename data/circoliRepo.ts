@@ -296,12 +296,36 @@ export function ascoltaBlocchi(circoloId: string, callback: (blocchi: Blocco[]) 
   );
 }
 
+// ============================================================
+// ⚠️ FIRESTORE RIFIUTA L'INTERA SCRITTURA se trova un solo campo a
+// `undefined`, e in una riserva i facoltativi sono quattro:
+// `descrizione`, `nascondiInfo`, `data` e `giorniSettimana`.
+//
+// Portato dal mobile il 24 agosto 2026 insieme alla riserva creata
+// dalla griglia. La Descrizione e' facoltativa e non ha alcun
+// controllo: bastava lasciarla vuota — il caso piu' comune — perche'
+// la scrittura fallisse con «Unsupported field value: undefined» e
+// l'Admin leggesse un errore generico con un «riprova» che non poteva
+// funzionare mai.
+// ============================================================
+function ripulisci<T extends Record<string, any>>(dati: T): T {
+  const fuori: Record<string, any> = {};
+  for (const [k, v] of Object.entries(dati)) {
+    if (v === undefined) continue;
+    fuori[k] = v;
+  }
+  return fuori as T;
+}
+
 export async function aggiungiBlocco(circoloId: string, blocco: Omit<Blocco, 'id'>) {
-  await addDoc(collection(db, 'circoli', circoloId, 'blocchi'), blocco);
+  await addDoc(collection(db, 'circoli', circoloId, 'blocchi'), ripulisci(blocco));
 }
 
 export async function modificaBlocco(circoloId: string, bloccoId: string, dati: Omit<Blocco, 'id'>) {
-  await updateDoc(doc(db, 'circoli', circoloId, 'blocchi', bloccoId), dati);
+  // Stesso filtro della creazione: qui arriva l'oggetto letto
+  // dall'ascolto, e un campo facoltativo assente puo' presentarsi come
+  // `undefined` invece che come chiave mancante.
+  await updateDoc(doc(db, 'circoli', circoloId, 'blocchi', bloccoId), ripulisci(dati));
 }
 
 export async function rimuoviBlocco(circoloId: string, bloccoId: string) {

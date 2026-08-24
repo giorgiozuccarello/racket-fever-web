@@ -24,6 +24,8 @@ import { db, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { raggruppaConsecutive } from './raggruppamento';
 import { chiudiConversazioneLezione } from './conversazioneLezione';
+import { creaNotificaMaestro } from './notificheMaestro';
+import { orarioFineSlot } from './circoli';
 
 export type StatoTessera = 'in_attesa' | 'approvata' | 'sospesa' | 'chiusa' | 'rifiutata';
 
@@ -576,6 +578,14 @@ export async function rimuoviSocioDaCircolo(params: {
   // raccolgono qui le card toccate e si chiudono dopo, quando i campi
   // sono gia' liberi.
   const cardLezioniToccate = new Set<string>();
+  // ⚠️ E IL MAESTRO VA AVVISATO, che non succedeva ne' qui ne' sull'app
+  // fino al 24 agosto 2026. Regola di Giorgio: il circolo puo' solo
+  // cancellare una lezione per intero, «avvisando i rispettivi Maestro e
+  // socio». Rimuovendo un socio si cancellano anche le sue lezioni
+  // future, e il Maestro se ne accorgeva trovando il campo vuoto.
+  // Un avviso per LEZIONE, non uno ogni mezz'ora: la chiave e' il
+  // gruppo, perche' le lezioni nate prima del `cardId` ne sono prive.
+  const lezioniDelMaestro = new Map<string, { maestroId: string; testo: string }>();
   for (const gruppo of raggruppaConsecutive(future)) {
     for (const p of [...gruppo].reverse()) {
       try {
@@ -593,6 +603,22 @@ export async function rimuoviSocioDaCircolo(params: {
         });
         prenotazioniCancellate++;
         if (p.tipo === 'lezione' && p.cardId) cardLezioniToccate.add(p.cardId);
+        if (p.tipo === 'lezione' && p.maestroId) {
+          const chiave = p.cardId ?? gruppo[0].id;
+          if (!lezioniDelMaestro.has(chiave)) {
+            // ⚠️ La fascia dal GRUPPO: il ciclo interno gira al
+            // contrario, quindi `p.orario` qui e' la fine della lezione.
+            const primo = gruppo[0];
+            const ultimo = gruppo[gruppo.length - 1];
+            const quando = `${primo.orario} - ${orarioFineSlot(ultimo.orario)}`;
+            lezioniDelMaestro.set(chiave, {
+              maestroId: p.maestroId,
+              testo: 'Il circolo ha cancellato la lezione.'
+                + `\n${primo.utenteNome} non fa più parte dei soci.`
+                + `\n${primo.campoNome} · ${primo.dataLabel}, ore ${quando}`,
+            });
+          }
+        }
       } catch (e) {
         console.warn('Prenotazione non cancellata durante la rimozione:', p.id, e);
         break;
@@ -607,6 +633,17 @@ export async function rimuoviSocioDaCircolo(params: {
   for (const cardId of cardLezioniToccate) {
     try { await chiudiConversazioneLezione(cardId, circoloId); }
     catch (e) { console.warn('Conversazione della lezione non chiusa:', cardId, e); }
+  }
+
+  // ⚠️ PRIMA la chiusura delle conversazioni, POI gli avvisi: nell'ordine
+  // inverso il Maestro poteva toccare l'avviso e trovarsi in una chat
+  // che stava sparendo sotto le dita.
+  for (const { maestroId, testo } of lezioniDelMaestro.values()) {
+    try {
+      await creaNotificaMaestro(maestroId, testo, circoloId, 'lezioni', undefined, undefined, 'annullamento');
+    } catch (e) {
+      console.warn('Maestro non avvisato della lezione cancellata:', maestroId, e);
+    }
   }
 
   // ⚠️ LA TESSERA SI CHIUDE PRIMA DELLA CLASSIFICA. Nell'ordine

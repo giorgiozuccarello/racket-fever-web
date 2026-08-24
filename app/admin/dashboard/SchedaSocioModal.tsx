@@ -75,13 +75,18 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
       const esito = await rimuoviSocioDaCircolo({
         uid: socio.uid,
         circoloId,
-        rimborsa: (p) => cancellaConRimborso({
+        // ⚠️ `void` davanti: da questa tornata `cancellaConRimborso`
+        // restituisce quante mezz'ore restano, ma qui non interessa a
+        // nessuno — si sta svuotando l'intera agenda di un socio che
+        // esce dal circolo. Dichiararlo esplicitamente e' meglio di
+        // farlo sparire in un tipo che non combacia.
+        rimborsa: async (p) => { await cancellaConRimborso({
           uid: socio.uid,
           circoloId,
           prenotazioneId: p.id,
           prezzo: importoDaRimborsare(p),
           descrizione: 'Rimborso per rimozione dal circolo',
-        }),
+        }); },
       });
       const saldo = (socio.credito ?? 0) > 0
         ? ` Hai € ${(socio.credito ?? 0).toFixed(2)} di credito da ritirare in segreteria.`

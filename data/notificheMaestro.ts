@@ -42,6 +42,23 @@ export function ascoltaNotificheMaestro(maestroId: string, callback: (n: Notific
 export async function creaNotificaMaestro(
   maestroId: string, testo: string, circoloId: string,
   categoria?: 'lezioni' | 'chat',
+  // ⚠️ PORTATI DALL'APP IL 24 AGOSTO 2026: qui mancavano tutti e tre, e
+  // il piu' importante e' il terzo.
+  //
+  // `richiestaId` dice DOVE PORTARE il Maestro quando tocca la notifica
+  // — la chat con l'allievo. `cardId` dice DI QUALE LEZIONE si parla, e
+  // serve al server per far sparire l'avviso il giorno che quella
+  // lezione viene annullata.
+  //
+  // ⚠️ `motivo` non e' cosmetico. La pulizia lato server tiene in vita
+  // solo gli avvisi con motivo 'annullamento' o 'modifica': un avviso
+  // di cancellazione scritto dal sito senza questo campo veniva
+  // spazzato via dalla stessa cancellazione che lo aveva generato, e
+  // nel frattempo arrivava al Maestro con la faccia grigia «circolo»
+  // invece dell'ambra che fa saltare all'occhio.
+  richiestaId?: string | null,
+  cardId?: string | null,
+  motivo?: 'annullamento' | 'modifica',
 ) {
   // ⚠️ SI RINUNCIA ALL'AVVISO PIUTTOSTO CHE SCRIVERLO SENZA CIRCOLO.
   // Prima il campo si aggiungeva "se c'era", ed era pure facoltativo
@@ -57,6 +74,9 @@ export async function creaNotificaMaestro(
   await addDoc(collection(db, 'notifiche_maestro'), {
     maestroId, testo, letta: false, circoloId,
     ...(categoria ? { categoria } : {}),
+    ...(richiestaId ? { richiestaId } : {}),
+    ...(cardId ? { cardId } : {}),
+    ...(motivo ? { motivo } : {}),
     ...(auth.currentUser?.uid ? { origineUid: auth.currentUser.uid } : {}),
     creataIl: serverTimestamp(),
   });

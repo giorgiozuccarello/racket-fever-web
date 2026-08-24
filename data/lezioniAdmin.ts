@@ -35,6 +35,7 @@
 // ============================================================
 
 import { PrenotazioneAdmin, cancellaConRimborso } from './prenotazioniRepo';
+import { orarioFineSlot } from './circoli';
 import { creaNotifica } from './notifiche';
 import { creaNotificaMaestro } from './notificheMaestro';
 import { chiudiConversazioneLezione, CONVERSAZIONE_NON_CHIUSA } from './conversazioneLezione';
@@ -227,9 +228,17 @@ export async function annullaLezioneIntera(
   //
   // Restano non bloccanti: un avviso che non parte non deve far
   // sembrare fallito un annullamento riuscito.
-  const orario = lezione.orari.length > 0 ? lezione.orari[0] : '';
-  const testo = `Il circolo ha annullato la lezione: ${lezione.campoNome}, ${lezione.dataLabel}`
-    + (orario ? ` alle ${orario}` : '') + '.';
+  // ⚠️ ALLINEATO ALL'APP il 24 agosto 2026. Diceva «annullato» dove
+  // l'app dice «cancellato», e nominava la sola ora d'inizio: su una
+  // lezione da un'ora e mezza chi legge non sa quanto ha perso, ed e'
+  // l'unica informazione che gli serve per riorganizzare il pomeriggio.
+  // Sono lo stesso avviso letto dalla stessa persona: devono dire la
+  // stessa cosa con le stesse parole.
+  const orario = lezione.orari.length > 0
+    ? `${lezione.orari[0]} - ${orarioFineSlot(lezione.orari[lezione.orari.length - 1])}`
+    : '';
+  const testo = `Il circolo ha cancellato la lezione.\n${lezione.campoNome} · ${lezione.dataLabel}`
+    + (orario ? ` · ore ${orario}` : '') + '.';
   const nonAvvisati: string[] = [];
   if (lezione.allievoUid) {
     try {
@@ -247,8 +256,16 @@ export async function annullaLezioneIntera(
     try {
       await creaNotificaMaestro(
         lezione.maestroId,
-        `${testo} Annullata da ${eseguitoDaNome}.`,
+        `${testo}\nEseguito da ${eseguitoDaNome}.`,
         lezione.circoloId,
+        // ⚠️ Categoria e motivo, che mancavano: senza `motivo` questo
+        // avviso non sopravvive alla pulizia lato server — la stessa
+        // cancellazione che lo genera lo spazza via — e arriva grigio
+        // invece che ambra.
+        'lezioni',
+        undefined,
+        undefined,
+        'annullamento',
       );
     } catch (e) {
       console.warn('Avviso al Maestro non inviato:', e);

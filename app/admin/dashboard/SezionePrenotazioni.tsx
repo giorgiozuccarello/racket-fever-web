@@ -5,10 +5,12 @@ import { Campo, Blocco, Circolo, ORARI, fasciaOraria, orarioFineSlot, slotNelPas
   circoloOperativo, statoCircolo } from '../../../data/circoli';
 import { SocioCircolo } from '../../../data/users';
 import { calcolaPrezzo } from '../../../data/prezzi';
-import { aggiungiBlocco } from '../../../data/circoliRepo';
-import { prenotaPerSocioDaAdmin, prenotaEsternoDaAdmin } from '../../../data/prenotazioniRepo';
+import { aggiungiBlocco, modificaBlocco, rimuoviBlocco } from '../../../data/circoliRepo';
+import { prenotaPerSocioDaAdmin, prenotaEsternoDaAdmin, prenotaConGiocatori } from '../../../data/prenotazioniRepo';
 import { nuovoGruppoId } from '../../../data/movimenti';
 import { stessaCard } from '../../../data/raggruppamento';
+
+type PezzoRiserva = { campoId: string; campoNome: string; data: string; dataLabel: string; orario: string };
 
 const GIORNI_IT_ESTESO = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 const MESI_IT = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
@@ -74,7 +76,30 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   const [sceltaProlunga, setSceltaProlunga] = useState<{ ore: string[]; vicine: PrenotazioneAdmin[] } | null>(null);
   const [nuovaPrenotazione, setNuovaPrenotazione] = useState(false);
   const [cardId, setCardId] = useState<string | null>(null);
-  const [bloccoInfo, setBloccoInfo] = useState<Blocco | null>(null);
+  // ⚠️ IL TIPO PORTA ANCHE LA MEZZ'ORA TOCCATA, e prima era il solo
+  // blocco. Serve a sapere se si sta guardando un'estremita' della
+  // riserva: e' l'unico punto da cui si puo' togliere una mezz'ora
+  // senza spezzarla in due documenti.
+  const [bloccoInfo, setBloccoInfo] = useState<{ blocco: Blocco; ora: string } | null>(null);
+  // ⚠️ «STO ALLUNGANDO UNA PRENOTAZIONE CHE C'E' GIA'», e NON e' il
+  // contrario di `nuovaPrenotazione`. Quel campo risponde a un'altra
+  // domanda — «adiacente sì, ma è una partita a sé?» — e vale `false`
+  // anche nel caso più comune, una prenotazione nuova isolata.
+  const [prolungamento, setProlungamento] = useState(false);
+  // I compagni della partita che si sta allungando: si ereditano e
+  // basta, non si scelgono da qui (si cambiano dalla Card in Home).
+  const [giocatoriEreditati, setGiocatoriEreditati] = useState<{ uid: string; nome: string; cognome: string }[]>([]);
+  const [sceltaProlungaRiserva, setSceltaProlungaRiserva] = useState<{ ore: string[]; vicine: Blocco[] } | null>(null);
+  const [elaborandoRiserva, setElaborandoRiserva] = useState(false);
+  // ⚠️ LA CONFERMA A DUE PULSANTI. Sul browser `alert()` ha un pulsante
+  // solo e `confirm()` non lascia scegliere le parole: in questa
+  // schermata il testo dei pulsanti e' portatore di significato — «Togli
+  // i giocatori» non e' «Aggiungi», «Allunga lo stesso» non e' «OK» — e
+  // quasi tutte queste domande hanno un ramo distruttivo. Si usa quindi
+  // uno strato con i suoi pulsanti, come fa l'app.
+  const [conferma, setConferma] = useState<{
+    titolo: string; testo: string; etichetta: string; azione: () => void;
+  } | null>(null);
   const [sfidaInfo, setSfidaInfo] = useState<Sfida | null>(null);
   const [elaborando, setElaborando] = useState(false);
   const [erroreAnnullo, setErroreAnnullo] = useState('');
@@ -93,6 +118,17 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   const [senzaAddebito, setSenzaAddebito] = useState(false);
   const [etichettaRiserva, setEtichettaRiserva] = useState('');
   const [descrizioneRiserva, setDescrizioneRiserva] = useState('');
+  // ============================================================
+  // ⚠️ UNA RISERVA SU PIU' GIORNI E PIU' CAMPI, con l'etichetta scritta
+  // UNA VOLTA SOLA. La griglia mostra un giorno e un campo per volta e
+  // cambiando pagina la selezione si azzera — giustamente, senza si
+  // prenotava sul campo sbagliato — quindi la selezione non si allarga:
+  // si METTE DA PARTE, con campo e giorno addosso a ogni pezzo. Alla
+  // fine diventa un documento di riserva per ogni campo + giorno +
+  // tratto continuo.
+  // ============================================================
+  const [pezziRiserva, setPezziRiserva] = useState<PezzoRiserva[]>([]);
+  const [componendoRiserva, setComponendoRiserva] = useState(false);
 
   useEffect(() => {
     if ((!selCampoId || !campi.some((c) => c.id === selCampoId)) && campi[0]) {
@@ -100,7 +136,10 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     }
   }, [campi]);
 
-  const giorni = Array.from({ length: 7 }, (_, i) => {
+  // ⚠️ Quattordici giorni e non piu' sette: componendo una riserva su
+  // piu' giorni — un torneo, una manutenzione — sette non bastano, e la
+  // griglia dell'app ne mostra gia' quattordici.
+  const giorni = Array.from({ length: 14 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i);
     return d;
@@ -119,7 +158,23 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   };
 
   const campoSel = campi.find((c) => c.id === selCampoId);
-  const MASSIMO_SLOT_MULTIPLI = 8;
+  // ============================================================
+  // ⚠️ UNA MEZZ'ORA DA SOLA NON E' UNA PRENOTAZIONE.
+  //
+  // Regola generale decisa da Giorgio il 24 agosto 2026, portata sul
+  // web il giorno dopo: qui era rimasto il sistema vecchio, con il
+  // tetto di quattro ore e senza prolungamento. La mezz'ora singola si
+  // puo' solo AGGIUNGERE a una prenotazione o a un orario riservato che
+  // esistono gia', o TOGLIERE da qualcosa di piu' lungo. Da zero non si
+  // crea, e il buco isolato da trenta minuti si perde: perdita
+  // accettata, in cambio di una griglia che non si riempie di ritagli
+  // invendibili a chi vuole giocare un'ora.
+  //
+  // ⚠️ IL TETTO INVECE E' STATO TOLTO, su richiesta di Giorgio: per un
+  // circolo che riserva una giornata intera per un torneo, quattro ore
+  // erano un limite senza senso.
+  // ============================================================
+  const MINIMO_SLOT_NUOVA_PRENOTAZIONE = 2;
 
   // Una mezz'ora "in mezzo" non si cancella: spezzerebbe la
   // prenotazione in due tronconi. Vale solo per le PRENOTAZIONI —
@@ -140,6 +195,14 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   // Timer della pressione prolungata: se il dito resta fermo mezzo
   // secondo, parte la selezione. pressioneLunga evita che al rilascio
   // scatti anche il click normale sullo stesso slot.
+  // ⚠️ UN RIFERIMENTO SEMPRE FRESCO AI BLOCCHI. Lo strato di conferma
+  // cattura l'istanza delle funzioni del render in cui e' stato creato:
+  // rileggere `blocchi` dentro `allungaDavvero` restituirebbe l'elenco
+  // di allora, quindi la riverifica sarebbe un controllo su un dato gia'
+  // validato — cioe' niente. Con il ref si legge sempre l'ultimo.
+  const blocchiRif = useRef(blocchi);
+  blocchiRif.current = blocchi;
+
   const timerPressione = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pressioneLunga = useRef(false);
 
@@ -147,6 +210,12 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     pressioneLunga.current = false;
     if (timerPressione.current) clearTimeout(timerPressione.current);
     timerPressione.current = setTimeout(() => {
+      // ⚠️ Il segno si alza SOLO se la selezione parte davvero. Alzandolo
+      // sempre, una pressione lenta su uno slot occupato o riservato
+      // veniva mangiata dal filtro all'inizio del click e il pop-up non
+      // si apriva al primo tentativo: sembrava uno slot che non
+      // risponde.
+      if (!slotPrenotabile(ora)) return;
       pressioneLunga.current = true;
       iniziaSelezione(ora);
     }, 500);
@@ -176,7 +245,6 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       setSelezioneMultipla(selezioneMultipla.slice(0, -1));
       return;
     }
-    if (selezioneMultipla.length >= MASSIMO_SLOT_MULTIPLI) return;
     if (idx === idxMin - 1 && slotPrenotabile(ora)) { setSelezioneMultipla([ora, ...selezioneMultipla]); return; }
     if (idx === idxMax + 1 && slotPrenotabile(ora)) setSelezioneMultipla([...selezioneMultipla, ora]);
   };
@@ -192,6 +260,12 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       // un tipo e meta' dell'altro, con lo stesso cardId. Una lezione
       // la prolunga il Maestro, dalla sua dashboard.
       if (p?.tipo === 'lezione') return undefined;
+      // ⚠️ E le Sfide, che sono uno contro uno e le governa il pannello
+      // «Sfide in Corso»: prolungarne una creava una mezz'ora fuori
+      // dalla sfida, e con l'eredita' dei giocatori si sarebbe portati
+      // dietro anche lo sfidato — scritto pero' senza `sfidaId`, che e'
+      // proprio cio' che le regole rifiutano.
+      if (p?.sfidaId) return undefined;
       return p && p.campoId === selCampoId ? p : undefined;
     };
     const i0 = ORARI.indexOf(ore[0]);
@@ -203,9 +277,15 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   // Passa alla prenotazione vera. Prolungando si eredita il socio (o
   // l'esterno) della prenotazione esistente: l'admin non deve
   // riselezionarlo.
-  const vaiAPrenotazione = (ore: string[], daProlungare: PrenotazioneAdmin | null) => {
+  // ⚠️ SI CHIAMAVA `vaiAPrenotazione`, ed e' stata rinominata: sul
+  // mobile quel nome appartiene a un'ALTRA funzione — quella che apre
+  // la scelta e contiene la guardia della mezz'ora — e due funzioni con
+  // lo stesso nome che fanno cose diverse nei due progetti sono la
+  // trappola perfetta per chi porta una modifica dall'uno all'altro.
+  const prosegui = (ore: string[], daProlungare: PrenotazioneAdmin | null) => {
     setSceltaProlunga(null);
     setNuovaPrenotazione(daProlungare === null);
+    setProlungamento(daProlungare !== null);
     // Prolungando si eredita l'identificativo: in Home resta una sola
     // card. Altrimenti se ne genera uno nuovo.
     setCardId(daProlungare ? (daProlungare.cardId ?? daProlungare.id) : nuovoGruppoId());
@@ -218,21 +298,397 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         const so = soci.find((x) => x.uid === daProlungare.utenteId);
         if (so) setSocioScelto(so);
       }
+      // ⚠️ E I COMPAGNI, che restavano indietro. Senza, la mezz'ora
+      // aggiunta nasceva SENZA di loro: il socio se la ritrovava
+      // addebitata per intero mentre sulle altre pagava una frazione, e
+      // i compagni non venivano nemmeno avvisati. In Home la card
+      // restava una sola, quindi non si vedeva: si vedeva solo sul
+      // portafoglio. La quota non viaggia: la ricalcola il repository
+      // sul prezzo di QUELLA mezz'ora, che puo' essere diverso.
+      setGiocatoriEreditati(giocatoriDi(daProlungare).map((g) => ({
+        uid: g.uid, nome: g.nome, cognome: g.cognome,
+      })));
     } else {
       setModalitaEsterno(false);
       setSocioScelto(null);
       setNomeEsterno('');
+      setGiocatoriEreditati([]);
     }
     setOreDaPrenotare(ore);
     setOreDaAssegnare([]);
   };
 
-  const chiudiTutto = () => {
-    setOreDaAssegnare([]); setOreDaPrenotare([]); setOreDaRiservare([]);
+  // ============================================================
+  // ⚠️ CAMBIARE INTESTATARIO SCIOGLIE IL PROLUNGAMENTO.
+  // `prosegui` accende `prolungamento` quando si sceglie «Prolunga
+  // quella di Mario»; se poi si intesta la prenotazione a Luigi non si
+  // sta piu' allungando niente, e senza questo si scriveva una mezz'ora
+  // con il cardId di Mario addosso e un avviso che annunciava a Luigi
+  // «il circolo ha modificato la tua prenotazione» di una partita che
+  // non ha mai avuto.
+  // ⚠️ Con l'uscita anticipata: toccare il pulsante GIA' selezionato —
+  // gesto comunissimo — non deve sciogliere niente.
+  // ============================================================
+  const staccaDalProlungamento = () => {
+    if (!prolungamento) return;
+    setProlungamento(false);
+    setNuovaPrenotazione(true);
+    setCardId(nuovoGruppoId());
+    setGiocatoriEreditati([]);
+  };
+
+  // ⚠️ `chiudiTutto` era una funzione sola per due cose diverse, e da
+  // quando esistono i pezzi della riserva e gli stati del prolungamento
+  // non puo' piu' esserlo: chiudendo la prenotazione non si devono
+  // buttare via i giorni gia' messi da parte per una riserva, e
+  // viceversa.
+  const chiudiPrenotazioneAdmin = () => {
+    setOreDaAssegnare([]); setOreDaPrenotare([]);
     setSelezioneMultipla([]); setModalitaEsterno(false); setNomeEsterno('');
     setFiltroSocio(''); setSocioScelto(null); setSenzaAddebito(false);
-    setEtichettaRiserva(''); setDescrizioneRiserva('');
+    // Restando accesi, la prenotazione SUCCESSIVA ripartiva con i
+    // compagni e il codice card di quella appena chiusa.
+    setGiocatoriEreditati([]); setProlungamento(false); setNuovaPrenotazione(false);
   };
+
+  const chiudiRiserva = () => {
+    setOreDaRiservare([]); setSelezioneMultipla([]);
+    setEtichettaRiserva(''); setDescrizioneRiserva('');
+    setPezziRiserva([]); setComponendoRiserva(false);
+  };
+
+
+
+  // ============================================================
+  // ⚠️ LE RISERVE NON SONO PRENOTAZIONI, e vanno trattate a parte.
+  // Una prenotazione e' un documento per mezz'ora legato agli altri da
+  // un `cardId`. Una riserva e' UN SOLO documento che copre un
+  // intervallo continuo, senza `cardId` e senza raggruppamento: due
+  // riserve attaccate restano due righe distinte in «Orari Riservati».
+  // Da qui in poi la si allunga spostandone l'estremita', che e'
+  // l'unica cosa che tiene insieme quello che l'Admin vede — un blocco
+  // solo — e quello che c'e' scritto.
+  // ⚠️ SOLO LE RISERVE A DATA: le ricorrenti sono il sistema vecchio,
+  // non se ne creano piu', e allungarne una cambierebbe tutte le
+  // settimane in un colpo.
+  // ============================================================
+  const riserveAdiacenti = (ore: string[]): Blocco[] => {
+    if (ore.length === 0 || !selCampoId) return [];
+    const dopoLUltima = orarioFineSlot(ore[ore.length - 1]);
+    return blocchi.filter((b) => b.campoId === selCampoId
+      && b.tipo === 'data' && b.data === dataSelIso
+      && (b.orarioFine === ore[0] || b.orarioInizio === dopoLUltima));
+  };
+
+  const estremitaDellaRiserva = (b: Blocco, ora: string): boolean =>
+    ora === b.orarioInizio || orarioFineSlot(ora) === b.orarioFine;
+
+  const unaSolaMezzOra = (b: Blocco): boolean => orarioFineSlot(b.orarioInizio) === b.orarioFine;
+
+  // ⚠️ Il blocco del pop-up letto SEMPRE dall'elenco vivo: `bloccoInfo`
+  // porta una fotografia scattata al click, comoda per sapere QUALE
+  // mezz'ora e' stata toccata e inaffidabile per tutto il resto.
+  const bloccoVivo = bloccoInfo
+    ? (blocchi.find((x) => x.id === bloccoInfo.blocco.id) ?? bloccoInfo.blocco)
+    : null;
+
+  // ⚠️ `modificaBlocco` riscrive il documento per intero: passando solo
+  // il campo cambiato si perderebbero etichetta, descrizione e campo.
+  const datiDi = (b: Blocco): Omit<Blocco, 'id'> => {
+    const { id, ...resto } = b;
+    return resto;
+  };
+
+  const togliMezzOraDallaRiserva = async (bFotografia: Blocco, ora: string) => {
+    if (elaborandoRiserva) return;
+    const b = blocchiRif.current.find((x) => x.id === bFotografia.id);
+    if (!b) { setBloccoInfo(null); return; }
+    // Se un altro amministratore ha allungato la riserva all'indietro,
+    // quella che era la prima mezz'ora adesso e' in mezzo: senza questo
+    // controllo si accorciava dalla parte sbagliata, in silenzio.
+    if (!estremitaDellaRiserva(b, ora)) {
+      alert("Quell'orario riservato è cambiato nel frattempo: riaprilo e riprova.");
+      setBloccoInfo(null);
+      return;
+    }
+    setElaborandoRiserva(true);
+    try {
+      if (unaSolaMezzOra(b)) {
+        await rimuoviBlocco(circolo.id, b.id);
+      } else if (ora === b.orarioInizio) {
+        await modificaBlocco(circolo.id, b.id, { ...datiDi(b), orarioInizio: orarioFineSlot(ora) });
+      } else {
+        await modificaBlocco(circolo.id, b.id, { ...datiDi(b), orarioFine: ora });
+      }
+      setBloccoInfo(null);
+    } catch {
+      alert("Non è stato possibile modificare l'orario riservato. Riprova.");
+    } finally {
+      setElaborandoRiserva(false);
+    }
+  };
+
+  const prolungaRiserva = (bFotografia: Blocco, ore: string[]) => {
+    if (elaborandoRiserva) return;
+    const b = blocchiRif.current.find((x) => x.id === bFotografia.id);
+    if (!b) {
+      alert("Quell'orario riservato non c'è più: è stato rimosso nel frattempo.");
+      setSceltaProlungaRiserva(null); setSelezioneMultipla([]);
+      return;
+    }
+    // Prima la domanda tecnica, poi quella drammatica.
+    const dopoLUltima = orarioFineSlot(ore[ore.length - 1]);
+    if (b.orarioFine !== ore[0] && b.orarioInizio !== dopoLUltima) {
+      alert("Quell'orario riservato è cambiato nel frattempo: rifai la selezione.");
+      setSceltaProlungaRiserva(null); setSelezioneMultipla([]);
+      return;
+    }
+    // ⚠️ E le prenotazioni sotto si guardano anche qui: il percorso
+    // normale avvisa sempre prima di riservare sopra la partita di
+    // qualcuno, l'allungamento scriveva e basta.
+    const sotto = prenotazioni.filter((x) => x.campoId === b.campoId
+      && x.data === b.data && ore.includes(x.orario));
+    if (sotto.length > 0) {
+      const nomi = Array.from(new Set(sotto.map((x) => `${x.utenteNome} ${x.utenteCognome}`.trim()))).filter(Boolean);
+      setConferma({
+        titolo: 'C’è già una prenotazione',
+        testo: `In quelle mezz’ore ${nomi.length > 0 ? `c’è ${nomi.join(', ')}` : 'c’è una prenotazione'}. `
+          + 'Allungando l’orario riservato NON viene cancellata né rimborsata: resta valida, '
+          + 'e il campo risulterà riservato e prenotato allo stesso tempo.',
+        etichetta: 'Allunga lo stesso',
+        azione: () => void allungaDavvero(b, ore),
+      });
+      return;
+    }
+    void allungaDavvero(b, ore);
+  };
+
+  const allungaDavvero = async (bFotografia: Blocco, ore: string[]) => {
+    if (elaborandoRiserva) return;
+    // Dal ref, non dalla fotografia: fra la domanda e la risposta c'e'
+    // un tempo di lettura umano.
+    const b = blocchiRif.current.find((x) => x.id === bFotografia.id);
+    if (!b) {
+      alert("Quell'orario riservato non c'è più: è stato rimosso nel frattempo.");
+      setSceltaProlungaRiserva(null); setSelezioneMultipla([]);
+      return;
+    }
+    const dopoLUltima = orarioFineSlot(ore[ore.length - 1]);
+    // ⚠️ SI RICONTROLLA ANCHE QUI, e sul web serve piu' che sull'app:
+    // fra il controllo di `prolungaRiserva` e questa scrittura c'e' di
+    // mezzo uno strato di conferma, cioe' un tempo di lettura umano. Il
+    // ternario qui sotto ha due sole uscite: su un blocco che nel
+    // frattempo si e' spostato prenderebbe comunque il ramo
+    // «altrimenti» e scriverebbe un intervallo rovesciato — con
+    // `orarioInizio` dopo `orarioFine` — che non corrisponde piu' a
+    // nessuno slot: la riserva sparisce dalla griglia e sopravvive solo
+    // nell'elenco «Orari Riservati».
+    if (b.orarioFine !== ore[0] && b.orarioInizio !== dopoLUltima) {
+      alert("Quell'orario riservato è cambiato nel frattempo: rifai la selezione.");
+      setSceltaProlungaRiserva(null); setSelezioneMultipla([]);
+      return;
+    }
+    setElaborandoRiserva(true);
+    try {
+      const dati = b.orarioFine === ore[0]
+        ? { ...datiDi(b), orarioFine: dopoLUltima }
+        : { ...datiDi(b), orarioInizio: ore[0] };
+      await modificaBlocco(circolo.id, b.id, dati);
+      setSceltaProlungaRiserva(null);
+      setSelezioneMultipla([]);
+    } catch {
+      alert("Non è stato possibile allungare l'orario riservato. Riprova.");
+    } finally {
+      setElaborandoRiserva(false);
+    }
+  };
+
+  // Trasforma l'elenco sparso dei pezzi in blocchi continui: uno per
+  // ogni campo + giorno + tratto senza buchi.
+  const blocchiDaiPezzi = (pezzi: PezzoRiserva[]) => {
+    // ⚠️ Deduplica prima di tutto: niente impedisce di rimettere da
+    // parte le stesse ore due volte, e una sovrapposizione parziale
+    // avrebbe scritto due documenti sovrapposti sullo stesso campo.
+    const visti = new Set<string>();
+    const unici = pezzi.filter((x) => {
+      const chiave = `${x.campoId}|${x.data}|${x.orario}`;
+      if (visti.has(chiave)) return false;
+      visti.add(chiave);
+      return true;
+    });
+    const ordinati = [...unici].sort((a, b) => (
+      a.campoId !== b.campoId ? a.campoId.localeCompare(b.campoId)
+        : a.data !== b.data ? a.data.localeCompare(b.data)
+          : ORARI.indexOf(a.orario) - ORARI.indexOf(b.orario)
+    ));
+    const gruppi: { campoId: string; campoNome: string; data: string; dataLabel: string; orari: string[] }[] = [];
+    for (const x of ordinati) {
+      const ultimo = gruppi[gruppi.length - 1];
+      const attaccato = !!ultimo && ultimo.campoId === x.campoId && ultimo.data === x.data
+        && orarioFineSlot(ultimo.orari[ultimo.orari.length - 1]) === x.orario;
+      if (attaccato) ultimo.orari.push(x.orario);
+      else gruppi.push({ campoId: x.campoId, campoNome: x.campoNome, data: x.data, dataLabel: x.dataLabel, orari: [x.orario] });
+    }
+    return gruppi;
+  };
+
+  const pezziDaOre = (ore: string[]): PezzoRiserva[] => ore.map((o) => ({
+    campoId: campoSel?.id ?? '', campoNome: campoSel?.nome ?? '',
+    data: dataSelIso, dataLabel: dataLeggibile, orario: o,
+  }));
+
+  // Vero se la selezione si attacca a un pezzo gia' messo da parte: la
+  // mezz'ora singola va bene anche qui, perche' `blocchiDaiPezzi` li
+  // fondera' in un tratto unico.
+  const tocaUnPezzoGiaMessoDaParte = (ore: string[]): boolean => {
+    if (ore.length === 0) return false;
+    const dopoLUltima = orarioFineSlot(ore[ore.length - 1]);
+    return pezziRiserva.some((x) => x.campoId === selCampoId && x.data === dataSelIso
+      && (orarioFineSlot(x.orario) === ore[0] || x.orario === dopoLUltima));
+  };
+
+  const aggiungiAltriOrariAllaRiserva = () => {
+    setPezziRiserva((prec) => [...prec, ...pezziDaOre(oreDaRiservare)]);
+    setOreDaRiservare([]);
+    setSelezioneMultipla([]);
+    setComponendoRiserva(true);
+  };
+
+  // ⚠️ Su TUTTI i pezzi, non solo sulla pagina che si sta guardando:
+  // guardare la sola pagina corrente vorrebbe dire coprire in silenzio
+  // le prenotazioni di tutti gli altri giorni.
+  const prenotazioniSottoLaRiserva = () => {
+    const tutti = [...pezziRiserva, ...pezziDaOre(oreDaRiservare)]
+      .filter((x) => !slotNelPassato(x.data, x.orario));
+    if (tutti.length === 0) return [];
+    const chiavi = new Set(tutti.map((x) => `${x.campoId}|${x.data}|${x.orario}`));
+    return prenotazioni.filter((x) => chiavi.has(`${x.campoId}|${x.data}|${x.orario}`));
+  };
+
+  // ============================================================
+  // ⚠️ IL COLLO DI BOTTIGLIA DELLA REGOLA DELLA MEZZ'ORA. Qui passano
+  // tutte e due le strade — il click singolo sullo slot e il «Conferma»
+  // della barra — e una guardia messa su uno solo dei due ingressi non
+  // e' una guardia, e' meta' guardia.
+  // ============================================================
+  const apriSceltaAdmin = (ore: string[]) => {
+    const valide = ore.filter((o) => !slotNelPassato(dataSelIso, o));
+    if (valide.length === 0) {
+      alert('Quelle mezz’ore sono appena passate: scegline altre.');
+      return;
+    }
+    if (valide.length < ore.length) {
+      alert('Ho tolto dalla selezione le mezz’ore appena passate.');
+    }
+    // ⚠️ Il ramo della composizione sta SOPRA la guardia: sotto, chi
+    // stava componendo un orario riservato si sentiva parlare di
+    // prenotazioni mentre stava facendo tutt'altro.
+    if (componendoRiserva) {
+      if (valide.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE && !tocaUnPezzoGiaMessoDaParte(valide)) {
+        alert(`Ogni tratto di un orario riservato parte da ${MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5} ora. `
+          + 'Ogni pezzo che aggiungi è un tratto a sé: deve reggersi da solo.');
+        return;
+      }
+      const attaccate = riserveAdiacenti(valide);
+      const prosegue = () => {
+        setOreDaRiservare(valide);
+        setSelezioneMultipla([]);
+        setComponendoRiserva(false);
+      };
+      if (attaccate.length > 0) {
+        setConferma({
+          titolo: 'C’è già un orario riservato qui accanto',
+          testo: `«${attaccate[0].etichetta}» confina con questo pezzo. Il pezzo nascerà come orario `
+            + 'riservato a sé, perché fa parte di quello che stai componendo. Se volevi allungare '
+            + 'quello esistente, annulla e ricomincia da uno slot attaccato.',
+          etichetta: 'Va bene',
+          azione: prosegue,
+        });
+        return;
+      }
+      prosegue();
+      return;
+    }
+    // Sotto il minimo si passa solo se c'e' qualcosa da prolungare
+    // accanto: allora la mezz'ora e' un'aggiunta.
+    if (valide.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE
+      && prenotazioniAdiacenti(valide).length === 0
+      && riserveAdiacenti(valide).length === 0) {
+      alert(`Una prenotazione nuova parte da ${MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5} ora. `
+        + "La mezz'ora singola si aggiunge solo a una prenotazione o a un orario riservato già "
+        + "esistenti, cliccando lo slot attaccato — non alle lezioni né alle sfide. "
+        + 'Per prenotare da zero tieni premuto e seleziona.');
+      return;
+    }
+    setOreDaAssegnare(valide);
+  };
+
+  const vaiAPrenotazione = () => {
+    const vicine = prenotazioniAdiacenti(oreDaAssegnare);
+    if (vicine.length > 0) {
+      setSceltaProlunga({ ore: [...oreDaAssegnare], vicine });
+      setOreDaAssegnare([]);
+      return;
+    }
+    // ⚠️ Il controllo si rifa' qui: fra `apriSceltaAdmin` e questo click
+    // c'e' di mezzo il pannello «Cosa vuoi fare?», e in quel tempo la
+    // prenotazione accanto puo' essere stata annullata da qualcun altro.
+    if (oreDaAssegnare.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE) {
+      alert(`Una prenotazione nuova parte da ${MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5} ora. `
+        + "La prenotazione qui accanto non c'è più: la mezz'ora resta sola, e da sola non si prenota.");
+      setOreDaAssegnare([]); setSelezioneMultipla([]);
+      return;
+    }
+    // ⚠️ NON si passa da `prosegui`: quella funzione accende
+    // `nuovaPrenotazione`, che NON vuol dire «prenotazione nuova» ma
+    // «adiacente sì, ma è una partita a sé». Qui non c'e' niente
+    // accanto, quindi vale `false` — ed e' quello che fa il mobile.
+    // Il valore finisce nel registro movimenti e decide se aprire una
+    // card contabile: due client che lo scrivono diversamente
+    // racconterebbero il portafoglio in due modi.
+    setSceltaProlunga(null);
+    setProlungamento(false);
+    setNuovaPrenotazione(false);
+    setCardId(nuovoGruppoId());
+    setModalitaEsterno(false);
+    setSocioScelto(null);
+    setNomeEsterno('');
+    setFiltroSocio('');
+    setSenzaAddebito(false);
+    setGiocatoriEreditati([]);
+    setOreDaPrenotare([...oreDaAssegnare]);
+    setOreDaAssegnare([]);
+  };
+
+  const vaiARiserva = () => {
+    const vicine = riserveAdiacenti(oreDaAssegnare);
+    if (vicine.length > 0) {
+      setSceltaProlungaRiserva({ ore: [...oreDaAssegnare], vicine });
+      setOreDaAssegnare([]);
+      return;
+    }
+    if (oreDaAssegnare.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE) {
+      alert(`Un orario riservato parte da ${MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5} ora. `
+        + "La mezz'ora singola si può solo aggiungere a un orario riservato già esistente.");
+      return;
+    }
+    setOreDaRiservare([...oreDaAssegnare]);
+    setOreDaAssegnare([]);
+    setEtichettaRiserva('');
+    setDescrizioneRiserva('');
+  };
+
+  // Dice se il «Conferma» della barra puo' accendersi: sopra il minimo
+  // sempre, sotto il minimo solo quando la selezione tocca qualcosa da
+  // allungare — perche' allora e' un'aggiunta, non una cosa nuova.
+  // Mentre si compone una riserva le adiacenze con documenti gia'
+  // scritti non contano: ogni pezzo aggiunto e' un tratto a se'.
+  const confermaPossibile = selezioneMultipla.length >= MINIMO_SLOT_NUOVA_PRENOTAZIONE
+    || (componendoRiserva
+      ? tocaUnPezzoGiaMessoDaParte(selezioneMultipla)
+      : (selezioneMultipla.length > 0
+        && (prenotazioniAdiacenti(selezioneMultipla).length > 0
+          || riserveAdiacenti(selezioneMultipla).length > 0)));
 
   const risultatiSoci = filtroSocio.trim().length < 2 ? [] : soci
     .filter((so) => `${so.nome} ${so.cognome}`.toLowerCase().includes(filtroSocio.trim().toLowerCase()))
@@ -272,6 +728,18 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       alert('Una o più mezz\u2019ore sono nel frattempo passate: chiudi e riseleziona.');
       return;
     }
+    // ⚠️ LA REGOLA DELLA MEZZ'ORA VIVE ANCHE QUI, nella funzione che
+    // SCRIVE. Le guardie sulle porte chiudono le strade note, ma il
+    // modulo si raggiunge anche per strade che non sono pulsanti: un
+    // elenco rimasto indietro di uno snapshot, la prenotazione accanto
+    // annullata da qualcun altro mentre il pop-up era aperto.
+    // Prolungando il minimo non si applica: e' un'aggiunta — e
+    // `prolungamento` si spegne appena si cambia intestatario.
+    if (oreDaPrenotare.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE && !prolungamento) {
+      alert(`Una prenotazione nuova parte da ${MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5} ora: `
+        + "la mezz'ora singola si può solo aggiungere a una prenotazione esistente.");
+      return;
+    }
     if (modalitaEsterno && !nomeEsterno.trim()) return;
     if (!modalitaEsterno && !socioScelto) return;
     invioInCorso.current = true;
@@ -285,6 +753,11 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       // Un solo codice per l'intera operazione: lega le mezz'ore nel
       // registro movimenti.
       const gruppoId = nuovoGruppoId();
+      // ⚠️ RETE DI SICUREZZA SUL CODICE DELLA CARD. Senza, una strada
+      // che arrivasse qui senza averlo battezzato scriverebbe mezz'ore
+      // con `cardId: null` — e con loro l'avviso al socio, che senza
+      // quel campo NON E' TOCCABILE e non porta a niente.
+      const idCard = cardId ?? nuovoGruppoId();
       // ⚠️ Quante ne sono andate davvero: un blocco interrotto a meta'
       // lasciava scritte le prime mezz'ore senza dirlo, e il "riprova"
       // ripartiva dalla prima sbattendo contro la prenotazione appena
@@ -305,12 +778,25 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         if (modalitaEsterno) {
           await prenotaEsternoDaAdmin({
             ...base, nomeEsterno: nomeEsterno.trim(),
-            gruppoId, cardId: cardId ?? undefined,
+            gruppoId, cardId: idCard,
+          });
+        } else if (socioScelto && giocatoriEreditati.length > 0) {
+          // ⚠️ PROLUNGAMENTO CON COMPAGNI: la mezz'ora nuova nasce con
+          // le stesse persone delle altre e con le quote divise sul
+          // prezzo di QUESTA mezz'ora, che puo' cadere in una fascia
+          // diversa e costare un'altra cifra.
+          await prenotaConGiocatori({
+            ...base, uid: socioScelto.uid, nuovaPrenotazione: apreCard,
+            gruppoId, cardId: idCard,
+            utenteNome: socioScelto.nome, utenteCognome: socioScelto.cognome,
+            tipoUtente: socioScelto.ruoloTessera === 'ospite' ? 'ospite' : 'socio',
+            giocatori: giocatoriEreditati,
+            daAdmin: { uid: null, nome: nomeEsecutore || null },
           });
         } else if (socioScelto) {
           await prenotaPerSocioDaAdmin({
             ...base, uid: socioScelto.uid, nuovaPrenotazione: apreCard,
-            gruppoId, cardId: cardId ?? undefined,
+            gruppoId, cardId: idCard,
             utenteNome: socioScelto.nome, utenteCognome: socioScelto.cognome,
             tipoUtente: socioScelto.ruoloTessera === 'ospite' ? 'ospite' : 'socio',
           });
@@ -322,54 +808,168 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         const daA = oreDaPrenotare.length > 1
           ? `dalle ${oreDaPrenotare[0]} alle ${orarioFineSlot(oreDaPrenotare[oreDaPrenotare.length - 1])}`
           : `alle ${oreDaPrenotare[0]}`;
-        await creaNotifica(
+        // ⚠️ PROLUNGARE NON E' PRENOTARE. Allungando una partita che il
+        // socio ha gia', «il circolo ha prenotato per te» annuncia una
+        // cosa che lui sa: quello che non sa e' che si e' allungata, e
+        // di quanto. E l'avviso porta il `cardId`, altrimenti si tocca
+        // e non succede niente.
+        await senzaBloccare(() => creaNotifica(
           socioScelto.uid,
-          `Il circolo ha prenotato per te ${campoSel.nome} il ${dataLeggibile} ${daA}.`
-            + (senzaAddebito ? ' Nessun addebito sul tuo credito.' : ''),
-          undefined, circolo.id, undefined, undefined, undefined,
+          (prolungamento
+            ? 'Il circolo ha modificato la tua prenotazione.'
+            : 'Il circolo ha prenotato per te.')
+            + `\n${prolungamento ? 'Aggiunte: ' : ''}${dataLeggibile} ${daA} · ${campoSel.nome}`
+            + (senzaAddebito ? '\nNessun addebito sul tuo credito.' : ''),
+          undefined, circolo.id, undefined, undefined,
+          prolungamento ? 'modifica' : undefined,
           // Cade sotto «Le mie partite», dove il socio la cerca.
           'prenotazioni',
-        );
+          undefined,
+          idCard,
+        ));
+        // ⚠️ E un avviso a testa ai compagni, che prima non riceveva
+        // nessuno: sono stati addebitati della loro quota su una
+        // mezz'ora che non hanno chiesto.
+        for (const g of giocatoriEreditati) {
+          await senzaBloccare(() => creaNotifica(
+            g.uid,
+            'Il circolo ha modificato una prenotazione nella quale eri stato aggiunto.'
+              + `\n${prolungamento ? 'Aggiunte: ' : ''}${dataLeggibile} ${daA} · ${campoSel.nome}`
+              + (senzaAddebito ? '\nNessun addebito sul tuo credito.' : ''),
+            undefined, circolo.id, undefined, undefined,
+            'modifica', 'prenotazioni', undefined, idCard,
+          ));
+        }
       }
-      chiudiTutto();
+      chiudiPrenotazioneAdmin();
     } catch (e: any) {
       const inParte = fatte > 0
         ? ` Le prime ${fatte} di ${oreDaPrenotare.length} mezz'ore sono state prenotate: aggiorna la griglia prima di riprovare, o le ritroverai come già occupate.`
         : ' Riprova.';
+      // ⚠️ I DUE MODI IN CUI FALLISCE UN PROLUNGAMENTO CON COMPAGNI:
+      // un compagno non ha piu' la tessera, oppure non e' piu' fra i
+      // compagni del socio e le regole rifiutano la mezz'ora nuova —
+      // che e' un documento nuovo, quindi il permesso torna a servire.
+      // Con il messaggio generico era un vicolo cieco: l'elenco dei
+      // compagni e' di sola lettura, quindi non c'era modo di togliere
+      // chi bloccava la scrittura.
+      const bloccatoDaiCompagni = giocatoriEreditati.length > 0
+        && (e?.message === 'UTENTE_NON_TROVATO' || e?.code === 'permission-denied');
+      if (bloccatoDaiCompagni && fatte === 0) {
+        setConferma({
+          titolo: 'Uno dei giocatori non può essere aggiunto',
+          testo: `${elencoNomi(giocatoriEreditati)}: o non è più tesserato in questo circolo, o non è `
+            + 'più fra i compagni del socio. Puoi togliere i giocatori e premere di nuovo Conferma: '
+            + 'la mezz’ora viene aggiunta al solo titolare, la partita resta una sola, ma il costo '
+            + 'delle mezz’ore aggiunte sarà tutto suo.',
+          etichetta: 'Togli i giocatori',
+          // ⚠️ `prolungamento` resta acceso: si sta ancora allungando la
+          // stessa partita, e il cardId e' quello. Spegnerlo spezzerebbe
+          // la card, che e' proprio il ripiego da evitare.
+          azione: () => setGiocatoriEreditati([]),
+        });
+        return;
+      }
       alert((e?.message === 'SLOT_OCCUPATO'
         ? 'Una di quelle mezz\'ore è stata appena prenotata da qualcun altro.'
-        : 'Non è stato possibile completare la prenotazione.') + inParte);
+        : e?.message === 'UTENTE_NON_TROVATO'
+          ? 'Uno dei giocatori non è più tesserato in questo circolo.'
+          : 'Non è stato possibile completare la prenotazione.') + inParte);
     } finally {
       invioInCorso.current = false;
       setElaborando(false);
     }
   };
 
-  const confermaRiserva = async () => {
+  const confermaRiserva = async (gia = false) => {
     if (oreDaRiservare.length === 0 || !campoSel || !etichettaRiserva.trim()) return;
-    // Stessa barriera della prenotazione: non si riserva nel passato.
-    if (oreDaRiservare.some((o) => slotNelPassato(dataSelIso, o))) {
-      // Stesso canale degli altri errori di questa sezione.
-      alert('Una o più mezz\u2019ore sono nel frattempo passate: chiudi e riseleziona.');
+    // ⚠️ Gli scaduti si tolgono e SI DICE. Componendo su piu' giorni fra
+    // la scelta e la conferma passa del tempo: togliendoli in silenzio,
+    // l'Admin confermava «18:00-19:00» e otteneva 18:30-19:00 senza
+    // sapere perche'.
+    const tuttiIPezzi = [...pezziRiserva, ...pezziDaOre(oreDaRiservare)]
+      .filter((x) => !slotNelPassato(x.data, x.orario));
+    if (tuttiIPezzi.length === 0) {
+      alert('Quelle mezz’ore sono appena passate: scegline altre.');
       return;
     }
-    setElaborando(true);
-    try {
-      // Un solo blocco per l'intero intervallo: gli orari riservati
-      // sono continui per natura, non serve spezzarli.
-      await aggiungiBlocco(circolo.id, {
-        campoId: campoSel.id,
-        tipo: 'data',
-        data: dataSelIso,
-        orarioInizio: oreDaRiservare[0],
-        orarioFine: orarioFineSlot(oreDaRiservare[oreDaRiservare.length - 1]),
-        etichetta: etichettaRiserva.trim().slice(0, 14),
-        descrizione: descrizioneRiserva.trim() || undefined,
+    if (tuttiIPezzi.length < pezziRiserva.length + oreDaRiservare.length) {
+      setPezziRiserva(pezziRiserva.filter((x) => !slotNelPassato(x.data, x.orario)));
+      setOreDaRiservare(oreDaRiservare.filter((o) => !slotNelPassato(dataSelIso, o)));
+      alert('Ho tolto dalla riserva le mezz’ore appena passate: ricontrolla e conferma.');
+      return;
+    }
+    // ⚠️ La regola della mezz'ora applicata a OGNI TRATTO, non al
+    // totale: una riserva su tre giorni di cui uno da mezz'ora resta
+    // una riserva da mezz'ora su quel giorno.
+    const tratti = blocchiDaiPezzi(tuttiIPezzi);
+    const corto = tratti.find((g) => g.orari.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE);
+    if (corto) {
+      alert(`Un orario riservato parte da ${MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5} ora. `
+        + `Il tratto di ${corto.dataLabel} su ${corto.campoNome} alle ${corto.orari[0]} è più corto: allungalo o toglilo.`);
+      return;
+    }
+    // ⚠️ L'avviso arriva PRIMA della scrittura e si puo' annullare: e'
+    // l'unico momento in cui l'Admin puo' ancora scegliere senza aver
+    // gia' fatto danni. Si avvisa, non si cancella: restituire denaro a
+    // tre persone e' una scelta del circolo, e la fa dalla griglia una
+    // per una, vedendo chi sono.
+    const sotto = prenotazioniSottoLaRiserva();
+    if (sotto.length > 0 && !gia) {
+      const nomi = Array.from(new Set(sotto.map((x) => `${x.utenteNome} ${x.utenteCognome}`.trim()))).filter(Boolean);
+      const quanti = nomi.length > 0 ? nomi.length : sotto.length;
+      setConferma({
+        titolo: quanti === 1 ? 'C’è già una prenotazione' : `Ci sono già ${quanti} prenotazioni`,
+        testo: `In queste ore ${quanti === 1 ? 'c’è già' : 'ci sono già'} `
+          + `${nomi.length > 0 ? nomi.join(', ') : 'delle prenotazioni'}. `
+          + 'Riservando l’orario NON vengono cancellate né rimborsate: restano valide, e il campo '
+          + 'risulterà riservato e prenotato allo stesso tempo. Se vanno tolte, annulla qui e '
+          + 'cancellale dalla griglia una per una — così ognuno riceve il suo rimborso.',
+        etichetta: 'Riserva lo stesso',
+        azione: () => void confermaRiserva(true),
       });
-      chiudiTutto();
+      return;
+    }
+    // ⚠️ Barriera sincrona contro il doppio invio, come per la
+    // prenotazione: `elaborando` e' uno stato React e non chiude il
+    // pulsante fra il click e il ridisegno, e qui il ciclo scrive N
+    // documenti — due giri sovrapposti li scriverebbero doppi.
+    if (invioInCorso.current) return;
+    invioInCorso.current = true;
+    setElaborando(true);
+    // ⚠️ Fuori dal try: il messaggio d'errore deve poter dire quanti
+    // tratti sono stati comunque scritti, o riprovando si ritrovano
+    // doppi.
+    let fattiTratti = 0;
+    try {
+      // ⚠️ UN DOCUMENTO PER OGNI CAMPO + GIORNO + TRATTO CONTINUO.
+      // L'etichetta e la descrizione si scrivono una volta e valgono per
+      // tutti i pezzi, ma i pezzi restano documenti separati: una
+      // riserva E' un intervallo continuo su un campo in un giorno, e
+      // fonderne due lontani vorrebbe dire riservare anche tutto quello
+      // che sta in mezzo.
+      const etichetta = etichettaRiserva.trim().slice(0, 14);
+      const descrizione = descrizioneRiserva.trim() || undefined;
+      for (const g of tratti) {
+        await aggiungiBlocco(circolo.id, {
+          campoId: g.campoId,
+          tipo: 'data',
+          data: g.data,
+          orarioInizio: g.orari[0],
+          orarioFine: orarioFineSlot(g.orari[g.orari.length - 1]),
+          etichetta,
+          descrizione,
+        });
+        fattiTratti++;
+      }
+      chiudiRiserva();
     } catch {
-      alert("Non è stato possibile riservare l'orario. Riprova.");
+      alert("Non è stato possibile riservare l'orario."
+        + (fattiTratti > 0
+          ? ` I primi ${fattiTratti} tratti sono già stati riservati: controlla «Orari Riservati» prima di riprovare, o li ritroverai doppi.`
+          : ' Riprova.'));
     } finally {
+      invioInCorso.current = false;
       setElaborando(false);
     }
   };
@@ -381,13 +981,50 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     if (!daAnnullare) return;
     setErroreAnnullo('');
     setElaborando(true);
+    // ============================================================
+    // ⚠️ QUANTE MEZZ'ORE RESTANO, DETTO DAL SERVER.
+    //
+    // Segnalato da Giorgio il 24 agosto 2026: «anche quando Admin
+    // cancella una mezz'ora da una prenotazione più lunga, l'avviso
+    // DEVE essere Modificato e non Annullato». Sul web non lo era mai,
+    // perche' qui la risposta della cancellazione veniva buttata via.
+    //
+    // Da qui si toglie sempre UNA mezz'ora — la griglia non permette
+    // altro — quindi il caso normale e' proprio quello in cui la
+    // partita resta in piedi. Il numero cambia tre cose insieme: la
+    // parola, il motivo dell'avviso (che ne decide colore e faccia in
+    // Home) e se portare il codice della card.
+    //
+    // ⚠️ NON SI CONTA QUI: l'elenco che questa schermata tiene in
+    // memoria e' indietro di un giro proprio nell'istante dopo la
+    // cancellazione.
+    // ============================================================
+    let restaLaPartita = false;
+    let motivoAnnullo: 'annullamento' | 'modifica' = 'annullamento';
+    // ⚠️ Non parte vuota: oggi non esiste un percorso che arrivi alle
+    // notifiche senza passare da `leggiEsito`, ma un avviso con una riga
+    // bianca in mezzo e' il genere di cosa che si scopre in produzione.
+    let rigaDettaglio = `${daAnnullare.campoNome} · ${daAnnullare.dataLabel}, ore ${fasciaOraria(daAnnullare.orario)}`;
+    const leggiEsito = (restano: number) => {
+      restaLaPartita = restano > 0;
+      motivoAnnullo = restaLaPartita ? 'modifica' : 'annullamento';
+      rigaDettaglio = restaLaPartita
+        ? `Tolta la mezz'ora delle ${fasciaOraria(daAnnullare.orario)}.`
+        : `${daAnnullare.campoNome} · ${daAnnullare.dataLabel}, ore ${fasciaOraria(daAnnullare.orario)}`;
+    };
+    // La card c'e' ancora solo se resta qualcosa: mandare qualcuno a
+    // cercarne una che non esiste e' peggio che non muovere niente.
+    const cardSuperstite = () => (restaLaPartita ? (daAnnullare.cardId ?? undefined) : undefined);
+    // ⚠️ «cancellato» e non «annullato»: e' la parola che usa l'app,
+    // e sono lo stesso avviso letto dalla stessa persona.
+    const parola = () => (restaLaPartita ? 'modificato' : 'cancellato');
     try {
       if (!daAnnullare.utenteId) {
-        await cancellaSenzaRimborso(daAnnullare.id);
+        leggiEsito(await cancellaSenzaRimborso(daAnnullare.id));
       } else if (giocatoriDi(daAnnullare).length > 0) {
         const altri = giocatoriDi(daAnnullare);
         const miaQuota = quotaChiPrenota(daAnnullare).toFixed(2);
-        await cancellaConRimborsoDiviso({
+        leggiEsito(await cancellaConRimborsoDiviso({
           circoloId: circolo.id,
           utenteId: daAnnullare.utenteId,
           // ⚠️ Ognuno riceve la SUA quota, letta dalla prenotazione:
@@ -408,7 +1045,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           eseguitoDaNome: nomeEsecutore,
           eseguitoDaRuolo: 'admin',
           parziale: true,
-        });
+        }));
         // ⚠️ Il circolo va SEMPRE passato, e l'avviso non deve poter
         // far fallire l'annullamento: la prenotazione a questo punto e'
         // gia' cancellata. Senza circoloId l'avviso finisce nel circolo
@@ -417,30 +1054,38 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         // l'errore che risale e nasconde un'operazione riuscita.
         await senzaBloccare(() => creaNotifica(
           daAnnullare.utenteId,
-          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua quota: € ${miaQuota}.`,
+          `Il circolo ha ${parola()} la tua prenotazione.`
+            + `\n${rigaDettaglio}`
+            + `\nLa tua quota è stata riaccreditata: € ${miaQuota}.`,
           undefined,
           circolo.id,
           undefined, undefined,
-          // ⚠️ 'annullamento' non sposta la notifica sotto un altro
+          // ⚠️ Il motivo non sposta la notifica sotto un altro
           // interruttore — resta «Le mie partite» — ma le da' la faccia
-          // che si nota nella Home del socio: fascetta ambra e icona
-          // d'allarme. Senza, l'avviso che gli dice di non venire
-          // sarebbe disegnato identico a quello che lo invita.
-          'annullamento',
+          // che si nota nella Home del socio: ambra per un annullamento,
+          // prugna per una modifica. Senza, l'avviso che gli dice di non
+          // venire sarebbe disegnato identico a quello che lo invita.
+          motivoAnnullo,
           'prenotazioni',
+          undefined,
+          cardSuperstite(),
         ));
         for (const g of altri) {
           await senzaBloccare(() => creaNotifica(
             g.uid,
-            `Il circolo ha annullato la prenotazione con ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}. Ti è stata rimborsata la tua quota: € ${g.quota.toFixed(2)}.`,
+            `Il circolo ha ${parola()} una prenotazione nella quale eri stato aggiunto.`
+              + `\n${rigaDettaglio}`
+              + `\nLa tua quota è stata riaccreditata: € ${g.quota.toFixed(2)}.`,
             undefined,
             circolo.id,
-            undefined, undefined, 'annullamento',
+            undefined, undefined, motivoAnnullo,
             'prenotazioni',
+            undefined,
+            cardSuperstite(),
           ));
         }
       } else {
-        await cancellaConRimborso({
+        leggiEsito(await cancellaConRimborso({
           circoloId: circolo.id,
           uid: daAnnullare.utenteId,
           prenotazioneId: daAnnullare.id,
@@ -460,15 +1105,18 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           eseguitoDaRuolo: 'admin',
           // Dalla griglia si cancella sempre una sola mezz'ora.
           parziale: true,
-        });
+        }));
         await senzaBloccare(() => creaNotifica(
           daAnnullare.utenteId,
-          `Il circolo ha annullato la tua prenotazione: ${daAnnullare.campoNome}, ${daAnnullare.dataLabel} ore ${fasciaOraria(daAnnullare.orario)}.`
-            + (importoDaRimborsare(daAnnullare) > 0 ? ` Credito rimborsato: € ${importoDaRimborsare(daAnnullare).toFixed(2)}.` : ''),
+          `Il circolo ha ${parola()} la tua prenotazione.`
+            + `\n${rigaDettaglio}`
+            + (importoDaRimborsare(daAnnullare) > 0 ? `\nCredito rimborsato: € ${importoDaRimborsare(daAnnullare).toFixed(2)}.` : ''),
           undefined,
           circolo.id,
-          undefined, undefined, 'annullamento',
+          undefined, undefined, motivoAnnullo,
           'prenotazioni',
+          undefined,
+          cardSuperstite(),
         ));
       }
       setDaAnnullare(null);
@@ -496,9 +1144,13 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     <div className="admin-card">
       <div className="admin-card-title">Prenotazione Campi</div>
       <p className="admin-card-hint">
-        Clicca su uno slot occupato per vedere chi ha prenotato ed eventualmente annullare.
-        Le mezz&apos;ore già cominciate diventano grigie: non si possono più assegnare né riservare,
-        ma restano cliccabili se hanno qualcosa sopra.
+        <strong>Tieni premuto</strong> su uno slot libero e clicca quelli accanto per selezionare
+        almeno un&apos;ora: è così che si prenota o si riserva. Il click singolo su uno slot libero
+        non prenota — la mezz&apos;ora singola si può solo aggiungere a una prenotazione o a un
+        orario riservato già esistenti, cliccando lo slot attaccato. Clicca su uno slot occupato
+        per vedere chi ha prenotato ed eventualmente annullare. Le mezz&apos;ore già cominciate
+        diventano grigie: non si possono più assegnare né riservare, ma restano cliccabili se
+        hanno qualcosa sopra.
       </p>
 
       <div className="pc-row">
@@ -515,6 +1167,10 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           >
             <div className="pc-day-label">{i === 0 ? 'Oggi' : GIORNI_IT_BREVE[d.getDay()]}</div>
             <div className="pc-day-num">{d.getDate()}</div>
+            {/* ⚠️ Il mese, che su sette giorni non serviva: su quattordici
+                si attraversa un cambio di mese e due chip mostrerebbero
+                lo stesso numero senza modo di distinguerle. */}
+            <div className="pc-day-mese">{MESI_IT[d.getMonth()]}</div>
           </button>
         ))}
       </div>
@@ -538,6 +1194,21 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-passato" /> Ora passata</span>
       </div>
 
+      {/* ⚠️ La fascia che ricorda una riserva in composizione: tornando
+          in griglia il modulo con l'etichetta sparisce, e senza questa
+          riga non c'e' niente che dica che c'e' un'operazione a meta'. */}
+      {componendoRiserva && (
+        <div className="pc-componendo">
+          <div style={{ flex: 1 }}>
+            <strong>Stai componendo «{etichettaRiserva.trim() || 'orario riservato'}»</strong>
+            <div className="pc-barra-sub">
+              {pezziRiserva.length * 0.5}h già messe da parte · scegli altri orari e premi Conferma
+            </div>
+          </div>
+          <button className="admin-btn-piccolo-rosso" onClick={chiudiRiserva}>Annulla</button>
+        </div>
+      )}
+
       {selezioneMultipla.length > 0 && (
         <div className="pc-barra-selezione">
           <div style={{ flex: 1 }}>
@@ -545,10 +1216,19 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
               {selezioneMultipla[0]} - {orarioFineSlot(selezioneMultipla[selezioneMultipla.length - 1])}
               {'  ·  '}{selezioneMultipla.length * 0.5}h
             </strong>
-            <div className="pc-barra-sub">Clicca gli slot tratteggiati per estendere</div>
+            {/* Sotto il minimo la riga dice cosa manca: con il pulsante
+                spento e nessuna spiegazione, l'Admin resta a chiedersi
+                cosa ha sbagliato. */}
+            <div className="pc-barra-sub">
+              {confermaPossibile ? 'Clicca gli slot tratteggiati per estendere' : "Aggiungi almeno un'altra mezz'ora"}
+            </div>
           </div>
           <button className="admin-modal-btn-cancel" onClick={() => setSelezioneMultipla([])}>Annulla</button>
-          <button className="admin-modal-btn-confirm" onClick={() => setOreDaAssegnare([...selezioneMultipla])}>
+          <button
+            className="admin-modal-btn-confirm"
+            disabled={!confermaPossibile}
+            onClick={() => apriSceltaAdmin([...selezioneMultipla])}
+          >
             Conferma
           </button>
         </div>
@@ -563,6 +1243,14 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           if (p?.sfidaId) sotto = 'Sfida in corso';
           else if (p) sotto = p.utenteCognome ? `${p.utenteNome} ${p.utenteCognome[0]}.` : p.utenteNome;
           else if (blocco) sotto = 'Riservato';
+          // ⚠️ Gia' messo da parte per la riserva in composizione: in
+          // griglia risulta ancora libero — nessun documento e' stato
+          // scritto — e senza un segno lo si riselezionava creando un
+          // doppione.
+          const giaMessoDaParte = componendoRiserva && pezziRiserva.some(
+            (x) => x.campoId === selCampoId && x.data === dataSelIso && x.orario === ora,
+          );
+          if (giaMessoDaParte && !p && !blocco) sotto = 'Da riservare';
           // Stessa regola dell'app: dall'INIZIO dello slot in poi
           // quell'ora non e' piu' gestibile da nessuno.
           const passato = slotNelPassato(dataSelIso, ora);
@@ -572,7 +1260,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           const idxMaxSel = selezioneMultipla.length ? ORARI.indexOf(selezioneMultipla[selezioneMultipla.length - 1]) : -1;
           const estendibileOra = selezioneMultipla.length > 0 && !selezionatoOra
             && (idxOra === idxMinSel - 1 || idxOra === idxMaxSel + 1)
-            && selezioneMultipla.length < MASSIMO_SLOT_MULTIPLI && !p && !blocco && !passato;
+            && !p && !blocco && !passato;
           return (
             <button
               key={ora}
@@ -590,8 +1278,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
                 if (selezioneMultipla.length > 0) { clickDuranteSelezione(ora); return; }
                 if (p?.sfidaId) setSfidaInfo(sfide.find((sf) => sf.id === p.sfidaId) ?? null);
                 else if (p) { setBloccataInMezzo(inMezzoAllaPrenotazione(ora)); setDaAnnullare(p); }
-                else if (blocco) setBloccoInfo(blocco);
-                else setOreDaAssegnare([ora]);
+                else if (blocco) setBloccoInfo({ blocco, ora });
+                else apriSceltaAdmin([ora]);
               }}
               // La selezione multipla si avvia con la pressione
               // prolungata. Su Safari iOS il menu contestuale non si
@@ -604,7 +1292,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
               onPointerLeave={annullaTimerPressione}
               onPointerCancel={annullaTimerPressione}
               onContextMenu={(e) => { e.preventDefault(); if (!passato) iniziaSelezione(ora); }}
-              className={`pc-slot ${p ? 'occupato' : ''} ${eLezione ? 'lezione' : ''} ${blocco ? 'riservato' : ''}${passato ? ' passato' : ''}${selezionatoOra ? ' selezionato' : ''}${estendibileOra ? ' estendibile' : ''}${selezioneMultipla.length > 0 && !selezionatoOra && !estendibileOra ? ' attenuato' : ''}`}
+              className={`pc-slot ${p ? 'occupato' : ''} ${eLezione ? 'lezione' : ''} ${blocco ? 'riservato' : ''}${passato ? ' passato' : ''}${selezionatoOra ? ' selezionato' : ''}${estendibileOra ? ' estendibile' : ''}${giaMessoDaParte && !selezionatoOra ? ' messo-da-parte' : ''}${selezioneMultipla.length > 0 && !selezionatoOra && !estendibileOra ? ' attenuato' : ''}`}
             >
               {/* Ora passata: rettangolo grigio e nient'altro. Le
                   scritte del passato erano l'unica cosa che competeva
@@ -622,7 +1310,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
 
       {/* Prolunga o nuova prenotazione: compare quando il blocco
           scelto tocca una prenotazione ancora attiva. */}
-      <Modal visible={!!sceltaProlunga} onClose={() => setSceltaProlunga(null)}>
+      <Modal visible={!!sceltaProlunga} onClose={() => { setSceltaProlunga(null); setSelezioneMultipla([]); }}>
         <div className="admin-modal-title">C&apos;è già una prenotazione qui accanto</div>
         <p className="admin-modal-sub">Vuoi prolungarla, oppure è una partita a sé?</p>
 
@@ -630,7 +1318,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           <button
             key={v.id}
             className="pc-scelta-btn"
-            onClick={() => vaiAPrenotazione(sceltaProlunga.ore, v)}
+            onClick={() => prosegui(sceltaProlunga.ore, v)}
           >
             <strong>Prolunga quella delle {v.orario}</strong>
             <span>
@@ -641,21 +1329,35 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           </button>
         ))}
 
-        <button
-          className="pc-scelta-btn nuova"
-          onClick={() => sceltaProlunga && vaiAPrenotazione(sceltaProlunga.ore, null)}
-        >
-          <strong>È una prenotazione nuova</strong>
-          <span>Non verrà unita a quella accanto</span>
-        </button>
+        {/* ⚠️ LA PORTA DI SERVIZIO, chiusa sotto l'ora: su una mezz'ora
+            sola questo pulsante creerebbe la prenotazione da trenta
+            minuti che la regola vieta, raggiunta girando intorno alla
+            griglia. Sopra l'ora resta: li' e' una scelta legittima. */}
+        {(sceltaProlunga?.ore.length ?? 0) >= MINIMO_SLOT_NUOVA_PRENOTAZIONE && (
+          <button
+            className="pc-scelta-btn nuova"
+            onClick={() => sceltaProlunga && prosegui(sceltaProlunga.ore, null)}
+          >
+            <strong>È una prenotazione nuova</strong>
+            <span>Non verrà unita a quella accanto</span>
+          </button>
+        )}
 
-        <button className="admin-modal-btn-cancel" style={{ marginTop: '.8rem', width: '100%' }} onClick={() => setSceltaProlunga(null)}>
+        {/* ⚠️ Azzera anche la selezione, come ogni altro «Annulla» di
+            questa griglia: senza, la barra verde restava accesa con il
+            suo «Conferma» su una scelta abbandonata. */}
+        <button className="admin-modal-btn-cancel" style={{ marginTop: '.8rem', width: '100%' }} onClick={() => { setSceltaProlunga(null); setSelezioneMultipla([]); }}>
           Annulla
         </button>
       </Modal>
 
       {/* Scelta: cosa fare degli slot selezionati */}
-      <Modal visible={oreDaAssegnare.length > 0} onClose={chiudiTutto}>
+      {/* ⚠️ Chiude solo se stesso: `chiudiTutto` butterebbe anche i
+          pezzi della riserva in composizione, l'etichetta e la
+          descrizione. Oggi non e' raggiungibile con pezzi in sospeso —
+          mentre si compone, `apriSceltaAdmin` non apre questo pannello —
+          ma e' una fragilita' gratuita. */}
+      <Modal visible={oreDaAssegnare.length > 0} onClose={() => { setOreDaAssegnare([]); setSelezioneMultipla([]); }}>
         <div className="admin-modal-title">Cosa vuoi fare?</div>
         <p className="admin-modal-sub">
           {oreDaAssegnare.length > 1
@@ -663,34 +1365,43 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             : oreDaAssegnare[0] ? fasciaOraria(oreDaAssegnare[0]) : ''}
         </p>
         <p className="admin-modal-sub">{campoSel?.nome} · {dataLeggibile}</p>
-        <button
-          className="pc-scelta-btn"
-          onClick={() => {
-            // La scelta si fa una volta per l'intero blocco.
-            const vicine = prenotazioniAdiacenti(oreDaAssegnare);
-            if (vicine.length > 0) {
-              setSceltaProlunga({ ore: [...oreDaAssegnare], vicine });
-              setOreDaAssegnare([]);
-            } else {
-              vaiAPrenotazione([...oreDaAssegnare], null);
-            }
-          }}
-        >
-          <strong>Prenota</strong><span>Per un socio o per un esterno</span>
-        </button>
-        <button
-          className="pc-scelta-btn riserva"
-          onClick={() => { setOreDaRiservare([...oreDaAssegnare]); setOreDaAssegnare([]); }}
-        >
-          <strong>Riserva</strong><span>Orario non prenotabile dai soci</span>
-        </button>
-        <button className="admin-modal-btn-cancel" style={{ marginTop: '.8rem' }} onClick={chiudiTutto}>
+        {/* ⚠️ Condizionati tutti e due, e per la stessa ragione: al
+            pannello si arriva con una mezz'ora sola solo quando c'e'
+            qualcosa di attaccato da allungare, e va offerto solo cio'
+            che si puo' davvero allungare. */}
+        {(oreDaAssegnare.length >= MINIMO_SLOT_NUOVA_PRENOTAZIONE
+          || prenotazioniAdiacenti(oreDaAssegnare).length > 0) && (
+          <button className="pc-scelta-btn" onClick={vaiAPrenotazione}>
+            <strong>Prenota</strong><span>Per un socio o per un esterno</span>
+          </button>
+        )}
+        {(oreDaAssegnare.length >= MINIMO_SLOT_NUOVA_PRENOTAZIONE
+          || riserveAdiacenti(oreDaAssegnare).length > 0) && (
+          <button className="pc-scelta-btn riserva" onClick={vaiARiserva}>
+            <strong>Riserva</strong><span>Orario non prenotabile dai soci</span>
+          </button>
+        )}
+        {/* Le condizioni si rivalutano a ogni disegno: se la
+            prenotazione accanto viene annullata mentre il pannello e'
+            aperto spariscono entrambi, e resterebbe una finestra muta. */}
+        {oreDaAssegnare.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE
+          && prenotazioniAdiacenti(oreDaAssegnare).length === 0
+          && riserveAdiacenti(oreDaAssegnare).length === 0 && (
+          <p className="admin-modal-sub">
+            Quello che c&apos;era qui accanto non c&apos;è più: da sola, questa mezz&apos;ora non si
+            può né prenotare né riservare. Tieni premuto sulla griglia e seleziona almeno un&apos;ora.
+          </p>
+        )}
+        <button className="admin-modal-btn-cancel" style={{ marginTop: '.8rem' }} onClick={() => { setOreDaAssegnare([]); setSelezioneMultipla([]); }}>
           Annulla
         </button>
       </Modal>
 
       {/* Prenotazione creata dall'admin */}
-      <Modal visible={oreDaPrenotare.length > 0} onClose={chiudiTutto}>
+      {/* Stessa ragione del modulo della riserva: qui si sceglie un
+          socio e si scrive un nome, e il click fuori chiudeva anche
+          mentre la scrittura era in volo. */}
+      <Modal visible={oreDaPrenotare.length > 0} onClose={() => {}}>
         <div className="admin-modal-title">Prenota come Circolo</div>
         <p className="admin-modal-sub">
           {oreDaPrenotare.length > 1
@@ -702,19 +1413,36 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         <div className="pc-toggle-row">
           <button
             className={`pc-toggle-btn${!modalitaEsterno ? ' selezionato' : ''}`}
-            onClick={() => { setModalitaEsterno(false); setNomeEsterno(''); }}
+            /* ⚠️ Si stacca SOLO se la modalita' cambia davvero:
+               prolungando la prenotazione di un socio il toggle e' gia'
+               qui, e cliccare il pulsante gia' selezionato — gesto
+               comunissimo — scioglieva il prolungamento senza cambiare
+               niente a schermo, spezzando la partita in due card. */
+            onClick={() => {
+              if (!modalitaEsterno) return;
+              staccaDalProlungamento(); setModalitaEsterno(false); setNomeEsterno('');
+            }}
           >Per un socio</button>
           <button
             className={`pc-toggle-btn${modalitaEsterno ? ' selezionato' : ''}`}
-            onClick={() => { setModalitaEsterno(true); setSocioScelto(null); setFiltroSocio(''); }}
+            onClick={() => {
+              if (modalitaEsterno) return;
+              staccaDalProlungamento(); setModalitaEsterno(true); setSocioScelto(null); setFiltroSocio('');
+            }}
           >Per un esterno</button>
         </div>
 
         {modalitaEsterno ? (
           <>
+            {/* ⚠️ Bloccato durante un prolungamento: il nome arriva gia'
+                scritto, e riscriverlo avrebbe prodotto una card sola con
+                due intestatari diversi. Per intestarla a un altro si
+                annulla e si rifa': e' una prenotazione diversa. */}
             <input
               className="admin-input" value={nomeEsterno}
               onChange={(e) => setNomeEsterno(e.target.value)}
+              disabled={prolungamento}
+              style={prolungamento ? { opacity: 0.6 } : undefined}
               placeholder="Nome e cognome dell'esterno"
             />
             <p className="admin-card-hint">
@@ -724,7 +1452,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         ) : socioScelto ? (
           <div className="admin-list-row">
             <div style={{ flex: 1, fontWeight: 700 }}>{socioScelto.nome} {socioScelto.cognome}</div>
-            <button className="admin-btn-small" onClick={() => { setSocioScelto(null); setFiltroSocio(''); }}>
+            <button className="admin-btn-small" onClick={() => { staccaDalProlungamento(); setSocioScelto(null); setFiltroSocio(''); }}>
               Cambia
             </button>
           </div>
@@ -736,7 +1464,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
               placeholder="Cerca Socio/Tesserato o Ospite…"
             />
             {risultatiSoci.map((so) => (
-              <div key={so.uid} className="admin-list-row admin-list-row-clickable" onClick={() => setSocioScelto(so)}>
+              <div key={so.uid} className="admin-list-row admin-list-row-clickable" onClick={() => { staccaDalProlungamento(); setSocioScelto(so); }}>
                 <div style={{ flex: 1 }}>
                   {so.nome} {so.cognome}
                   {so.ruoloTessera === 'ospite' && <span className="admin-etichetta-ospite"> (ospite)</span>}
@@ -750,6 +1478,23 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           </>
         )}
 
+        {/* ⚠️ I COMPAGNI, IN SOLA LETTURA. Prolungando la partita di un
+            socio che gioca con altri, quelle persone vengono addebitate
+            della loro quota anche sulla mezz'ora aggiunta: chi opera
+            deve vederlo prima di confermare, non scoprirlo dai reclami.
+            Non si toccano da qui: si cambiano dalla Card in Home, dove
+            valgono per tutta la prenotazione. */}
+        {giocatoriEreditati.length > 0 && (
+          <div className="pc-nota-giocatori">
+            <strong>In campo anche: {elencoNomi(giocatoriEreditati)}</strong>
+            <p className="admin-card-hint">
+              {senzaAddebito
+                ? 'Nessun addebito: né al socio né a loro.'
+                : 'La quota di queste mezz’ore sarà divisa fra tutti, e a ciascuno verrà scalata la sua.'}
+            </p>
+          </div>
+        )}
+
         {!modalitaEsterno && (
           <label className="pc-spunta-riga">
             <input type="checkbox" checked={senzaAddebito} onChange={(e) => setSenzaAddebito(e.target.checked)} />
@@ -758,7 +1503,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         )}
 
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={chiudiTutto} disabled={elaborando}>Annulla</button>
+          <button className="admin-modal-btn-cancel" onClick={chiudiPrenotazioneAdmin} disabled={elaborando}>Annulla</button>
           <button
             className="admin-modal-btn-confirm"
             onClick={confermaPrenotazione}
@@ -770,7 +1515,14 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       </Modal>
 
       {/* Riserva orario */}
-      <Modal visible={oreDaRiservare.length > 0} onClose={chiudiTutto}>
+      {/* ⚠️ IL BACKDROP NON CHIUDE QUESTO MODULO. Il `Modal` del web si
+          chiude a ogni click fuori dal riquadro: qui dentro ci sono
+          l'etichetta, la descrizione e i giorni gia' messi da parte, e
+          un click distratto a due centimetri buttava via tutta la
+          fatica che questa funzione esiste per risparmiare — senza
+          chiedere niente e senza modo di tornare indietro. Si esce dai
+          pulsanti, come sull'app, dove quel gesto non esiste. */}
+      <Modal visible={oreDaRiservare.length > 0} onClose={() => {}}>
         <div className="admin-modal-title">Riserva orario</div>
         <p className="admin-modal-sub">
           {oreDaRiservare.length > 1
@@ -778,6 +1530,41 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             : oreDaRiservare[0] ? fasciaOraria(oreDaRiservare[0]) : ''}
         </p>
         <p className="admin-modal-sub">{campoSel?.nome} · {dataLeggibile}</p>
+
+        {/* ⚠️ Gli altri giorni e gli altri campi gia' messi da parte:
+            una selezione sparsa non si puo' leggere dalla griglia, che
+            ne mostra una pagina alla volta, e senza questo elenco
+            l'Admin confermerebbe alla cieca. */}
+        {pezziRiserva.length > 0 && (
+          <div className="pc-riepilogo-riserva">
+            <strong>Già messi da parte</strong>
+            {blocchiDaiPezzi(pezziRiserva).map((g) => (
+              <div key={`${g.campoId}|${g.data}|${g.orari[0]}`} className="pc-riepilogo-riga">
+                <span style={{ flex: 1 }}>
+                  {g.dataLabel} · {g.campoNome} · {g.orari[0]} - {orarioFineSlot(g.orari[g.orari.length - 1])}
+                </span>
+                <button
+                  className="admin-btn-piccolo-rosso"
+                  onClick={() => setPezziRiserva((prec) => prec.filter((x) => !(
+                    x.campoId === g.campoId && x.data === g.data && g.orari.includes(x.orario)
+                  )))}
+                >
+                  Togli
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Un'etichetta sola per tutti i giorni: e' esattamente la
+            fatica che questa aggiunta esiste per togliere. */}
+        <button
+          className="pc-aggiungi-orari"
+          onClick={aggiungiAltriOrariAllaRiserva}
+          disabled={elaborando}
+        >
+          + Aggiungi altri giorni o campi
+        </button>
 
         <label className="admin-label">Etichetta</label>
         <input
@@ -800,10 +1587,14 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         </p>
 
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={chiudiTutto} disabled={elaborando}>Annulla</button>
+          <button className="admin-modal-btn-cancel" onClick={chiudiRiserva} disabled={elaborando}>Annulla</button>
           <button
             className="admin-modal-btn-confirm"
-            onClick={confermaRiserva}
+            /* ⚠️ Avvolto: il parametro `gia` non e' un evento del mouse.
+               Passandolo diretto, il click gli avrebbe consegnato
+               l'oggetto MouseEvent — che e' «vero» — saltando l'avviso
+               sulle prenotazioni sottostanti al primo tentativo. */
+            onClick={() => void confermaRiserva()}
             disabled={elaborando || !etichettaRiserva.trim()}
           >
             {elaborando ? 'Attendere…' : 'Riserva'}
@@ -812,14 +1603,113 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       </Modal>
 
       <Modal visible={!!bloccoInfo} onClose={() => setBloccoInfo(null)}>
+        {/* ⚠️ Tutto dal blocco VIVO, non dalla fotografia scattata
+            all'apertura: con i due mescolati il pop-up arrivava a dire
+            due cose diverse insieme, e poi a rifiutare. */}
         <div className="admin-modal-title">Orario riservato</div>
         <div className="admin-modal-sub">
-          {campi.find((c) => c.id === bloccoInfo?.campoId)?.nome} · {bloccoInfo?.orarioInizio} - {bloccoInfo?.orarioFine}
+          {campi.find((c) => c.id === bloccoVivo?.campoId)?.nome} · {bloccoVivo?.orarioInizio} - {bloccoVivo?.orarioFine}
         </div>
-        <p style={{ marginTop: '1rem', fontWeight: 700 }}>{bloccoInfo?.etichetta}</p>
+        <p style={{ marginTop: '1rem', fontWeight: 700 }}>{bloccoVivo?.etichetta}</p>
+        {!!bloccoVivo?.descrizione && (
+          <p className="admin-card-hint" style={{ textAlign: 'center' }}>{bloccoVivo.descrizione}</p>
+        )}
+        {/* ⚠️ TOGLIERE UNA MEZZ'ORA, dalle sole estremita': una riserva
+            e' un intervallo continuo, un documento solo, e togliere una
+            mezz'ora centrale vorrebbe dire spezzarla in due documenti
+            che nessuna schermata sa raccontare. Le ricorrenti restano
+            fuori: sono il sistema vecchio. */}
+        {!!bloccoInfo && !!bloccoVivo && bloccoVivo.tipo === 'data' && (
+          estremitaDellaRiserva(bloccoVivo, bloccoInfo.ora) ? (
+            <button
+              className="admin-btn-danger"
+              style={{ marginTop: '1rem', width: '100%' }}
+              disabled={elaborandoRiserva}
+              onClick={() => {
+                if (unaSolaMezzOra(bloccoVivo)) {
+                  setConferma({
+                    titolo: "Rimuovere l'orario riservato?",
+                    testo: `«${bloccoVivo.etichetta}» sparisce e lo slot torna prenotabile dai soci.`,
+                    etichetta: 'Rimuovi',
+                    azione: () => void togliMezzOraDallaRiserva(bloccoInfo.blocco, bloccoInfo.ora),
+                  });
+                  return;
+                }
+                void togliMezzOraDallaRiserva(bloccoInfo.blocco, bloccoInfo.ora);
+              }}
+            >
+              {unaSolaMezzOra(bloccoVivo)
+                ? "Rimuovi l'orario riservato"
+                : `Togli la mezz'ora delle ${bloccoInfo.ora}`}
+            </button>
+          ) : (
+            <p className="admin-card-hint" style={{ textAlign: 'center' }}>
+              Per accorciare questo orario riservato clicca la prima o l&apos;ultima mezz&apos;ora.
+            </p>
+          )
+        )}
         <button className="admin-modal-btn-cancel" onClick={() => setBloccoInfo(null)} style={{ marginTop: '1rem' }}>
           Chiudi
         </button>
+      </Modal>
+
+      {/* ============================================================
+          PROLUNGA LA RISERVA — gemello dello strato delle prenotazioni.
+          Prolungare non apre nessun modulo: la riserva ha gia' la sua
+          etichetta e la sua descrizione, ed erano proprio quelle che
+          l'Admin non doveva riscrivere ogni volta.
+          ============================================================ */}
+      <Modal visible={!!sceltaProlungaRiserva} onClose={() => { setSceltaProlungaRiserva(null); setSelezioneMultipla([]); }}>
+        <div className="admin-modal-title">C&apos;è già un orario riservato qui accanto</div>
+        <p className="admin-modal-sub">Vuoi allungarlo, oppure è una riserva a sé?</p>
+        {sceltaProlungaRiserva?.vicine.map((b) => (
+          <button
+            key={b.id}
+            className="pc-scelta-btn"
+            disabled={elaborandoRiserva}
+            onClick={() => prolungaRiserva(b, sceltaProlungaRiserva.ore)}
+          >
+            <strong>Allunga «{b.etichetta}»</strong>
+            <span>{b.orarioInizio} - {b.orarioFine}</span>
+          </button>
+        ))}
+        {(sceltaProlungaRiserva?.ore.length ?? 0) >= MINIMO_SLOT_NUOVA_PRENOTAZIONE && (
+          <button
+            className="pc-scelta-btn nuova"
+            disabled={elaborandoRiserva}
+            onClick={() => {
+              const ore = sceltaProlungaRiserva?.ore ?? [];
+              setSceltaProlungaRiserva(null);
+              setOreDaRiservare([...ore]);
+              setEtichettaRiserva(''); setDescrizioneRiserva('');
+            }}
+          >
+            <strong>È una riserva nuova</strong>
+            <span>Non verrà unita a quella accanto</span>
+          </button>
+        )}
+        <button
+          className="admin-modal-btn-cancel"
+          style={{ marginTop: '.8rem', width: '100%' }}
+          onClick={() => { setSceltaProlungaRiserva(null); setSelezioneMultipla([]); }}
+        >
+          Annulla
+        </button>
+      </Modal>
+
+      {/* La conferma a due pulsanti: vedi la nota sullo stato `conferma`. */}
+      <Modal visible={!!conferma} onClose={() => setConferma(null)}>
+        <div className="admin-modal-title">{conferma?.titolo}</div>
+        <p className="admin-modal-sub">{conferma?.testo}</p>
+        <div className="admin-modal-btn-row">
+          <button className="admin-modal-btn-cancel" onClick={() => setConferma(null)}>Annulla</button>
+          <button
+            className="admin-btn-danger"
+            onClick={() => { const a = conferma?.azione; setConferma(null); a?.(); }}
+          >
+            {conferma?.etichetta}
+          </button>
+        </div>
       </Modal>
 
       <Modal visible={!!sfidaInfo} onClose={() => setSfidaInfo(null)}>
