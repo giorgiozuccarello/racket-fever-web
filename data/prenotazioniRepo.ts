@@ -377,7 +377,26 @@ export async function prenotaEsternoDaAdmin(params: {
 // entrambi i ruoli. Serve per verificare il limite settimanale anche
 // dell'ALTRA persona coinvolta in una prenotazione condivisa (compagno
 // di gioco, Sfida), che altrimenti nessuno controllerebbe mai.
-export async function contaPrenotazioniSettimana(uid: string, inizio: string, fine: string): Promise<number> {
+//
+// ⚠️ IL CIRCOLO È OBBLIGATORIO, E NON È UN DETTAGLIO DI PULIZIA: senza,
+// questa funzione non rispondeva affatto. Le tre interrogazioni qui sotto
+// chiedevano le prenotazioni di un socio in TUTTI i circoli, mentre le
+// regole Firestore permettono di leggere una prenotazione solo a chi è
+// membro del circolo di quella prenotazione. Su una lista, Firestore
+// rifiuta l'intera richiesta se anche un solo documento non passa: bastava
+// che il compagno avesse una tessera in un secondo circolo — il Circolo
+// dimostrativo, per dire — perché la lettura venisse negata in blocco.
+// E il rifiuto finiva in un `catch` che scriveva una riga nel registro e
+// lasciava proseguire: il controllo del limite dei compagni sembrava
+// esserci e non c'era. È il difetto segnalato da Giorgio il 25 agosto 2026.
+//
+// ⚠️ E il conto per circolo è anche l'unico corretto: il limite
+// settimanale è una regola DI QUEL circolo. Contando tutti i circoli, le
+// ore giocate a Milazzo mangiavano il limite di un altro circolo, e
+// viceversa.
+export async function contaPrenotazioniSettimana(
+  uid: string, circoloId: string, inizio: string, fine: string
+): Promise<number> {
   // ⚠️ TRE interrogazioni e non due. L'ora di gioco pesa sul limite
   // settimanale di TUTTI quelli che scendono in campo, non solo di chi
   // prenota: senza, un gruppo di quattro gioca tutti i giorni facendo
@@ -385,9 +404,15 @@ export async function contaPrenotazioniSettimana(uid: string, inizio: string, fi
   // suggerimento. La terza serve alle prenotazioni fatte con il vecchio
   // modello a un compagno solo, che non hanno l'elenco dei giocatori e
   // sparirebbero dal conto il giorno dell'aggiornamento.
-  const q1 = query(collection(db, 'prenotazioni'), where('utenteId', '==', uid));
-  const q2 = query(collection(db, 'prenotazioni'), where('giocatoriIds', 'array-contains', uid));
-  const q3 = query(collection(db, 'prenotazioni'), where('compagnoId', '==', uid));
+  //
+  // Sono le stesse tre di `BookingsContext`, con lo stesso filtro sul
+  // circolo: l'indice composto che serve alla seconda
+  // (giocatoriIds array-contains + circoloId) è già in
+  // `firestore.indexes.json`, messo lì per quella. Le altre due hanno due
+  // soli confronti di uguaglianza e Firestore le serve senza indice.
+  const q1 = query(collection(db, 'prenotazioni'), where('utenteId', '==', uid), where('circoloId', '==', circoloId));
+  const q2 = query(collection(db, 'prenotazioni'), where('giocatoriIds', 'array-contains', uid), where('circoloId', '==', circoloId));
+  const q3 = query(collection(db, 'prenotazioni'), where('compagnoId', '==', uid), where('circoloId', '==', circoloId));
   const [snap1, snap2, snap3] = await Promise.all([getDocs(q1), getDocs(q2), getDocs(q3)]);
   const ids = new Set<string>();
   // Un insieme e non una somma: la stessa mezz'ora puo' arrivare da due
@@ -401,15 +426,10 @@ export async function contaPrenotazioniSettimana(uid: string, inizio: string, fi
   return ids.size * 0.5;
 }
 
-// Calcola il limite settimanale effettivo di un socio: il suo limite
-// personale (se impostato) sostituisce quello generale del circolo.
-export function limiteEffettivoDi(
-  socio: { limitePrenotazioniPersonale?: number },
-  limiteOreSettimanali: number
-): number {
-  const personale = socio.limitePrenotazioniPersonale ?? 0;
-  return personale > 0 ? personale : limiteOreSettimanali;
-}
+// ⚠️ QUI STAVA `limiteEffettivoDi`, che sceglieva fra il limite personale
+// di un socio e quello del circolo. Tolta il 25 agosto 2026 insieme al
+// limite personale: da oggi il limite settimanale è uno solo, quello del
+// circolo, e si legge direttamente da `circolo.limiteOreSettimanali`.
 
 // Un rimborso ESTINGUE PRIMA IL DEBITO, e solo l'eccedenza torna sul
 // credito. Senza questa regola un socio che aveva pagato col credito

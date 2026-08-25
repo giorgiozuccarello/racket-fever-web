@@ -36,7 +36,6 @@ export interface ProfiloUtente {
   fotoUrl?: string | null; // se assente, si mostrano le iniziali nel cerchio
   limiteRicaricaSOS?: number; // 0/assente = Fido non ancora concesso a questo socio
   sosUtilizzato?: number; // quanto del Fido è già stato usato dall'ultimo Ripristino
-  limitePrenotazioniPersonale?: number; // 0/assente = usa il limite generale del circolo
   classificaFitp?: string | null; // dichiarata dal socio stesso, es. "3.4" o "NC" — non verificata
   posizioneClassificaSociale?: number | null; // assente = il socio non è (ancora) in classifica
   preferenzeSfide?: { giorni: number[]; oraInizio: string; oraFine: string } | null; // 3 giorni (0=Dom...6=Sab) + fascia di 6h
@@ -209,7 +208,6 @@ export function ascoltaSociCircolo(circoloId: string, callback: (soci: SocioCirc
         credito: t.credito ?? 0,
         sosUtilizzato: t.sosUtilizzato ?? 0,
         limiteRicaricaSOS: t.limiteRicaricaSOS ?? 0,
-        limitePrenotazioniPersonale: t.limitePrenotazioniPersonale ?? 0,
         posizioneClassificaSociale: t.posizioneClassificaSociale ?? null,
         ruoloTessera: t.ruolo ?? 'socio_tesserato',
         statoTessera: t.stato ?? 'approvata',
@@ -261,12 +259,15 @@ export async function aggiornaLimiteSOS(uid: string, circoloId: string, limite: 
   await updateDoc(doc(db, 'tessere', `${uid}_${circoloId}`), { limiteRicaricaSOS: limite });
 }
 
-// Limite di prenotazioni settimanali specifico per un socio — se
-// impostato (> 0), sostituisce quello generale del circolo solo per
-// lui. 0 = usa il limite del circolo.
-export async function aggiornaLimitePersonale(uid: string, circoloId: string, limite: number) {
-  await updateDoc(doc(db, 'tessere', `${uid}_${circoloId}`), { limitePrenotazioniPersonale: limite });
-}
+// ⚠️ QUI STAVA `aggiornaLimitePersonale`, che scriveva sulla tessera un
+// limite settimanale valido solo per quel socio. Tolta il 25 agosto
+// 2026 per decisione di Giorgio: il limite e' UNO SOLO ed e' quello del
+// circolo. Avere due limiti sovrapposti voleva dire che la stessa
+// domanda — «quante ore posso prenotare?» — aveva due risposte a
+// seconda di dove la si leggeva, e il socio non aveva modo di sapere
+// quale delle due lo stesse fermando.
+// Il campo puo' essere rimasto scritto su qualche tessera vecchia: non
+// lo legge piu' nessuno.
 
 // L'Admin usa questo quando il socio è passato fisicamente in
 // segreteria a saldare quanto usato di Fido: azzera il contatore,

@@ -44,7 +44,6 @@ export interface Tessera {
   credito: number;
   sosUtilizzato: number;
   limiteRicaricaSOS?: number;
-  limitePrenotazioniPersonale?: number;
   posizioneClassificaSociale?: number | null;
   temaAppPersonale?: string | null; // tema scelto dal socio PER QUESTO circolo
   // Telefono lasciato dal richiedente per essere ricontattato sull'esito.
@@ -153,7 +152,6 @@ function normalizza(id: string, v: Record<string, unknown>): Tessera {
     credito: (v.credito as number) ?? 0,
     sosUtilizzato: (v.sosUtilizzato as number) ?? 0,
     limiteRicaricaSOS: (v.limiteRicaricaSOS as number) ?? 0,
-    limitePrenotazioniPersonale: (v.limitePrenotazioniPersonale as number) ?? 0,
     posizioneClassificaSociale: (v.posizioneClassificaSociale as number | null) ?? null,
     temaAppPersonale: (v.temaAppPersonale as string | null) ?? null,
     telefono: (v.telefono as string | null) ?? null,
@@ -376,10 +374,6 @@ export async function azzeraSosTessera(uid: string, circoloId: string): Promise<
 
 export async function impostaLimiteSosTessera(uid: string, circoloId: string, limite: number): Promise<void> {
   await updateDoc(doc(db, 'tessere', idTessera(uid, circoloId)), { limiteRicaricaSOS: limite });
-}
-
-export async function impostaLimitePersonaleTessera(uid: string, circoloId: string, limite: number): Promise<void> {
-  await updateDoc(doc(db, 'tessere', idTessera(uid, circoloId)), { limitePrenotazioniPersonale: limite });
 }
 
 export async function impostaPosizioneClassificaTessera(

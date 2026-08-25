@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SocioCircolo, aggiornaLimitePersonale, ripristinaSOS, etaDaAnno } from '../../../data/users';
+import { SocioCircolo, ripristinaSOS, etaDaAnno } from '../../../data/users';
 import { creaNotifica } from '../../../data/notifiche';
 import {
   ricaricaCredito, azzeraCredito, cancellaConRimborso, importoDaRimborsare, PrenotazioneAdmin,
@@ -15,8 +15,6 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
   const [ricaricaAperta, setRicaricaAperta] = useState(false);
   const [importo, setImporto] = useState('');
   const [inviando, setInviando] = useState(false);
-  const [limitePersonale, setLimitePersonale] = useState(socio?.limitePrenotazioniPersonale ?? 0);
-  const [salvandoLimite, setSalvandoLimite] = useState(false);
   const [confermaRipristinoAperta, setConfermaRipristinoAperta] = useState(false);
   const [ripristinando, setRipristinando] = useState(false);
   const [confermaAzzeraAperta, setConfermaAzzeraAperta] = useState(false);
@@ -138,13 +136,6 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
     setInviando(false);
     setRicaricaAperta(false);
     setImporto('');
-  };
-
-  const salvaLimitePersonale = async (v: number) => {
-    if (!socio) return;
-    setSalvandoLimite(true);
-    await aggiornaLimitePersonale(socio.uid, circoloId, v);
-    setSalvandoLimite(false);
   };
 
   const confermaRipristino = async () => {
@@ -275,24 +266,15 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
               restituendogli tutto il plafond.
             </p>
 
-            <div className="socio-sos-box">
-              <label className="admin-label">Limite prenotazioni settimanali (personale)</label>
-              <p className="admin-card-hint" style={{ marginBottom: '.6rem' }}>
-                Sostituisce, solo per questo socio, il limite generale del circolo.
-              </p>
-              <div className="socio-sos-valore">
-                {(socio.limitePrenotazioniPersonale ?? 0) === 0
-                  ? 'Usa il limite del circolo'
-                  : `${socio.limitePrenotazioniPersonale} ${socio.limitePrenotazioniPersonale === 1 ? 'ora' : 'ore'} / settimana`}
-              </div>
-              <input
-                type="range" min={0} max={10} step={1}
-                value={socio.limitePrenotazioniPersonale ?? 0}
-                onChange={(e) => salvaLimitePersonale(Number(e.target.value))}
-                style={{ width: '100%' }}
-              />
-              {salvandoLimite && <div className="admin-saving">Salvataggio…</div>}
-            </div>
+            {/* ⚠️ QUI STAVA IL «Limite prenotazioni settimanali
+                (personale)», tolto il 25 agosto 2026 per decisione di
+                Giorgio, insieme al gemello della dashboard mobile. Dava a
+                un singolo socio un limite diverso da quello del circolo, e
+                il risultato era che la stessa domanda — «quante ore posso
+                prenotare?» — aveva due risposte a seconda di dove la si
+                leggeva. Da oggi il limite è UNO SOLO, quello del circolo,
+                e si imposta nella sezione «Limite prenotazioni
+                settimanali». */}
 
             <div className="superadmin-subtitolo" style={{ marginTop: '1.4rem' }}>
               {eOspite ? 'Qualifica di Ospite' : 'Appartenenza al circolo'}

@@ -23,8 +23,14 @@ export default function SezioneLimite({ circolo }: { circolo: Circolo }) {
       <div className="admin-slider-value">
         {valore === 0 ? 'Nessun limite' : `${valore} ${valore === 1 ? 'ora' : 'ore'} / settimana`}
       </div>
+      {/* ⚠️ Il massimo è 16 ore e non più 48 (decisione di Giorgio del 25
+          agosto 2026), identico alla dashboard mobile. Quarantotto ore in
+          una settimana non sono un limite: metà corsa dello slider serviva
+          a valori che nessun circolo avrebbe mai messo, e la metà utile —
+          da due a otto ore — stava schiacciata in pochi pixel.
+          Il passo resta di 2 ore, come prima. */}
       <input
-        className="admin-slider" type="range" min={0} max={48} step={2}
+        className="admin-slider" type="range" min={0} max={16} step={2}
         value={valore}
         onChange={(e) => setValore(Number(e.target.value))}
         onMouseUp={() => salva(valore)}
