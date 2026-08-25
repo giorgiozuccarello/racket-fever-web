@@ -8,7 +8,7 @@ import { allineaProfiliCircolo } from '../../../data/tessere';
 import { leggiResponsabile, ProfiloResponsabile } from '../../../data/responsabili';
 import { leggiSessioneCollaboratore, sessioneScaduta } from '../../../data/collaboratori';
 import { ascoltaSociCircolo, SocioCircolo } from '../../../data/users';
-import { Circolo, Campo, Blocco, statoCircolo, attivazioneCircoloMs } from '../../../data/circoli';
+import { Circolo, Campo, Blocco, statoCircolo, attivazioneCircoloMs, limiteFidoDi } from '../../../data/circoli';
 import { ascoltaCircolo, ascoltaCampi, ascoltaBlocchi } from '../../../data/circoliRepo';
 import { ascoltaPrenotazioniCircolo, PrenotazioneAdmin } from '../../../data/prenotazioniRepo';
 import { Sfida, ascoltaSfideCircolo, risolviTimerAccordo, risolviTimerPrenotazione } from '../../../data/sfide';
@@ -26,6 +26,8 @@ import SezioneTornei from './SezioneTornei';
 import SezioneBacheca from './SezioneBacheca';
 import SezioneLimite from './SezioneLimite';
 import SezioneLimiteCancellazione from './SezioneLimiteCancellazione';
+import SezioneFido from './SezioneFido';
+import SezioneBonifico from './SezioneBonifico';
 import SezionePrezzi from './SezionePrezzi';
 import SezioneBlocchi from './SezioneBlocchi';
 import SezioneRichiesteTessera from './SezioneRichiesteTessera';
@@ -296,6 +298,12 @@ export default function AdminDashboard() {
         <SezioneCollassabile id="limite" titolo="Limite Prenotazioni" descrizione="Limite di prenotazioni settimanali per socio">
           <SezioneLimite circolo={circolo} />
         </SezioneCollassabile>
+        <SezioneCollassabile id="fido" titolo="Fido" descrizione="Quanto può andare a debito un socio quando il credito non basta">
+          <SezioneFido circolo={circolo} />
+        </SezioneCollassabile>
+        <SezioneCollassabile id="bonifico" titolo="Dati per il bonifico" descrizione="Il conto su cui i soci versano per ricaricare il credito">
+          <SezioneBonifico circolo={circolo} />
+        </SezioneCollassabile>
         <SezioneCollassabile id="limite-cancellazione" titolo="Limite Cancellazione Prenotazioni Campi" descrizione="Entro quante ore prima un socio può disdire un campo">
           <SezioneLimiteCancellazione circolo={circolo} />
         </SezioneCollassabile>
@@ -349,6 +357,7 @@ export default function AdminDashboard() {
         </SezioneCollassabile>
         <SchedaSocioModal
           circoloId={circolo.id}
+          limiteFido={limiteFidoDi(circolo)}
           socio={socioSelUid ? soci.find((x) => x.uid === socioSelUid) ?? null : null}
           prenotazioni={prenotazioni}
           onClose={() => setSocioSelUid(null)}

@@ -348,7 +348,11 @@ export function riepilogoPersone(
 export interface RiepilogoDenaro {
   creditoInGiacenza: number;
   debiti: number;
-  fidoConcesso: number;
+  // ⚠️ QUI STAVA `fidoConcesso`, la somma dei tetti di Fido di tutti i
+  // soci. Tolto il 25 agosto 2026 perché quella somma non esiste più:
+  // il Fido non è più un numero per socio ma uno solo per circolo, e
+  // sommarlo su tutte le tessere non vorrebbe dire niente. Il valore
+  // si legge nella sezione «Fido» della dashboard, dove lo si imposta.
   // La parte dei due totali qui sopra che NON si ritrova negli elenchi
   // sotto, perche' appartiene a tessere chiuse, rifiutate o ancora in
   // attesa. Senza questo numero si legge «€ 340,00 di debiti aperti» e
@@ -366,7 +370,7 @@ function centesimi(n: number): number {
 }
 
 export function riepilogoDenaro(tessere: Tessera[]): RiepilogoDenaro {
-  let credito = 0, debiti = 0, fido = 0;
+  let credito = 0, debiti = 0;
   let debitiFuori = 0, creditoFuori = 0, posizioniFuori = 0;
   for (const t of tessere) {
     if (!inElenco(t)) {
@@ -382,12 +386,10 @@ export function riepilogoDenaro(tessere: Tessera[]): RiepilogoDenaro {
     // bilancio proprio le posizioni aperte con chi se n'è andato.
     credito += t.credito ?? 0;
     debiti += t.sosUtilizzato ?? 0;
-    fido += t.limiteRicaricaSOS ?? 0;
   }
   return {
     creditoInGiacenza: centesimi(credito),
     debiti: centesimi(debiti),
-    fidoConcesso: centesimi(fido),
     debitiFuoriElenco: centesimi(debitiFuori),
     creditoFuoriElenco: centesimi(creditoFuori),
     posizioniFuoriElenco: posizioniFuori,

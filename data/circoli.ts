@@ -14,6 +14,21 @@ export interface Circolo {
   password: string;
   temaApp: string; // chiave di uno degli 8 TEMI_APP — scelto dall'Admin, vale anche per i Maestri
   limiteOreSettimanali: number; // 0 = nessun limite
+  // ⚠️ IL FIDO, E STA QUI PERCHÉ È UNO SOLO PER TUTTO IL CIRCOLO.
+  // Fino al 25 agosto 2026 il tetto del Fido era un campo sulla TESSERA,
+  // cioè uno per socio, e nessuna schermata lo scriveva più: era rimasto
+  // a zero per tutti, e intanto la copertura automatica in prenotazione
+  // non aveva nessun tetto affatto. Il Fido era rotto nelle due
+  // direzioni opposte insieme.
+  // Adesso è un numero solo, deciso dall'Admin, uguale per ogni socio:
+  //   0  → Fido spento (è il valore di partenza)
+  //  -1  → illimitato
+  //  >0  → quanti euro di Fido ha a disposizione CIASCUN socio
+  // ⚠️ Si legge sempre con `limiteFidoDi()`, mai direttamente: sui
+  // documenti dei circoli che esistevano prima il campo non c'è, e
+  // `undefined` in un confronto numerico non è zero — è una risposta
+  // sbagliata a ogni domanda.
+  limiteFido?: number;
   logoUrl?: string | null; // se assente, si mostra la sigla nel cerchio
   // Immagine dello sponsor, in cima alla Classifica Sfide e in Home
   // sotto le tre caselle. Sempre 3:1 — il ritaglio e' imposto in fase
@@ -570,4 +585,88 @@ export function attivazioneCircoloMs(
 // ============================================================
 export function sfideAccese(circolo?: { sfideAttive?: boolean } | null): boolean {
   return circolo?.sfideAttive !== false;
+}
+
+
+// ============================================================
+// IL FIDO — le regole di lettura di quel numero, in un posto solo.
+//
+// Il Fido è il prestito che il circolo fa al socio quando il credito
+// non basta a pagare una prenotazione: non è denaro inventato, è un
+// debito verso il circolo che si salda in segreteria. Per questo il
+// tetto lo decide il circolo e non il socio, ed è uguale per tutti.
+//
+// ⚠️ Tre valori e non due, e il terzo è quello che si dimentica:
+// «spento» e «illimitato» sono agli estremi opposti e sono TUTTI E DUE
+// casi limite. Scritti a mano ogni volta che servono, prima o poi uno
+// dei due viene trattato come l'altro — ed è la differenza fra «non
+// puoi prenotare» e «prenota quanto vuoi».
+// ============================================================
+
+export const FIDO_SPENTO = 0;
+export const FIDO_ILLIMITATO = -1;
+// Il massimo impostabile con lo slider, in euro. Oltre c'è solo lo
+// scatto «Illimitato», che vale -1 e non 55.
+export const FIDO_MASSIMO = 50;
+export const FIDO_PASSO = 5;
+// L'ultimo scatto dello slider: uno in più del massimo in euro, ed è
+// quello che significa «Illimitato».
+export const FIDO_SLIDER_MAX = FIDO_MASSIMO + FIDO_PASSO;
+
+// Il limite del circolo, con il ripiego giusto: i circoli che
+// esistevano prima di questo campo non ce l'hanno, e per loro il Fido
+// è spento finché l'Admin non decide altrimenti.
+export function limiteFidoDi(circolo: { limiteFido?: number } | null | undefined): number {
+  const v = circolo?.limiteFido;
+  if (typeof v !== 'number' || Number.isNaN(v)) return FIDO_SPENTO;
+  return v < 0 ? FIDO_ILLIMITATO : v;
+}
+
+// Quanto Fido resta a un socio. ⚠️ Restituisce Infinity quando il Fido
+// è illimitato: chi lo mostra a schermo deve chiedere prima
+// `fidoIllimitato()`, o scriverà «€ Infinity».
+export function fidoResiduo(limite: number, usato: number): number {
+  if (limite === FIDO_ILLIMITATO) return Number.POSITIVE_INFINITY;
+  if (limite <= 0) return 0;
+  return Math.max(0, Math.round((limite - (usato || 0)) * 100) / 100);
+}
+
+export function fidoIllimitato(limite: number): boolean {
+  return limite === FIDO_ILLIMITATO;
+}
+
+// La domanda vera: con questo Fido e questo debito, ci stanno ancora
+// `servono` euro di scoperto?
+// ⚠️ Il confronto è con una tolleranza di mezzo centesimo. Le quote
+// divise in tre o in quattro non tornano mai esatte, e senza tolleranza
+// una prenotazione da 10,00 divisa per tre veniva rifiutata per un
+// millesimo di euro — con un messaggio che parlava di Fido esaurito
+// mentre a schermo i due numeri erano identici.
+export function fidoCopre(limite: number, usato: number, servono: number): boolean {
+  if (servono <= 0.005) return true;
+  if (limite === FIDO_ILLIMITATO) return true;
+  if (limite <= 0) return false;
+  return servono <= fidoResiduo(limite, usato) + 0.005;
+}
+
+// Come si scrive quel numero a schermo. Una sola frase, usata sia
+// dall'Admin che dal socio, così le due schermate non possono dire due
+// cose diverse dello stesso valore.
+export function etichettaFido(limite: number): string {
+  if (limite === FIDO_ILLIMITATO) return 'Illimitato';
+  if (limite <= 0) return 'Fido spento';
+  return `€ ${limite} per socio`;
+}
+
+// Slider ⇄ valore salvato. Lo slider non conosce il -1: corre da 0 a
+// FIDO_SLIDER_MAX a scatti di FIDO_PASSO, e l'ultimo scatto è
+// «Illimitato».
+export function fidoDaSlider(posizione: number): number {
+  return posizione > FIDO_MASSIMO ? FIDO_ILLIMITATO : Math.max(0, Math.round(posizione));
+}
+
+export function fidoASlider(limite: number): number {
+  if (limite === FIDO_ILLIMITATO) return FIDO_SLIDER_MAX;
+  if (limite <= 0) return 0;
+  return Math.min(FIDO_MASSIMO, limite);
 }

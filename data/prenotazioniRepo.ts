@@ -11,7 +11,7 @@ import { db, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
 import { registraMovimentoInTransazione, registraMovimentoSemplice } from './movimenti';
 import { idTessera } from './tessere';
-import { orarioFineSlot } from './circoli';
+import { orarioFineSlot, limiteFidoDi, fidoCopre } from './circoli';
 import { raggruppaConsecutive } from './raggruppamento';
 import {
   Giocatore, ModificaGiocatori, MAX_GIOCATORI_AGGIUNTI, giocatoriDi, quotaChiPrenota,
@@ -106,11 +106,21 @@ export async function prenotaConCredito(params: {
     // ci fermiamo.
     const slotSnap = await tx.get(prenotazioneRef);
     if (slotSnap.exists()) throw new Error(SLOT_OCCUPATO);
+    // ⚠️ Il tetto del Fido, letto qui dentro e non passato da fuori. Sta
+    // fra le LETTURE e non fra le scritture: una transazione Firestore
+    // vuole tutte le letture prima della prima scrittura, e messa più in
+    // basso avrebbe fatto fallire ogni prenotazione con un errore che
+    // del Fido non parla affatto.
+    const circoloSnap = await tx.get(doc(db, 'circoli', params.circoloId));
 
     const creditoAttuale = (utenteSnap.data().credito as number) ?? 0;
     const sosAttuale = (utenteSnap.data().sosUtilizzato as number) ?? 0;
     const { daCredito, daSOS } = calcolaAddebitoConSOS(creditoAttuale, params.prezzo);
     sosUsato = daSOS > 0;
+    // ⚠️ TERZA PORTA — vedi il riquadro su FIDO_INSUFFICIENTE.
+    if (!fidoCopre(limiteFidoDi(circoloSnap.data() as any), sosAttuale, daSOS)) {
+      throw new Error(FIDO_INSUFFICIENTE);
+    }
 
     tx.update(utenteRef, {
       credito: creditoAttuale - daCredito,
@@ -454,6 +464,38 @@ export function applicaRimborso(
   };
 }
 
+
+// ============================================================
+// ⚠️ IL TETTO DEL FIDO, CONTROLLATO DENTRO LA TRANSAZIONE.
+//
+// È la terza porta, dopo le due della schermata di prenotazione. Le
+// prime due guardano prima di scrivere e sono quelle che parlano
+// all'utente; questa guarda NEL MOMENTO in cui scrive, ed è l'unica che
+// vede il credito vero.
+//
+// Serve contro una cosa che le altre due non possono vedere: due
+// telefoni che prenotano insieme. Entrambi leggono lo stesso debito,
+// entrambi concludono che il Fido basta, e la somma sfonda. Dentro la
+// transazione il secondo rilegge e si ferma.
+//
+// ⚠️ Il tetto si legge DAL DOCUMENTO DEL CIRCOLO qui dentro, e non
+// arriva come parametro: un numero passato da chi chiama è un numero
+// che chi chiama può cambiare.
+//
+// ⚠️ Questo NON rende il tetto inviolabile. La transazione la esegue il
+// telefono, e un'app modificata può semplicemente non fare il
+// controllo: le uniche difese vere sarebbero le regole Firestore o una
+// Cloud Function. È una scelta consapevole, la stessa fatta per il
+// limite settimanale — chi sfonda si prende prenotazioni che gli
+// vengono addebitate comunque, e il debito resta scritto nero su bianco
+// in «Debiti Soci».
+//
+// ⚠️ E l'Admin non è soggetto al tetto: quando è il circolo a prenotare
+// per un socio, il circolo sta decidendo di concedere quel debito. È lo
+// stesso principio del limite settimanale.
+// ============================================================
+export const FIDO_INSUFFICIENTE = 'FIDO_INSUFFICIENTE';
+
 export function calcolaAddebitoConSOS(creditoAttuale: number, importo: number): { daCredito: number; daSOS: number } {
   const daCredito = Math.min(creditoAttuale, importo);
   const daSOS = Math.round((importo - daCredito) * 100) / 100;
@@ -553,6 +595,14 @@ export async function prenotaConGiocatori(params: {
     // ci fermiamo.
     const slotSnap = await tx.get(prenotazioneRef);
     if (slotSnap.exists()) throw new Error(SLOT_OCCUPATO);
+    // ⚠️ Il tetto del Fido, letto qui dentro e non passato da fuori.
+    // Sta fra le LETTURE: Firestore le vuole tutte prima della prima
+    // scrittura.
+    const circoloSnap = await tx.get(doc(db, 'circoli', params.circoloId));
+    const limiteFido = limiteFidoDi(circoloSnap.data() as any);
+    // Quando prenota il circolo il tetto non si applica: è il circolo
+    // stesso a decidere di concedere quel debito.
+    const guardaIlFido = !params.daAdmin;
 
     // --- scritture ---
     const nomeChiPrenota = `${params.utenteNome} ${params.utenteCognome}`;
@@ -562,6 +612,11 @@ export async function prenotaConGiocatori(params: {
     const sosUtente = (utenteSnap.data()!.sosUtilizzato as number) ?? 0;
     const mio = calcolaAddebitoConSOS(creditoUtente, miaQuota);
     sosUsatoUtente = mio.daSOS > 0;
+    // ⚠️ TERZA PORTA, per chi prenota — vedi il riquadro su
+    // FIDO_INSUFFICIENTE.
+    if (guardaIlFido && !fidoCopre(limiteFido, sosUtente, mio.daSOS)) {
+      throw new Error(FIDO_INSUFFICIENTE);
+    }
     tx.update(utenteRef, {
       credito: creditoUtente - mio.daCredito,
       ...(sosUsatoUtente ? { sosUtilizzato: sosUtente + mio.daSOS } : {}),
@@ -596,6 +651,12 @@ export async function prenotaConGiocatori(params: {
       const credito = (snapAltri[i].data()!.credito as number) ?? 0;
       const sos = (snapAltri[i].data()!.sosUtilizzato as number) ?? 0;
       const suo = calcolaAddebitoConSOS(credito, quotaCiascuno);
+      // ⚠️ TERZA PORTA, per ogni compagno. Il nome viaggia nel messaggio
+      // d'errore: la schermata deve poter dire CHI si è fermato, non
+      // «qualcuno».
+      if (guardaIlFido && !fidoCopre(limiteFido, sos, suo.daSOS)) {
+        throw new Error(`${FIDO_INSUFFICIENTE}:${g.nome} ${g.cognome}`.trim());
+      }
       if (suo.daSOS > 0) sosUsatoDaAltri.push(g.uid);
       tx.update(rifAltri[i], {
         credito: credito - suo.daCredito,
@@ -1123,17 +1184,14 @@ export async function azzeraCredito(
   await chiama({ tipo: 'azzeramento', uid, circoloId });
 }
 
-// Ricarica col Fido, self-service del socio: aggiorna credito E il
-// contatore di quanto Fido è stato consumato, in un'unica
-// transazione atomica (le due cose devono sempre restare coerenti).
-export async function ricaricaSOS(uid: string, circoloId: string, importo: number, socioNome?: string): Promise<void> {
-  // ⚠️ Il TETTO del Fido lo controlla il server. Prima lo guardava solo
-  // la schermata: un client modificato poteva prestarsi quanto voleva —
-  // non denaro inventato, ma un debito verso il circolo che il circolo
-  // non aveva acconsentito a concedere.
-  const chiama = httpsCallable(functions, 'ricaricaFido');
-  await chiama({ circoloId, importo });
-}
+// ⚠️ QUI STAVA `ricaricaSOS`, con cui il socio si prestava denaro dal
+// circolo di propria iniziativa. Tolta il 25 agosto 2026 insieme alla
+// Cloud Function `ricaricaFido` che la serviva e al campo per socio
+// `limiteRicaricaSOS` che le faceva da tetto.
+// Il Fido non si «ricarica» piu': interviene da solo in prenotazione
+// quando il credito non basta, fino al tetto che il circolo ha deciso
+// (`limiteFido`), e si salda in segreteria. Per aggiungere credito vero
+// il socio fa un bonifico al circolo.
 // ---------------- Vista Admin: tutte le prenotazioni del circolo ----------------
 
 export interface PrenotazioneAdmin {

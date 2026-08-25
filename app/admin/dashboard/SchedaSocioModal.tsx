@@ -7,10 +7,14 @@ import {
   ricaricaCredito, azzeraCredito, cancellaConRimborso, importoDaRimborsare, PrenotazioneAdmin,
 } from '../../../data/prenotazioniRepo';
 import { anteprimaRimozione, rimuoviSocioDaCircolo } from '../../../data/tessere';
+import { fidoIllimitato } from '../../../data/circoli';
 import Modal from './Modal';
 
-export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClose }: {
+export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClose, limiteFido }: {
   circoloId: string; socio: SocioCircolo | null; prenotazioni: PrenotazioneAdmin[]; onClose: () => void;
+  // Il tetto del Fido del circolo: serve solo a scrivere «usato/tetto»
+  // accanto al debito del socio.
+  limiteFido: number;
 }) {
   const [ricaricaAperta, setRicaricaAperta] = useState(false);
   const [importo, setImporto] = useState('');
@@ -235,7 +239,9 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
                   <span style={{ color: (socio.sosUtilizzato ?? 0) > 0 ? '#B3261E' : 'var(--inchiostro)' }}>
                     € {socio.sosUtilizzato ?? 0}
                   </span>
-                  <span>/{socio.limiteRicaricaSOS ?? 0}</span>
+                  {/* ⚠️ Il tetto è quello del CIRCOLO, non più uno per socio:
+                      arriva come prop dalla dashboard. */}
+                  <span>/{fidoIllimitato(limiteFido) ? '∞' : limiteFido}</span>
                 </div>
                 <div className="socio-debito-hint">Debito verso Circolo: € {socio.sosUtilizzato ?? 0}</div>
               </div>

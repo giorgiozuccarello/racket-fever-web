@@ -34,7 +34,10 @@ export interface ProfiloUtente {
   circoloId: string | null;
   credito: number;
   fotoUrl?: string | null; // se assente, si mostrano le iniziali nel cerchio
-  limiteRicaricaSOS?: number; // 0/assente = Fido non ancora concesso a questo socio
+  // ⚠️ QUI STAVA `limiteRicaricaSOS`, il tetto del Fido per singolo
+  // socio. Tolto il 25 agosto 2026: il Fido è uno solo e sta sul
+  // circolo (`limiteFido`). Il campo può essere rimasto scritto su
+  // qualche tessera vecchia — non lo legge più nessuno.
   sosUtilizzato?: number; // quanto del Fido è già stato usato dall'ultimo Ripristino
   classificaFitp?: string | null; // dichiarata dal socio stesso, es. "3.4" o "NC" — non verificata
   posizioneClassificaSociale?: number | null; // assente = il socio non è (ancora) in classifica
@@ -207,7 +210,6 @@ export function ascoltaSociCircolo(circoloId: string, callback: (soci: SocioCirc
         circoloId,
         credito: t.credito ?? 0,
         sosUtilizzato: t.sosUtilizzato ?? 0,
-        limiteRicaricaSOS: t.limiteRicaricaSOS ?? 0,
         posizioneClassificaSociale: t.posizioneClassificaSociale ?? null,
         ruoloTessera: t.ruolo ?? 'socio_tesserato',
         statoTessera: t.stato ?? 'approvata',
@@ -253,11 +255,10 @@ export function ascoltaSociCircolo(circoloId: string, callback: (soci: SocioCirc
   return () => { unsubT(); unsubP(); };
 }
 
-// Imposta il Fido che il socio può applicarsi da
-// solo in caso di emergenza. 0 = funzione disattivata per quel socio.
-export async function aggiornaLimiteSOS(uid: string, circoloId: string, limite: number) {
-  await updateDoc(doc(db, 'tessere', `${uid}_${circoloId}`), { limiteRicaricaSOS: limite });
-}
+// ⚠️ QUI STAVA `aggiornaLimiteSOS`, che scriveva il Fido di un singolo
+// socio. Tolta il 25 agosto 2026: non la chiamava già più nessuno, e il
+// campo che scriveva non esiste più. Il Fido è uno solo e sta sul
+// circolo.
 
 // ⚠️ QUI STAVA `aggiornaLimitePersonale`, che scriveva sulla tessera un
 // limite settimanale valido solo per quel socio. Tolta il 25 agosto

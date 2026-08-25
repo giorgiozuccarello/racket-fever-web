@@ -485,7 +485,10 @@ export default function SchedaCircoloVista({
           valore={EURO(denaro.debiti)} etichetta="debiti aperti"
           allarme={denaro.debiti > 0}
         />
-        <Dato valore={EURO(denaro.fidoConcesso)} etichetta="fido concesso" />
+        {/* ⚠️ QUI STAVA «fido concesso», la somma dei tetti di Fido di
+            tutti i soci. Tolto il 25 agosto 2026: il Fido non è più un
+            numero per socio ma uno solo per circolo, e la somma non
+            voleva più dire niente. Si legge nella sezione «Fido». */}
       </div>
       <p className="admin-card-hint scheda-nota">
         {/* ⚠️ QUATTRO CASI, non due. Con un booleano solo, mentre la
