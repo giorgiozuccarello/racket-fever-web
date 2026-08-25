@@ -258,19 +258,18 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
             <div className="socio-sos-box">
               <label className="admin-label">Fido</label>
               <p className="admin-card-hint" style={{ marginBottom: '.6rem' }}>
-                Sempre attivo e senza limite: interviene da solo in qualunque prenotazione
-                condivisa (compagno di gioco, Sfida) quando manca credito normale a uno dei
-                due. Va saldato in segreteria — usa &quot;Ripristina&quot; qui sopra quando
-                il socio paga.
+                Interviene da solo in qualunque prenotazione, anche condivisa (compagno di
+                gioco, Sfida), quando manca credito normale a uno dei due. Usa il bottone
+                &quot;Ripristino del Fido&quot; qui sopra quando il socio paga.
               </p>
               <div className="socio-sos-valore">
                 Usato finora: € {(socio.sosUtilizzato ?? 0).toFixed(2)}
               </div>
             </div>
-            <p className="socio-sos-reset-hint">
-              &quot;Ripristina&quot; azzera l&apos;usato quando il socio salda in segreteria,
-              restituendogli tutto il plafond.
-            </p>
+            {/* ⚠️ QUI STAVA una seconda riga su «Ripristina», tolta il 25
+                agosto 2026 insieme alla gemella mobile: diceva la stessa cosa
+                del riquadro qui sopra, che adesso nomina il pulsante per
+                esteso. */}
 
             {/* ⚠️ QUI STAVA IL «Limite prenotazioni settimanali
                 (personale)», tolto il 25 agosto 2026 per decisione di
