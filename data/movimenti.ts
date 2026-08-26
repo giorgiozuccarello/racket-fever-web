@@ -21,6 +21,26 @@ import {
   setDoc, serverTimestamp, Transaction,
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { etichettaDataSalvata } from './giorni';
+
+// ============================================================
+// ⚠️ IL TRADUTTORE E' FACOLTATIVO, COME IN data/giocatori.ts.
+//
+// Le etichette qui sotto le DISEGNA l'app — il pop-up del credito in
+// Home, il registro dell'Admin — quindi con `t` escono nella lingua di
+// chi guarda. Senza `t` rispondono in italiano, come prima, cosi'
+// nessun chiamante e' costretto ad aggiornarsi tutto insieme.
+//
+// ⚠️ NON SI TRADUCE `m.descrizione`: quella e' la CAUSALE scritta su
+// Firestore nel momento in cui il movimento e' nato, e la rileggono il
+// socio, l'Admin e il Super Admin, che possono avere l'app in tre
+// lingue diverse. Qui si traduce solo l'etichetta che l'app le mette
+// attorno.
+//
+// La firma e' larga (`(chiave: string, ...) => string`) perche' questo
+// file non importa il dizionario: chi chiama passa `libero(t)` o `t`.
+// ============================================================
+type TraduttoreMovimenti = (chiave: string, valori?: Record<string, string | number>) => string;
 
 export type TipoMovimento =
   | 'apertura'         // prima riga: saldo di partenza della tessera
@@ -328,6 +348,9 @@ export function ascoltaMovimentiCircolo(
 }
 
 // Etichette leggibili, usate in tutte e tre le interfacce.
+// ⚠️ Restano scritte qui in italiano perche' sono il RIPIEGO di chi
+// chiama senza traduttore: la lingua vera arriva dalle chiavi qui
+// sotto.
 export const ETICHETTA_TIPO: Record<TipoMovimento, string> = {
   apertura: 'Apertura',
   ricarica: 'Ricarica',
@@ -339,17 +362,32 @@ export const ETICHETTA_TIPO: Record<TipoMovimento, string> = {
   saldo_chiusura: 'Saldo alla chiusura',
 };
 
+const CHIAVE_TIPO: Record<TipoMovimento, string> = {
+  apertura: 'mov.tipo.apertura',
+  ricarica: 'mov.tipo.ricarica',
+  addebito: 'mov.tipo.addebito',
+  rimborso: 'mov.tipo.rimborso',
+  sos: 'mov.tipo.sos',
+  ripristino_sos: 'mov.tipo.ripristinoSos',
+  azzeramento: 'mov.tipo.azzeramento',
+  saldo_chiusura: 'mov.tipo.saldoChiusura',
+};
+
 // Il rimborso ha due letture diverse: intero se copre tutta la
 // prenotazione, parziale se ne riguarda solo una mezz'ora.
-export function etichettaMovimento(m: Movimento): string {
+export function etichettaMovimento(m: Movimento, t?: TraduttoreMovimenti): string {
   if (m.tipo === 'rimborso') {
     // Con importo zero (una lezione, o una prenotazione senza addebito)
     // non c'e' nulla da rimborsare: chiamarlo "rimborso" e mostrarlo in
     // verde con +0,00 e' fuorviante.
-    if (m.importo === 0) return m.parziale ? 'Cancellata mezz\'ora' : 'Cancellata';
+    if (m.importo === 0) {
+      if (t) return t(m.parziale ? 'mov.cancellataMezzora' : 'mov.cancellata');
+      return m.parziale ? 'Cancellata mezz\'ora' : 'Cancellata';
+    }
+    if (t) return t(m.parziale ? 'mov.rimborsoParziale' : 'mov.rimborsoIntero');
     return m.parziale ? 'Rimborso parziale' : 'Rimborso Intero';
   }
-  return ETICHETTA_TIPO[m.tipo];
+  return t ? t(CHIAVE_TIPO[m.tipo]) : ETICHETTA_TIPO[m.tipo];
 }
 
 // Vero quando la cifra non va mostrata: un movimento a importo zero
@@ -360,14 +398,29 @@ export function importoDaMostrare(importo: number): boolean {
 
 // Riga leggibile con campo, data e intervallo orario. Usata da tutte
 // e tre le viste, cosi' la formulazione resta unica.
-export function dettaglioPrenotazione(m: Movimento): string {
+// ⚠️ LA DATA SI RICOMPONE DALL'ISO, NON SI RISTAMPA LA `dataLabel`.
+// Sul movimento la `dataLabel` («Lunedì 26 ago») e' scritta in italiano
+// al momento della prenotazione e su Firestore ci resta — la rileggono
+// il Maestro, l'Admin e il Super Admin. Accanto pero' c'e' `dataISO`,
+// che non ha lingua: con il traduttore si riparte da li' e l'etichetta
+// esce nella lingua di chi guarda. Senza traduttore, o su un movimento
+// vecchio senza ISO, si ricade sulla `dataLabel` com'e'.
+// ⚠️ Il nome del campo NON si traduce: lo scrive il circolo.
+export function dettaglioPrenotazione(
+  m: Movimento, t?: TraduttoreMovimenti, lingua?: string,
+): string {
   const pezzi: string[] = [];
   if (m.campoNome) pezzi.push(m.campoNome);
-  if (m.dataLabel) {
+  const quando = t && m.dataISO
+    ? etichettaDataSalvata(m.dataISO, (chiave) => t(chiave), lingua)
+    : (m.dataLabel ?? '');
+  if (quando) {
     const ore = m.orario
       ? `, ${m.orario}${m.orarioFine ? ` - ${m.orarioFine}` : ''}`
       : '';
-    pezzi.push(`Prenotazione del ${m.dataLabel}${ore}`);
+    pezzi.push(t
+      ? t('mov.prenotazioneDel', { data: quando, ore })
+      : `Prenotazione del ${quando}${ore}`);
   }
   return pezzi.join(' · ');
 }
@@ -375,7 +428,17 @@ export function dettaglioPrenotazione(m: Movimento): string {
 // Il socio non deve vedere il nome dell'operatore di segreteria: per
 // lui basta sapere che e' stato il circolo. Admin e Super Admin
 // vedono invece nome e cognome, che servono in caso di contestazione.
-export function esecutorePerSocio(m: Movimento): string {
+// ⚠️ Il NOME di chi ha eseguito non si tocca mai: e' una persona.
+export function esecutorePerSocio(m: Movimento, t?: TraduttoreMovimenti): string {
+  if (t) {
+    switch (m.eseguitoDaRuolo) {
+      case 'admin': return t('mov.chi.segreteria');
+      case 'maestro': return t('mov.chi.maestro');
+      case 'compagno': return t('mov.chi.compagno', { nome: m.eseguitoDaNome ?? t('mov.chi.compagnoSenzaNome') });
+      case 'socio': return t('ges.tu');
+      default: return t('mov.chi.sistema');
+    }
+  }
   switch (m.eseguitoDaRuolo) {
     case 'admin': return 'Segreteria';
     case 'maestro': return 'Maestro';
@@ -385,17 +448,29 @@ export function esecutorePerSocio(m: Movimento): string {
   }
 }
 
-export function esecutorePerAdmin(m: Movimento): string {
+export function esecutorePerAdmin(m: Movimento, t?: TraduttoreMovimenti): string {
   const nome = m.eseguitoDaNome ?? '—';
+  if (t) {
+    switch (m.eseguitoDaRuolo) {
+      case 'admin': return t('mov.chiA.segreteria', { nome });
+      case 'maestro': return t('mov.chiA.maestro', { nome });
+      case 'compagno': return t('mov.chiA.compagno', { nome });
+      case 'socio': return t('mov.chiA.socio', { nome });
+      // ⚠️ 'sistema' con un nome scritto lo mostra, e non e' un dettaglio:
+      // le righe di apertura scritte dal server dopo un reset del circolo
+      // sono firmate «Racket Fever», e finivano tutte sotto un anonimo
+      // «Sistema» — cioe' il registro non diceva chi le aveva create.
+      case 'sistema': return m.eseguitoDaNome
+        ? t('mov.chiA.sistemaConNome', { nome: m.eseguitoDaNome })
+        : t('mov.chi.sistema');
+      default: return t('mov.chi.sistema');
+    }
+  }
   switch (m.eseguitoDaRuolo) {
     case 'admin': return `${nome} (segreteria)`;
     case 'maestro': return `${nome} (maestro)`;
     case 'compagno': return `${nome} (compagno di gioco)`;
     case 'socio': return `${nome} (socio)`;
-    // ⚠️ 'sistema' con un nome scritto lo mostra, e non e' un dettaglio:
-    // le righe di apertura scritte dal server dopo un reset del circolo
-    // sono firmate «Racket Fever», e finivano tutte sotto un anonimo
-    // «Sistema» — cioe' il registro non diceva chi le aveva create.
     case 'sistema': return m.eseguitoDaNome ? `${m.eseguitoDaNome} (sistema)` : 'Sistema';
     default: return 'Sistema';
   }
@@ -644,30 +719,40 @@ export function raggruppaInCard(movimenti: Movimento[]): CardMovimenti[] {
 
 // Descrizione di un passo della storia. Il passo puo' raccogliere piu'
 // mezz'ore prenotate insieme, quindi il testo lo dice al plurale.
-export function testoPasso(p: PassoStoria): string {
+export function testoPasso(p: PassoStoria, t?: TraduttoreMovimenti): string {
   const ordinati = [...p.orari].sort();
   const da = ordinati[0];
   const a = fineDelloSlot(ordinati[ordinati.length - 1]);
   const quante = p.orari.length;
 
   if (p.tipo === 'addebito') {
+    if (t) return t(quante === 1 ? 'mov.passo.prenotataUna' : 'mov.passo.prenotateTante', { n: quante, da, a });
     return quante === 1
       ? `Prenotata la mezz'ora ${da} - ${a}`
       : `Prenotate ${quante} mezz'ore, dalle ${da} alle ${a}`;
   }
   if (p.tipo === 'rimborso') {
+    if (t) return t(quante === 1 ? 'mov.passo.cancellataUna' : 'mov.passo.cancellateTante', { n: quante, da, a });
     return quante === 1
       ? `Cancellata la mezz'ora ${da} - ${a}`
       : `Cancellate ${quante} mezz'ore, dalle ${da} alle ${a}`;
   }
+  // ⚠️ RESTA IN ITALIANO ED E' VOLUTO: e' la causale SCRITTA su
+  // Firestore quando il movimento e' nato (ricarica, Fido, azzeramento).
+  // La rileggono in tre, e tradurla alla lettura vorrebbe dire
+  // reinterpretare una frase gia' salvata.
   return p.movimenti[0].descrizione;
 }
 
 // Riga in fondo a ogni box: com'era la prenotazione DOPO quel passo.
 // L'ultimo box coincide sempre con l'orario mostrato nella card.
-export function intervalloDelPasso(p: PassoStoria): string {
-  if (!p.intervalloDopo) return 'Prenotazione cancellata';
-  return `Prenotazione dalle ${p.intervalloDopo.inizio} alle ${p.intervalloDopo.fine}`;
+export function intervalloDelPasso(p: PassoStoria, t?: TraduttoreMovimenti): string {
+  if (!p.intervalloDopo) {
+    return t ? t('mov.passo.prenotazioneCancellata') : 'Prenotazione cancellata';
+  }
+  const { inizio, fine } = p.intervalloDopo;
+  if (t) return t('mov.passo.prenotazioneDalleAlle', { inizio, fine });
+  return `Prenotazione dalle ${inizio} alle ${fine}`;
 }
 
 // ⚠️ IL SERVER ADESSO SA COSE CHE IL TELEFONO NON SA — quanto Fido

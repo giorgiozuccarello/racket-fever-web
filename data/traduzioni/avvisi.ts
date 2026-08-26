@@ -125,6 +125,9 @@ const it = {
 
   // ---------- sfide ----------
   'avv.sfida.inCorso': 'Sfida in Corso: {campo}, {quando} ore {ora}.',
+
+  // ---------- rifiniture della tornata 108 (secondo giro) ----------
+  'avv.unSocio': 'Un socio',
 };
 
 const en: Record<keyof typeof it, string> = {
@@ -205,6 +208,9 @@ const en: Record<keyof typeof it, string> = {
   'avv.mae.circoloCancellaLezione': 'The club has cancelled the lesson.\n{dettaglio}\nDone by {chi}.',
 
   'avv.sfida.inCorso': 'Challenge on: {campo}, {quando} at {ora}.',
+
+  // ---------- rifiniture della tornata 108 (secondo giro) ----------
+  'avv.unSocio': 'A member',
 };
 
 // ⚠️ Il tedesco qui si distende: sono frasi intere in una notifica, non
@@ -289,6 +295,9 @@ const de: Record<keyof typeof it, string> = {
   'avv.mae.circoloCancellaLezione': 'Der Verein hat das Training abgesagt.\n{dettaglio}\nAusgeführt von {chi}.',
 
   'avv.sfida.inCorso': 'Duell läuft: {campo}, {quando} um {ora}.',
+
+  // ---------- rifiniture della tornata 108 (secondo giro) ----------
+  'avv.unSocio': 'Ein Mitglied',
 };
 
 export const avvisi = blocco(it, en, de);

@@ -112,3 +112,44 @@ export function linkNavigabile(link?: string | null): string | null {
   if (/^[a-z][a-z0-9+.-]*:/i.test(pulito)) return null;
   return `https://${pulito}`;
 }
+
+// ============================================================
+// L'ETICHETTA DI UNA DATA SALVATA, RILETTA NELLA LINGUA DI CHI GUARDA.
+//
+// ⚠️ È IL RIMEDIO A UN DIFETTO VERO, segnalato da Giorgio: sulle card
+// della Home la data restava in italiano anche con l'app in tedesco.
+// La causa non era una traduzione dimenticata — era che quella riga
+// non veniva composta, veniva RILETTA. Dentro ogni prenotazione c'è un
+// campo `dataLabel` («Lunedì 26 ago») scritto al momento della
+// prenotazione, e le card lo stampavano così com'era.
+//
+// ⚠️ E `dataLabel` DEVE RESTARE IN ITALIANO SU FIRESTORE. Non è una
+// svista da correggere scrivendola tradotta: quella stringa la
+// rileggono il Maestro, l'Admin e gli altri giocatori, che possono
+// avere l'app in tre lingue diverse. Scritta nella lingua di chi
+// prenota, un tedesco metterebbe date tedesche dentro la prenotazione
+// di un socio italiano.
+//
+// ⚠️ QUINDI SI SMETTE DI MOSTRARLA E SI RICOMPONE DALL'ISO. Accanto a
+// `dataLabel` ogni prenotazione ha `data`, che è una data vera in
+// formato `AAAA-MM-GG` e non ha lingua. Da lì l'etichetta si rifà
+// ogni volta per gli occhi di chi sta guardando. Il campo salvato non
+// si tocca: continua a essere il dato, smette di essere il testo.
+//
+// ⚠️ IN TEDESCO IL GIORNO DEL MESE VUOLE IL PUNTO — «Montag, 3. Sep.»
+// — perché è un ordinale. Senza, si legge come un numero cardinale e
+// suona sbagliato a chiunque parli tedesco.
+// ============================================================
+export function etichettaDataSalvata(
+  iso: string, t: (chiave: string) => string, lingua?: string,
+): string {
+  if (!iso) return '';
+  const d = giornoDi(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  // Giorno per esteso e mese abbreviato: è la forma che c'era in
+  // italiano («Lunedì 26 ago») e che l'occhio riconosce scorrendo.
+  const giorno = t(`com.G.${['dom', 'lun', 'mar', 'mer', 'gio', 'ven', 'sab'][d.getDay()]}`);
+  const mese = t(`com.m.${d.getMonth() + 1}`);
+  const numero = lingua === 'de' ? `${d.getDate()}.` : `${d.getDate()}`;
+  return `${giorno} ${numero} ${mese}`;
+}

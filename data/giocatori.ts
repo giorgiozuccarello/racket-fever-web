@@ -201,11 +201,22 @@ export function differenzeQuote(
 // guarda. Sta qui perche' la usano tre schermate diverse e con tre
 // versioni leggermente diverse si sarebbe letto "gioco con Mario" in
 // una e "con Mario e altri 2" nell'altra sulla stessa prenotazione.
-export function elencoNomi(giocatori: { nome: string; cognome: string }[]): string {
+// ⚠️ I NOMI NON SI TRADUCONO, LA CONGIUNZIONE SI'. L'unica parola che
+// l'app mette di suo in questa riga e' quella « e » fra il penultimo e
+// l'ultimo: in inglese e' « and », in tedesco « und ». Senza
+// traduttore resta l'italiano di prima — e questo NON e' un dettaglio,
+// perche' `elencoNomi` la chiama anche chi compone un testo da SCRIVERE
+// su Firestore (data/prenotazioniRepo.ts), e li' l'italiano ci deve
+// restare.
+export function elencoNomi(
+  giocatori: { nome: string; cognome: string }[],
+  t?: (chiave: string) => string,
+): string {
   const nomi = giocatori.map((g) => `${g.nome} ${g.cognome}`.trim()).filter(Boolean);
   if (nomi.length === 0) return '';
   if (nomi.length === 1) return nomi[0];
-  return `${nomi.slice(0, -1).join(', ')} e ${nomi[nomi.length - 1]}`;
+  const e = t ? t('com.eCongiunzione') : 'e';
+  return `${nomi.slice(0, -1).join(', ')} ${e} ${nomi[nomi.length - 1]}`;
 }
 
 // ⚠️ COME SI DICE, A CHI E' STATO AGGIUNTO, CHI C'E' IN CAMPO.
@@ -227,12 +238,26 @@ export function elencoNomi(giocatori: { nome: string; cognome: string }[]): stri
 // hanno in due forme diverse — una ha gli oggetti, l'altra solo la
 // stringa gia' composta — e farle convergere qui e' l'unico modo
 // perche' dicano la stessa identica frase.
+//
+// ⚠️ IL TRADUTTORE E' FACOLTATIVO. Queste due righe si LEGGONO — sono
+// disegnate dalla Griglia e dalla card in Home — quindi con `t` escono
+// nella lingua di chi guarda. Senza `t` rispondono in italiano, come
+// prima, per chi le componesse in un contesto senza traduttore.
 export function chiTiHaAggiunto(
   chiHaPrenotato: string,
   nomiDegliAltri: string,
+  t?: (chiave: string, valori?: Record<string, string | number>) => string,
 ): { principale: string; altri: string } {
   const nome = (chiHaPrenotato ?? '').trim();
   const altri = (nomiDegliAltri ?? '').trim();
+  if (t) {
+    return {
+      principale: nome ? t('pre.info.tiHaAggiunto', { nome }) : t('pre.info.seiStatoAggiunto'),
+      // Chiave riusata dalla dashboard Admin: e' la stessa identica
+      // frase, e due chiavi vorrebbero dire due tedeschi diversi.
+      altri: altri ? t('adm.pre.inCampoAnche', { nomi: altri }) : '',
+    };
+  }
   return {
     principale: nome ? `Ti ha aggiunto ${nome}` : 'Sei stato aggiunto a questa partita',
     altri: altri ? `In campo anche ${altri}` : '',

@@ -241,8 +241,15 @@ export function quantiPerLaHome<T extends { creatoIlMs?: number }>(
 // identiche in Home spingerebbero prenotazioni e lezioni sotto la
 // piega — e' lo stesso motivo per cui i messaggi della stessa
 // conversazione si raggruppano invece di comparire uno per riga.
-export function testoCardHome(quanti: number): string {
+// ⚠️ IL TRADUTTORE E' FACOLTATIVO, come in `cosaMancaPerPubblicare` qui
+// sotto: la REGOLA (una card sola, con il conteggio) sta qui, la LINGUA
+// la mette chi disegna. Senza `t` si risponde in italiano, come prima.
+export function testoCardHome(
+  quanti: number,
+  t?: (chiave: string, valori?: Record<string, string | number>) => string,
+): string {
   if (quanti <= 0) return '';
+  if (t) return t(quanti === 1 ? 'bac.cardHomeUno' : 'bac.cardHomeTanti', { n: quanti });
   if (quanti === 1) return 'C’è un nuovo avviso in bacheca';
   return `Ci sono ${quanti} nuovi avvisi in bacheca`;
 }

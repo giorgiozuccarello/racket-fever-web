@@ -76,14 +76,51 @@ const TUTTE: FraseRapida[] = [
 
 export const CODICI_RAPIDI: string[] = TUTTE.map((f) => f.codice);
 
+// ============================================================
+// LA LINGUA DELLE FRASI RAPIDE — e perché qui non c'è niente da
+// spedire in tedesco.
+//
+// ⚠️ IL PROBLEMA CHE SEMBRA ESSERCI NON C'È. A prima vista tradurre il
+// pulsante vuol dire spedire una frase in una lingua che l'altro
+// potrebbe non capire: il socio tocca «I'll be ten minutes late» e il
+// Maestro italiano si trova quella riga in chat. Ma sul messaggio non
+// viaggia nessuna frase — viaggia solo `codice`, ed è scritto qui
+// sopra: la frase la mette l'app IN LETTURA. Quindi il codice si
+// traduce due volte, una per chi lo manda e una per chi lo legge, e
+// ognuno dei due vede la propria lingua sullo stesso messaggio.
+//
+// ⚠️ È PROPRIO IL REGALO DELLA SCELTA DI TOGLIERE IL TESTO LIBERO. Con
+// una casella di scrittura questo non sarebbe stato possibile in
+// nessun modo: quello che una persona scrive resta nella sua lingua e
+// non si tocca. Togliendo il testo libero per gli store, ci siamo
+// ritrovati in mano una chat che si traduce da sola.
+//
+// ⚠️ IL DIZIONARIO NON SI IMPORTA, si riceve. Questo file è gemello
+// del sito e non ha import: `t` arriva da chi chiama, con la firma
+// larga `(chiave: string) => string` — la stessa di data/giorni.ts, e
+// per la stessa ragione. Senza `t` si torna all'italiano di prima:
+// nessun chiamante è obbligato ad aggiornarsi.
+// ============================================================
+export function chiaveTestoRapido(codice: string): string {
+  return `chat.rapide.${codice}`;
+}
+
 // ⚠️ Ritorna stringa vuota su un codice sconosciuto, non «undefined» e
 // non il codice stesso. Un messaggio scritto da una versione più nuova
 // dell'app — o da qualcuno che ha provato a inventarsi un codice —
 // deve semplicemente non dire niente, non mostrare una sigla tecnica
 // dentro una bolla di chat.
-export function testoDiCodice(codice: string | null | undefined): string {
+// ⚠️ E il codice si cerca PRIMA di tradurre: passando la chiave al
+// dizionario senza aver trovato la frase, un codice inventato tornerebbe
+// a schermo come «chat.rapide.pippo» invece che come niente.
+export function testoDiCodice(
+  codice: string | null | undefined,
+  t?: (chiave: string) => string,
+): string {
   if (!codice) return '';
-  return TUTTE.find((f) => f.codice === codice)?.testo ?? '';
+  const frase = TUTTE.find((f) => f.codice === codice);
+  if (!frase) return '';
+  return t ? t(chiaveTestoRapido(frase.codice)) : frase.testo;
 }
 
 export function codiceValido(codice: string | null | undefined): boolean {
@@ -97,10 +134,16 @@ export function codiceValido(codice: string | null | undefined): boolean {
 // nessun codice: continuano a leggersi, perché cancellarli avrebbe
 // tolto a due persone la loro conversazione per una decisione che non
 // hanno preso. Quelli nuovi hanno solo il codice.
+//
+// ⚠️ E IL RAMO VECCHIO NON SI TRADUCE, mai. Quel `testo` è una frase
+// che una persona ha scritto a mano prima che il testo libero venisse
+// tolto: è roba sua, non nostra, e si mostra com'è. Solo il ramo del
+// codice passa dal dizionario.
 // ============================================================
 export function testoDaMostrare(
   m: { codice?: string | null; testo?: string | null },
+  t?: (chiave: string) => string,
 ): string {
-  if (m.codice) return testoDiCodice(m.codice);
+  if (m.codice) return testoDiCodice(m.codice, t);
   return (m.testo ?? '').trim();
 }

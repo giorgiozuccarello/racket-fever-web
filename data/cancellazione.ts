@@ -30,11 +30,36 @@ const MESI = [
   'luglio', 'agosto', 'settembre', 'ottobre', 'novembre', 'dicembre',
 ];
 
+// Chiavi del dizionario, nello stesso ordine di `Date.getDay()`.
+const CHIAVI_GIORNO = ['com.G.dom', 'com.G.lun', 'com.G.mar', 'com.G.mer', 'com.G.gio', 'com.G.ven', 'com.G.sab'];
+
+// ⚠️ IL TRADUTTORE E' FACOLTATIVO, E DEVE RESTARE FACOLTATIVO. Questa
+// data finisce in due posti diversi: nel pop-up che il socio LEGGE
+// adesso (e allora vuole la sua lingua) e dentro il corpo dei
+// promemoria, che si compone qui sotto e resta scritto — li' l'italiano
+// e' la scelta giusta, per la stessa ragione della `dataLabel`.
+// Chiamata senza `t` risponde in italiano, esattamente come prima.
+//
+// ⚠️ IN TEDESCO IL GIORNO DEL MESE VUOLE IL PUNTO — «Montag, 3. Sep.»
+// — perche' e' un ordinale.
+//
 // Nomi scritti a mano e non toLocaleDateString('it-IT'): su Hermes i
 // dati di localizzazione possono mancare del tutto e il risultato
 // sarebbe in inglese, o peggio un errore a runtime.
-export function dataEstesa(d: Date): string {
-  return `${GIORNI[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]}`;
+export function dataEstesa(
+  d: Date,
+  t?: (chiave: string) => string,
+  lingua?: string,
+): string {
+  if (!t) return `${GIORNI[d.getDay()]} ${d.getDate()} ${MESI[d.getMonth()]}`;
+  const giorno = t(CHIAVI_GIORNO[d.getDay()]);
+  const mese = t(`com.M.${d.getMonth() + 1}`);
+  // In italiano la frase che la ospita e' minuscola in mezzo al periodo
+  // («era lunedì 3 settembre»); tedesco e inglese vogliono la maiuscola.
+  const giornoScritto = lingua === 'it' || !lingua ? giorno.toLowerCase() : giorno;
+  return lingua === 'de'
+    ? `${giornoScritto}, ${d.getDate()}. ${mese}`
+    : `${giornoScritto} ${d.getDate()} ${mese}`;
 }
 
 export function oraBreve(d: Date): string {
@@ -139,10 +164,21 @@ export function testoLimiteCancellazione(
   // davanti. Il termine, poi, non lo decide nemmeno lo stesso: quello
   // dei campi e' del circolo, quello delle lezioni del Maestro.
   eLezione = false,
+  // ⚠️ FACOLTATIVO, come in `dataEstesa` qui sopra e per lo stesso
+  // motivo: questa riga il socio la LEGGE nel pop-up della Griglia e
+  // nella card in Home — li' va nella sua lingua — ma la stessa
+  // funzione compone anche la coda dei promemoria, che si SCRIVE e
+  // resta in italiano. Senza `t` risponde in italiano come prima.
+  // ⚠️ Le chiavi sono le `srv.canc.*` gia' usate dalle Cloud Functions
+  // (`functions/src/promemoria.ts`): stessa frase, un dizionario solo.
+  t?: (chiave: string, valori?: Record<string, string | number>) => string,
+  lingua?: string,
 ): string {
   const inizio = istanteSlot(data, orario);
   const limite = limiteCancellazione(data, orario, oreLimite);
-  const cosa = eLezione ? 'questa lezione' : 'questa prenotazione';
+  const cosa = t
+    ? t(eLezione ? 'srv.canc.laLezione' : 'srv.canc.laPrenotazione')
+    : (eLezione ? 'questa lezione' : 'questa prenotazione');
   // Senza limite si cancella fino all'inizio, ma NON oltre: a partita
   // cominciata sePuoCancellare dice gia' di no, e questa frase deve
   // dire la stessa cosa. Con il testo fisso, chi apriva una partita
@@ -150,16 +186,32 @@ export function testoLimiteCancellazione(
   // gioco" scritto in rosso come motivo del blocco.
   if (!limite) {
     if (adesso.getTime() >= inizio.getTime()) {
+      if (t) {
+        return t(eLezione ? 'pre.can.lezioneIniziata' : 'pre.can.partitaIniziata', {
+          data: dataEstesa(inizio, t, lingua), ora: oraBreve(inizio),
+        });
+      }
       return eLezione
         ? `La lezione è già cominciata (${dataEstesa(inizio)} alle ${oraBreve(inizio)}): non si può più annullare.`
         : `La partita è già cominciata (${dataEstesa(inizio)} alle ${oraBreve(inizio)}): non si può più annullare.`;
     }
+    if (t) return t('srv.canc.finoInizio', { cosa });
     return eLezione
       ? 'Puoi cancellare questa lezione fino all’orario di inizio.'
       : 'Puoi cancellare questa prenotazione fino all’orario di gioco.';
   }
   if (adesso.getTime() >= limite.getTime()) {
+    if (t) {
+      return t('srv.canc.scaduto', {
+        cosa, data: dataEstesa(limite, t, lingua), ora: oraBreve(limite),
+      });
+    }
     return `Il termine per cancellare ${cosa} è scaduto (era ${dataEstesa(limite)} alle ${oraBreve(limite)}).`;
+  }
+  if (t) {
+    return t('srv.canc.entro', {
+      cosa, ora: oraBreve(limite), data: dataEstesa(limite, t, lingua),
+    });
   }
   return `Se vuoi cancellare ${cosa} puoi farlo entro le ${oraBreve(limite)} di ${dataEstesa(limite)}.`;
 }
