@@ -21,6 +21,7 @@ import { calcolaPrezzo } from './prezzi';
 import { SocioCircolo } from './users';
 import { formatISO } from './settimana';
 import { creaNotifica } from './notifiche';
+import { avviso, TestoAvviso } from './linguaDestinatario';
 
 // Le notifiche delle Sfide non devono mai "sparire nel nulla" se il
 // primo tentativo fallisce (rete instabile, momento di contesa su
@@ -28,7 +29,7 @@ import { creaNotifica } from './notifiche';
 // pausa, prima di arrendersi davvero.
 // circoloId: da quale circolo parte l'avviso. Senza, la notifica
 // resta priva del campo e il "Reset Completo Soci" non la trova.
-export async function notificaSfidaConRitentativi(uid: string, testo: string, circoloId?: string): Promise<void> {
+export async function notificaSfidaConRitentativi(uid: string, testo: TestoAvviso, circoloId?: string): Promise<void> {
   const TENTATIVI = 3;
   const ATTESA_MS = 900;
   let ultimoErrore: any;

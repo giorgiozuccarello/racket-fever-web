@@ -7,6 +7,7 @@
 
 import { collection, doc, addDoc, updateDoc, onSnapshot, query, where, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { TestoAvviso, componiPerMaestro } from './linguaDestinatario';
 
 export interface NotificaMaestro {
   id: string;
@@ -40,7 +41,12 @@ export function ascoltaNotificheMaestro(maestroId: string, callback: (n: Notific
 // messaggi delle loro chat ('chat', spenta di partenza).
 // ⚠️ FILE GEMELLO, allineato a racket-fever/data/notificheMaestro.ts.
 export async function creaNotificaMaestro(
-  maestroId: string, testo: string, circoloId: string,
+  maestroId: string,
+  // ⚠️ Come per `creaNotifica`: o una frase già fatta, o una chiave
+  // da comporre nella lingua del MAESTRO che la riceve — letta da
+  // `maestri/{uid}.lingua`.
+  testo: TestoAvviso,
+  circoloId: string,
   categoria?: 'lezioni' | 'chat',
   // ⚠️ PORTATI DALL'APP IL 24 AGOSTO 2026: qui mancavano tutti e tre, e
   // il piu' importante e' il terzo.
@@ -71,8 +77,11 @@ export async function creaNotificaMaestro(
     console.warn('Avviso al Maestro non inviato: manca il circolo.');
     return;
   }
+  // La frase si compone prima di scriverla: vedi il commento gemello
+  // in data/notifiche.ts.
+  const testoScritto = await componiPerMaestro(maestroId, testo);
   await addDoc(collection(db, 'notifiche_maestro'), {
-    maestroId, testo, letta: false, circoloId,
+    maestroId, testo: testoScritto, letta: false, circoloId,
     ...(categoria ? { categoria } : {}),
     ...(richiestaId ? { richiestaId } : {}),
     ...(cardId ? { cardId } : {}),

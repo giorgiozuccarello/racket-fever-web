@@ -34,6 +34,8 @@
 'use client';
 
 import SchedaCircoloVista from '../../superadmin/dashboard/SchedaCircoloVista';
+import SelettoreLingua from './SelettoreLingua';
+import { LinguaProvider } from '../../../lib/lingua';
 import SezioneCollassabile from './SezioneCollassabile';
 import SezioneSoci, { ETICHETTA_SOCI } from './SezioneSoci';
 import SezioneDebitiSoci, { ETICHETTA_DEBITI } from './SezioneDebitiSoci';
@@ -56,7 +58,25 @@ export default function SezionePanoramicaCircolo({
   onSelezionaSocio: (uid: string) => void;
 }) {
   return (
+    // ============================================================
+    // ⚠️ IL CONTENITORE DELLA LINGUA AVVOLGE SOLO QUESTO, e non il
+    // sito intero. Dentro ci stanno le due cose che devono parlarsi:
+    // il selettore e la scheda che si ridisegna quando cambia. Fuori
+    // di qui — pagine pubbliche, resto della dashboard, pannello di
+    // rete — la lingua non esiste e non deve esistere.
+    //
+    // ⚠️ 'admin': e' la stessa preferenza che l'Admin trova nell'app
+    // sulla Panoramica del telefono (chiave `rf.lingua.admin`), e sono
+    // due dispositivi diversi con due memorie diverse. Il socio e il
+    // Maestro hanno le loro, e non si parlano con questa.
+    //
+    // ⚠️ E `SchedaCircoloVista` senza questo involucro resta in
+    // italiano: e' il caso del Super Admin, che apre la stessa scheda
+    // dal pannello di rete e un selettore non ce l'ha.
+    // ============================================================
+    <LinguaProvider ruolo="admin">
     <div className="admin-card">
+      <SelettoreLingua />
       <SchedaCircoloVista
         circoloId={circoloId} perAdmin
         statoCircolo={statoCircolo}
@@ -80,5 +100,6 @@ export default function SezionePanoramicaCircolo({
         <SezioneDebitiSoci soci={soci} onSelezionaSocio={onSelezionaSocio} />
       </SezioneCollassabile>
     </div>
+    </LinguaProvider>
   );
 }

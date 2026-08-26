@@ -46,6 +46,19 @@ export interface ProfiloUtente {
   // La rinuncia volontaria, distinta dalla penalita' (vedi
   // impostaRinunciaSfide).
   rinunciaSfideFino?: string | null; // 'YYYY-MM-DD' — non sfidabile fino a questa data compresa
+  // ⚠️ LA LINGUA STA QUI, E NON È UN DOPPIONE DI QUELLA SUL TELEFONO.
+  // La preferenza vera resta locale al dispositivo (data/lingue.ts):
+  // è il telefono che ho in mano a dire in che lingua leggo. Questa è
+  // una COPIA, e serve a una cosa sola — far sapere a CHI MI SCRIVE in
+  // che lingua compormi un avviso. Senza, un compagno italiano che mi
+  // toglie da una partita non avrebbe modo di scrivermelo in tedesco.
+  //
+  // ⚠️ La scrive solo l'interessato, e le regole già lo consentono
+  // (la riga di update del proprio profilo vieta un elenco di campi,
+  // non li elenca uno per uno). La leggono i soci dello stesso
+  // circolo, l'Admin, il Maestro e il server: la stessa lettura che
+  // serve già per il nome e per il credito di un compagno.
+  lingua?: 'it' | 'en' | 'de' | null;
   temaAppPersonale?: string | null; // uno degli 8 TEMI_APP scelto dal Socio per sé — assente = usa il Tema del circolo
   vetroBordoAttivo?: boolean; // true/assente = card con bordo sottile, false = senza bordo
   mostraIconaTennis?: boolean; // true/assente = mostra la pallina Tennis nell'header

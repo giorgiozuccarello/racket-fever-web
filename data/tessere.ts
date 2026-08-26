@@ -25,6 +25,7 @@ import { httpsCallable } from 'firebase/functions';
 import { raggruppaConsecutive } from './raggruppamento';
 import { chiudiConversazioneLezione } from './conversazioneLezione';
 import { creaNotificaMaestro } from './notificheMaestro';
+import { avviso, TestoAvviso } from './linguaDestinatario';
 import { orarioFineSlot } from './circoli';
 
 export type StatoTessera = 'in_attesa' | 'approvata' | 'sospesa' | 'chiusa' | 'rifiutata';
@@ -573,7 +574,7 @@ export async function rimuoviSocioDaCircolo(params: {
   // future, e il Maestro se ne accorgeva trovando il campo vuoto.
   // Un avviso per LEZIONE, non uno ogni mezz'ora: la chiave e' il
   // gruppo, perche' le lezioni nate prima del `cardId` ne sono prive.
-  const lezioniDelMaestro = new Map<string, { maestroId: string; testo: string }>();
+  const lezioniDelMaestro = new Map<string, { maestroId: string; testo: TestoAvviso }>();
   for (const gruppo of raggruppaConsecutive(future)) {
     for (const p of [...gruppo].reverse()) {
       try {
@@ -601,9 +602,10 @@ export async function rimuoviSocioDaCircolo(params: {
             const quando = `${primo.orario} - ${orarioFineSlot(ultimo.orario)}`;
             lezioniDelMaestro.set(chiave, {
               maestroId: p.maestroId,
-              testo: 'Il circolo ha cancellato la lezione.'
-                + `\n${primo.utenteNome} non fa più parte dei soci.`
-                + `\n${primo.campoNome} · ${primo.dataLabel}, ore ${quando}`,
+              testo: avviso('avv.circoloCancellaLezioneDett', {
+                dettaglio: `${primo.utenteNome} non fa più parte dei soci.`
+                  + `\n${primo.campoNome} · ${primo.dataLabel}, ore ${quando}`,
+              }),
             });
           }
         }

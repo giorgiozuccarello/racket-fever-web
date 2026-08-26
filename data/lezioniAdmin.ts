@@ -38,6 +38,7 @@ import { PrenotazioneAdmin, cancellaConRimborso } from './prenotazioniRepo';
 import { orarioFineSlot } from './circoli';
 import { creaNotifica } from './notifiche';
 import { creaNotificaMaestro } from './notificheMaestro';
+import { avviso } from './linguaDestinatario';
 import { chiudiConversazioneLezione, CONVERSAZIONE_NON_CHIUSA } from './conversazioneLezione';
 
 export interface RigaLezione {
@@ -237,13 +238,17 @@ export async function annullaLezioneIntera(
   const orario = lezione.orari.length > 0
     ? `${lezione.orari[0]} - ${orarioFineSlot(lezione.orari[lezione.orari.length - 1])}`
     : '';
-  const testo = `Il circolo ha cancellato la lezione.\n${lezione.campoNome} · ${lezione.dataLabel}`
+  // ⚠️ Il dettaglio resta com'è — nome del campo, data, orario: sono
+  // dati, non parole — e la frase attorno si compone nella lingua di
+  // chi legge, che per il socio e per il Maestro possono essere due.
+  const dettaglio = `${lezione.campoNome} · ${lezione.dataLabel}`
     + (orario ? ` · ore ${orario}` : '') + '.';
   const nonAvvisati: string[] = [];
   if (lezione.allievoUid) {
     try {
       await creaNotifica(
-        lezione.allievoUid, testo, 'lezione', lezione.circoloId,
+        lezione.allievoUid, avviso('avv.circoloCancellaLezioneDett', { dettaglio }),
+        'lezione', lezione.circoloId,
         undefined, undefined, 'annullamento', 'lezioni',
       );
     }
@@ -256,7 +261,7 @@ export async function annullaLezioneIntera(
     try {
       await creaNotificaMaestro(
         lezione.maestroId,
-        `${testo}\nEseguito da ${eseguitoDaNome}.`,
+        avviso('avv.mae.circoloCancellaLezione', { dettaglio, chi: eseguitoDaNome }),
         lezione.circoloId,
         // ⚠️ Categoria e motivo, che mancavano: senza `motivo` questo
         // avviso non sopravvive alla pulizia lato server — la stessa

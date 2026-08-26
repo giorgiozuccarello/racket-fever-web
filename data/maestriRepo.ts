@@ -47,6 +47,16 @@ export interface ProfiloMaestro {
   // la fa oreLimiteLezioniDi, che guarda null/undefined e non Number().
   oreLimiteCancellazioneLezioni?: number | null;
 
+  // La lingua scelta dal Maestro, copiata qui perché la legga chi gli
+  // scrive un avviso — il socio che chiede una lezione, il circolo che
+  // gliene cancella una. Stessa logica del campo gemello sul profilo
+  // del socio: la preferenza vera vive sul telefono, questa è la copia
+  // che serve agli altri.
+  // ⚠️ È l'unico campo che il Maestro scrive da sé oltre al termine di
+  // disdetta, e le regole vanno tenute allineate: `firestore.rules`
+  // elenca esattamente i due nomi.
+  lingua?: 'it' | 'en' | 'de' | null;
+
   // ============================================================
   // ANAGRAFICA — la compila l'Admin del circolo dalla sua dashboard.
   //

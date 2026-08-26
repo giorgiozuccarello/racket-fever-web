@@ -32,11 +32,13 @@ import { ascoltaMaestriCircolo, MaestroConUid } from '../../../data/maestriRepo'
 import { ascoltaTessereCircolo, Tessera } from '../../../data/tessere';
 import {
   ascoltaFotografia, aggiornaFotografia, Fotografia, GIORNI_FINESTRA, GIORNI_FOTO_VECCHIA,
-  frasePosizioniFuoriElenco,
   ATTIVITA_SENZA_FOTO, REGISTRO_SENZA_FOTO,
   riepilogoPersone, riepilogoDenaro, righeSocio,
 } from '../../../data/schedaCircolo';
 import { riepilogoFatturazione, euro } from '../../../data/fatturazione';
+import { Lingua } from '../../../data/lingue';
+import { Traduttore } from '../../../data/testi';
+import { useLingua } from '../../../lib/lingua';
 
 // ⚠️ Il denaro resta con il punto e due decimali, come in TUTTO il
 // resto dell'applicazione (registro, dashboard Admin, pop-up di
@@ -52,29 +54,41 @@ const EURO = (n: number) => euro(n);
 const CONTA = (n: number) => n.toLocaleString('it-IT');
 const ORE = (n: number) => n.toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
-function quandoLeggibile(ms: number | null): string {
+// ⚠️ LA DATA SI COMPONE A MANO, gemella della funzione dell'app. Qui
+// nel browser `toLocaleDateString('de-DE')` funzionerebbe davvero —
+// ma la stessa data scritta in due modi sul telefono e sul computer e'
+// esattamente il genere di differenza che fa dubitare del numero
+// accanto. Un solo modo, in tutti e due i progetti.
+//
+// ⚠️ E l'ordine cambia con la lingua: in tedesco il giorno vuole il
+// punto, «26. August 2026», perche' li' e' un ordinale.
+function quandoLeggibile(ms: number | null, t: Traduttore, lingua: Lingua): string {
   if (ms === null) return '—';
-  return new Date(ms).toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' });
+  const d = new Date(ms);
+  const mese = t(`com.M.${d.getMonth() + 1}` as any);
+  return lingua === 'de'
+    ? `${d.getDate()}. ${mese} ${d.getFullYear()}`
+    : `${d.getDate()} ${mese} ${d.getFullYear()}`;
 }
 
 // "3 giorni fa", "oggi". Serve accanto alla data: una data da sola
 // costringe chi legge a fare il conto a mente, ed è proprio il conto
 // che dice se il circolo è vivo.
-function daQuanto(ms: number | null, adesso = Date.now()): string {
+function daQuanto(ms: number | null, t: Traduttore, adesso = Date.now()): string {
   if (ms === null) return '';
   const giorni = Math.floor((adesso - ms) / (24 * 60 * 60 * 1000));
-  if (giorni <= 0) return 'oggi';
-  if (giorni === 1) return 'ieri';
-  if (giorni < 30) return `${giorni} giorni fa`;
+  if (giorni <= 0) return t('com.oggi');
+  if (giorni === 1) return t('com.ieri');
+  if (giorni < 30) return t('com.giorniFa', { n: giorni });
   const mesi = Math.floor(giorni / 30);
-  return mesi === 1 ? 'un mese fa' : `${mesi} mesi fa`;
+  return mesi === 1 ? t('com.unMeseFa') : t('com.mesiFa', { n: mesi });
 }
 
-function giorniDa(ms: number | null): string {
+function giorniDa(ms: number | null, t: Traduttore): string {
   if (ms === null) return '';
   const giorni = Math.floor(ms / (24 * 60 * 60 * 1000));
-  if (giorni <= 0) return 'da oggi';
-  return giorni === 1 ? 'da ieri' : `da ${giorni} giorni`;
+  if (giorni <= 0) return t('com.daOggi');
+  return giorni === 1 ? t('com.daIeri') : t('com.daGiorni', { n: giorni });
 }
 
 function giornoLeggibile(ms: number | null): string {
@@ -84,10 +98,39 @@ function giornoLeggibile(ms: number | null): string {
   return `${p(d.getDate())}/${p(d.getMonth() + 1)}/${d.getFullYear()}`;
 }
 
-const ETICHETTA_STATO: Record<string, string> = {
-  approvata: 'attiva', in_attesa: 'in attesa', sospesa: 'sospesa',
-  chiusa: 'chiusa', rifiutata: 'rifiutata',
-};
+// ⚠️ Una funzione e non piu' una tabella fissa: le cinque parole
+// cambiano con la lingua, e una tabella costruita al caricamento del
+// modulo resterebbe ferma a quella del momento.
+function etichettaStato(stato: string, t: Traduttore): string {
+  const chiavi: Record<string, string> = {
+    approvata: 'pan.stato.approvata', in_attesa: 'pan.stato.in_attesa',
+    sospesa: 'pan.stato.sospesa', chiusa: 'pan.stato.chiusa', rifiutata: 'pan.stato.rifiutata',
+  };
+  const c = chiavi[stato];
+  return c ? t(c as any) : stato;
+}
+
+// ⚠️ La frase sugli importi fuori elenco, ricomposta qui invece di
+// arrivare gia' scritta da data/schedaCircolo.ts: quel modulo fa i
+// conti ed e' gemello di quello dell'app, e portarci dentro le tre
+// lingue vorrebbe dire far dipendere i calcoli dal dizionario. Qui si
+// prendono i numeri e si compongono le parole.
+function fraseFuoriElencoT(
+  d: { debitiFuoriElenco: number; creditoFuoriElenco: number; posizioniFuoriElenco: number },
+  eur: (n: number) => string,
+  t: Traduttore,
+): string | null {
+  if (d.debitiFuoriElenco === 0 && d.creditoFuoriElenco === 0) return null;
+  const pezzi: string[] = [];
+  if (d.debitiFuoriElenco > 0) pezzi.push(t('pan.den.fuori.debito', { importo: eur(d.debitiFuoriElenco) }));
+  else if (d.debitiFuoriElenco < 0) pezzi.push(t('pan.den.fuori.debitoRientrato', { importo: eur(-d.debitiFuoriElenco) }));
+  if (d.creditoFuoriElenco > 0) pezzi.push(t('pan.den.fuori.credito', { importo: eur(d.creditoFuoriElenco) }));
+  else if (d.creditoFuoriElenco < 0) pezzi.push(t('pan.den.fuori.creditoRosso', { importo: eur(-d.creditoFuoriElenco) }));
+  const insieme = pezzi.join(t('pan.den.fuori.e'));
+  return pezzi.length === 1
+    ? t('pan.den.fuori.uno', { pezzi: insieme, n: d.posizioniFuoriElenco })
+    : t('pan.den.fuori.tanti', { pezzi: insieme, n: d.posizioniFuoriElenco });
+}
 
 function Dato({ valore, etichetta, allarme }: {
   valore: string; etichetta: string; allarme?: boolean;
@@ -136,6 +179,11 @@ export default function SchedaCircoloVista({
   // pesante che non si mette in mano a una password condivisa.
   puoAggiornare?: boolean;
 }) {
+  // ⚠️ SENZA IL CONTENITORE SI RESTA IN ITALIANO, ed e' il
+  // comportamento giusto: questa scheda la apre anche il Super Admin
+  // dal pannello di rete, dove un selettore della lingua non c'e'.
+  // Il contenitore lo mette solo la Panoramica dell'Admin.
+  const { lingua, t } = useLingua();
   const [tessere, setTessere] = useState<Tessera[]>([]);
   const [maestri, setMaestri] = useState<MaestroConUid[]>([]);
   // Tre stati, non due. undefined = non si sa ancora; null = non c'è
@@ -207,7 +255,7 @@ export default function SchedaCircoloVista({
         // server (RIPOSO_SCATTO_MS in functions/src/index.ts), e
         // riscriverla qui vuol dire che il giorno che cambia una
         // schermata ne annuncia un'altra.
-        setAvvisoScatto('La fotografia è appena stata rifatta: i numeri qui sopra sono già quelli nuovi.');
+        setAvvisoScatto(t('pan.foto.appenaFatta'));
       }
     } catch (e: any) {
       // ⚠️ Le cause non si equivalgono, e dire sempre "riprova" manda
@@ -219,11 +267,18 @@ export default function SchedaCircoloVista({
       setErroreScatto(
         codice.includes('permission-denied')
           ? (perAdmin
-            ? 'Aggiornamento non consentito: puoi aggiornare la fotografia del tuo circolo, e solo se il circolo è attivo.'
+            ? t('pan.foto.erroreNegato')
+            // ⚠️ Il ramo del Super Admin resta in italiano scritto qui:
+            // lo legge solo il team Racket Fever, che di selettore non
+            // ne ha uno. Passarlo dal dizionario vorrebbe dire tre
+            // traduzioni di una frase che nessuno leggera' mai
+            // tradotta.
             : 'Aggiornamento non consentito: serve un accesso Super Admin.')
           : codice.includes('deadline-exceeded') || codice.includes('internal')
-            ? 'Il calcolo ha impiegato troppo: il circolo ha molto storico. Riprova fra qualche minuto — se il server ha finito nel frattempo, i numeri qui sopra si aggiornano da soli.'
-            : `Aggiornamento non riuscito.${dalServer ? ` Il server risponde: ${dalServer}` : ' Riprova fra un momento.'}`,
+            ? t('pan.foto.erroreLento')
+            : dalServer
+              ? t('pan.foto.erroreAltro', { motivo: dalServer })
+              : t('pan.foto.erroreSecco'),
       );
     } finally {
       setScattando(false);
@@ -264,7 +319,7 @@ export default function SchedaCircoloVista({
   // cresce il ritardo normale cresce con lei. Il commento sta in
   // data/schedaCircolo.ts, accanto al numero.
   const circoloFermo = (statoCircolo ?? 'attivo') !== 'attivo';
-  const fraseFuoriElenco = frasePosizioniFuoriElenco(denaro, EURO);
+  const fraseFuoriElenco = fraseFuoriElencoT(denaro, EURO, t);
   const fotoVecchia = !circoloFermo && scattoMs !== null
     && Date.now() - scattoMs > GIORNI_FOTO_VECCHIA * 24 * 60 * 60 * 1000;
   // ⚠️ `foto === undefined` vuol dire «non si sa ancora», e prima
@@ -291,7 +346,12 @@ export default function SchedaCircoloVista({
               miglioreranno — vale per tutti e due; la spiegazione
               tecnica serve solo a chi puo' farci qualcosa. */}
           {perAdmin
-            ? `Non riesco a leggere alcuni dati del circolo (${respinto.join(', ')}): i numeri qui sotto sono incompleti e non lo diventeranno. Non vuol dire che il circolo sia vuoto — se il problema resta, scrivici.`
+            ? t('pan.avvisoRespinto', {
+              cosa: respinto.map((r) => t(`pan.parte.${r}` as any)).join(', '),
+            })
+            // ⚠️ Il ramo del Super Admin resta in italiano: parla di
+            // regole del database ed e' scritto per chi puo' metterci
+            // mano, cioe' noi.
             : `Lettura respinta (${respinto.join(', ')}): i numeri qui sotto sono incompleti e non lo diventeranno. Di solito vuol dire che le regole del database non consentono questa lettura — non che il circolo sia vuoto.`}
         </p>
       ) : !tutteArrivate && (
@@ -299,29 +359,29 @@ export default function SchedaCircoloVista({
         // e un caricamento normale vestito da problema insegna a
         // ignorare l'ambra il giorno che il problema c'è davvero.
         <p className="admin-card-hint scheda-nota">
-          Caricamento dei dati del circolo… i numeri qui sotto sono ancora parziali.
+          {t('pan.caricamento')}
         </p>
       )}
 
       {/* ---------- PERSONE ---------- */}
-      <div className="superadmin-subtitolo">Persone</div>
+      <div className="superadmin-subtitolo">{t('pan.persone')}</div>
       <div className="scheda-conti">
-        <Dato valore={CONTA(persone.soci)} etichetta="soci tesserati" />
-        <Dato valore={CONTA(persone.ospiti)} etichetta="ospiti" />
-        <Dato valore={CONTA(persone.maestri)} etichetta="maestri" />
+        <Dato valore={CONTA(persone.soci)} etichetta={t('pan.persone.soci')} />
+        <Dato valore={CONTA(persone.ospiti)} etichetta={t('pan.persone.ospiti')} />
+        <Dato valore={CONTA(persone.maestri)} etichetta={t('pan.persone.maestri')} />
         <Dato
-          valore={CONTA(persone.inAttesa)} etichetta="richieste in attesa"
+          valore={CONTA(persone.inAttesa)} etichetta={t('pan.persone.attesa')}
           allarme={persone.inAttesa > 0}
         />
       </div>
       <p className="admin-card-hint scheda-nota">
         {persone.inAttesa > 0 && persone.attesaPiuLungaMs !== null
-          ? `La richiesta più vecchia aspetta ${giorniDa(persone.attesaPiuLungaMs)}. `
+          ? t('pan.persone.attesaPiuVecchia', { quando: giorniDa(persone.attesaPiuLungaMs, t) })
           : ''}
-        {persone.sospese > 0 ? `${persone.sospese} tessere sospese. ` : ''}
-        {persone.chiuse > 0 ? `${persone.chiuse} chiuse. ` : ''}
+        {persone.sospese > 0 ? t('pan.persone.sospese', { n: persone.sospese }) : ''}
+        {persone.chiuse > 0 ? `${t('pan.persone.chiuse', { n: persone.chiuse })} ` : ''}
         {persone.sospese === 0 && persone.chiuse === 0 && persone.inAttesa === 0
-          ? 'Nessuna tessera in attesa, sospesa o chiusa.'
+          ? t('pan.persone.tutteApposto')
           : ''}
       </p>
 
@@ -342,20 +402,19 @@ export default function SchedaCircoloVista({
           È lo stesso numero che si legge nella Panoramica dentro
           l'app — stesso `riepilogoFatturazione`, stessi campi — così
           non esistono due versioni dello stesso dato. */}
-      <div className="superadmin-subtitolo">Chi usa l’app</div>
+      <div className="superadmin-subtitolo">{t('pan.uso')}</div>
       <div className="scheda-conti">
-        <Dato valore={CONTA(fattura.utenti)} etichetta="hanno aperto l’app" />
-        <Dato valore={CONTA(fattura.accettatiMaiUsati)} etichetta="accettati, mai entrati" />
-        <Dato valore={CONTA(fattura.usciteNelPeriodo)} etichetta="usciti nel periodo" />
+        <Dato valore={CONTA(fattura.utenti)} etichetta={t('pan.uso.aperto')} />
+        <Dato valore={CONTA(fattura.accettatiMaiUsati)} etichetta={t('pan.uso.maiEntrati')} />
+        <Dato valore={CONTA(fattura.usciteNelPeriodo)} etichetta={t('pan.uso.usciti')} />
       </div>
       <p className="admin-card-hint scheda-nota">
-        Si contano le persone che il circolo ha accettato — soci, tesserati e ospiti allo stesso
-        modo — e che hanno aperto l’app almeno una volta. Chi è entrato conta anche se poi è
-        uscito: il numero dice quante persone il servizio ha raggiunto nel periodo, non quante
-        ce ne sono stamattina.
-        {fattura.accettatiMaiUsati > 0
-          ? ` ${fattura.accettatiMaiUsati === 1 ? 'Una persona è stata accettata ma non ha' : `${fattura.accettatiMaiUsati} persone sono state accettate ma non hanno`} mai aperto l’app: ${fattura.accettatiMaiUsati === 1 ? 'non è' : 'non sono'} nel conteggio.`
-          : ''}
+        {t('pan.uso.nota')}
+        {fattura.accettatiMaiUsati === 1
+          ? t('pan.uso.maiEntratiUno')
+          : fattura.accettatiMaiUsati > 1
+            ? t('pan.uso.maiEntratiTanti', { n: fattura.accettatiMaiUsati })
+            : ''}
       </p>
       <p className="admin-card-hint scheda-nota">
         {/* ⚠️ Si guarda `ancorato`, non `attivatoIlMs`: la condizione
@@ -363,41 +422,42 @@ export default function SchedaCircoloVista({
             mese un circolo senza data di attivazione tornava a
             stampare una scadenza che non esisteva. */}
         {!fattura.periodo.ancorato
-          ? 'Periodo: gli ultimi dodici mesi. Il circolo non ha una data di attivazione scritta, quindi il conto non è ancorato a un anniversario.'
-          : `Anno ${fattura.periodo.numero} dall’attivazione, dal ${quandoLeggibile(fattura.periodo.inizioMs)} al ${quandoLeggibile(fattura.periodo.fineMs)}. Il numero può ancora salire fino a quella data.`}
+          ? t('pan.uso.periodoLibero')
+          : t('pan.uso.periodoAncorato', {
+            n: fattura.periodo.numero,
+            da: quandoLeggibile(fattura.periodo.inizioMs, t, lingua),
+            a: quandoLeggibile(fattura.periodo.fineMs, t, lingua),
+          })}
       </p>
 
       {/* ---------- ATTIVITÀ (dalla fotografia) ---------- */}
-      <div className="superadmin-subtitolo">Attività</div>
+      <div className="superadmin-subtitolo">{t('pan.attivita')}</div>
       {/* ⚠️ La data dello scatto sta PRIMA dei numeri, non dopo. Sotto
           si legge come una nota a piè di pagina, e i totali si sono già
           presi per correnti. */}
       <div className={`scheda-foto-barra${(senzaNumeri || fotoVecchia) ? ' scheda-foto-barra-allarme' : ''}`}>
         <span className="scheda-foto-quando">
           {foto === undefined
-            ? 'Lettura della fotografia…'
+            ? t('pan.foto.lettura')
             : foto === 'respinta'
-              ? (puoAggiornare
-                  ? 'Lettura della fotografia respinta: i numeri qui sotto non ci sono, e il tasto non risolve — è un problema di permessi.'
-                  : 'Lettura della fotografia respinta: i numeri qui sotto non ci sono. Se il tuo accesso Collaboratore è scaduto, rientra con la password del circolo.')
+              ? (puoAggiornare ? t('pan.foto.respintaAdmin') : t('pan.foto.respintaCollab'))
               : foto === null
                 ? (circoloFermo
-                  ? 'Nessuna fotografia: di questo circolo non ne è mai stata calcolata una, e non lo sarà finché il circolo non torna attivo.'
-                  : 'Nessuna fotografia ancora: i numeri qui sotto mancano perché non sono stati calcolati, non perché il circolo sia fermo. '
-                    + (puoAggiornare
-                      ? 'Premi «Aggiorna adesso».'
-                      : 'Il calcolo gira ogni notte; per rifarlo subito serve l’accesso del responsabile del circolo.'))
+                  ? t('pan.foto.mancaFermo')
+                  : t('pan.foto.mancaAttivo')
+                    + (puoAggiornare ? t('pan.foto.mancaPremi') : t('pan.foto.mancaNotte')))
                 : scattoMs === null
-                  ? (puoAggiornare
-                    ? 'Fotografia senza data di scatto: rifalla per sapere a quando risale.'
-                    : 'Fotografia senza data di scatto: la prossima notte il calcolo la rifà, e la data torna.')
-                  : `Aggiornato al ${quandoLeggibile(scattoMs)} · ${daQuanto(scattoMs)}${
+                  ? (puoAggiornare ? t('pan.foto.senzaDataAdmin') : t('pan.foto.senzaDataCollab'))
+                  : t('pan.foto.aggiornataAl', {
+                    data: quandoLeggibile(scattoMs, t, lingua),
+                    quando: daQuanto(scattoMs, t),
+                  }) + (
                     circoloFermo
-                      ? ' — il circolo non è attivo: questa resta la fotografia dell’ultimo giorno di attività'
+                      ? t('pan.foto.codaFermo')
                       : fotoVecchia
-                        ? ' — il giro notturno fotografa pochi circoli per volta e questo è rimasto indietro'
-                          + (puoAggiornare ? ': premi «Aggiorna adesso»' : '')
-                        : ''}`}
+                        ? t('pan.foto.codaVecchia')
+                          + (puoAggiornare ? t('pan.foto.codaPremi') : '')
+                        : '')}
         </span>
         {/* ⚠️ A chi non può aggiornare il tasto non si mostra spento:
             si toglie. Un comando visibile ma inerte fa credere di aver
@@ -413,76 +473,71 @@ export default function SchedaCircoloVista({
           // gia' scritto nella barra qui accanto.
           disabled={scattando || foto === 'respinta' || circoloFermo}
         >
-          {scattando ? 'Calcolo in corso…' : 'Aggiorna adesso'}
+          {scattando ? t('pan.foto.calcolo') : t('pan.foto.aggiorna')}
         </button>
         )}
       </div>
       {erroreScatto && <div className="admin-error-text">{erroreScatto}</div>}
       {avvisoScatto && <p className="admin-card-hint scheda-nota">{avvisoScatto}</p>}
       <p className="admin-card-hint scheda-nota">
-        Prenotazioni, ore, campi, fasce, registro e numeri per socio si calcolano una volta a
-        notte sul server: contarli qui vorrebbe dire scaricare tutto lo storico del circolo a
-        ogni apertura di questa pagina. Persone e denaro in giacenza, invece, sono dal vivo.
+        {t('pan.foto.spiegaSito')}
       </p>
       <div className="scheda-conti">
-        <Dato valore={CONTA(attivita.prenotazioni)} etichetta="prenotazioni in tutto" />
+        <Dato valore={CONTA(attivita.prenotazioni)} etichetta={t('pan.att.prenotazioni')} />
         {/* ⚠️ Dalla costante e non «30» scritto a mano: e' proprio il
             difetto contro cui mette in guardia il commento di
             GIORNI_FINESTRA in data/schedaCircolo.ts — il giorno che la
             finestra cambia, il server conta un periodo e la schermata
             ne annuncia un altro. */}
-        <Dato valore={CONTA(attivita.prenotazioni30)} etichetta={`negli ultimi ${CONTA_GIORNI} giorni`} />
-        <Dato valore={ORE(attivita.oreGiocate)} etichetta="ore di campo" />
+        <Dato valore={CONTA(attivita.prenotazioni30)} etichetta={t('pan.att.ultimiGiorni', { n: CONTA_GIORNI })} />
+        <Dato valore={ORE(attivita.oreGiocate)} etichetta={t('pan.att.oreCampo')} />
       </div>
       {/* ⚠️ È il numero che dice davvero se un circolo è vivo, e sta da
           solo apposta: dentro la fila degli altri si legge come una
           statistica, e invece è un semaforo. */}
       <div className="scheda-vivo">
-        <span className="scheda-vivo-et">Ultima prenotazione fatta</span>
+        <span className="scheda-vivo-et">{t('pan.att.ultima')}</span>
         <span className="scheda-vivo-n">
-          {quandoLeggibile(attivita.ultimaPrenotazioneMs)}
+          {quandoLeggibile(attivita.ultimaPrenotazioneMs, t, lingua)}
           {attivita.ultimaPrenotazioneMs !== null && (
-            <em> · {daQuanto(attivita.ultimaPrenotazioneMs)}</em>
+            <em> · {daQuanto(attivita.ultimaPrenotazioneMs, t)}</em>
           )}
         </span>
       </div>
       {attivita.senzaDataDiCreazione > 0 && (
         <p className="admin-card-hint scheda-nota">
-          {attivita.senzaDataDiCreazione} prenotazioni non riportano quando sono state fatte:
-          sono più vecchie di quel campo. Contano nel totale e nelle ore di campo, ma restano
-          fuori dagli ultimi {CONTA_GIORNI} giorni e non possono essere l&apos;ultima
-          prenotazione qui sopra. Non vuol dire che non ci siano state.
+          {t('pan.att.senzaDataSito', { n: attivita.senzaDataDiCreazione, giorni: CONTA_GIORNI })}
         </p>
       )}
       <div className="scheda-due-colonne">
         <div>
-          <div className="scheda-mini-titolo">Campi più usati</div>
+          <div className="scheda-mini-titolo">{t('pan.att.campi')}</div>
           {attivita.campiPiuUsati.length === 0
-            ? <p className="admin-empty-text">Nessuna prenotazione.</p>
+            ? <p className="admin-empty-text">{t('pan.att.nessuna')}</p>
             : attivita.campiPiuUsati.map((c) => (
               <div key={c.etichetta} className="scheda-riga-mini">
-                <span>{c.etichetta}</span><span>{CONTA(c.quante)} mezz&apos;ore</span>
+                <span>{c.etichetta}</span><span>{CONTA(c.quante)} {t('com.mezzore')}</span>
               </div>
             ))}
         </div>
         <div>
-          <div className="scheda-mini-titolo">Fasce di punta</div>
+          <div className="scheda-mini-titolo">{t('pan.att.fasce')}</div>
           {attivita.fascePunta.length === 0
-            ? <p className="admin-empty-text">Nessuna prenotazione.</p>
+            ? <p className="admin-empty-text">{t('pan.att.nessuna')}</p>
             : attivita.fascePunta.map((f) => (
               <div key={f.etichetta} className="scheda-riga-mini">
-                <span>{f.etichetta}</span><span>{CONTA(f.quante)} mezz&apos;ore</span>
+                <span>{f.etichetta}</span><span>{CONTA(f.quante)} {t('com.mezzore')}</span>
               </div>
             ))}
         </div>
       </div>
 
       {/* ---------- DENARO ---------- */}
-      <div className="superadmin-subtitolo">Denaro</div>
+      <div className="superadmin-subtitolo">{t('pan.denaro')}</div>
       <div className="scheda-conti">
-        <Dato valore={EURO(denaro.creditoInGiacenza)} etichetta="credito in giacenza" />
+        <Dato valore={EURO(denaro.creditoInGiacenza)} etichetta={t('pan.den.giacenza')} />
         <Dato
-          valore={EURO(denaro.debiti)} etichetta="debiti aperti"
+          valore={EURO(denaro.debiti)} etichetta={t('pan.den.debiti')}
           allarme={denaro.debiti > 0}
         />
         {/* ⚠️ QUI STAVA «fido concesso», la somma dei tetti di Fido di
@@ -497,14 +552,18 @@ export default function SchedaCircoloVista({
             fotografia»: zeri di ripiego presentati come letture vere,
             firmati da una fotografia che non era ancora arrivata. */}
         {inAttesaFoto
-          ? `Movimenti, ricariche e addebiti degli ultimi ${CONTA_GIORNI} giorni: in caricamento…`
+          ? t('pan.den.movCaricamento', { giorni: CONTA_GIORNI })
           : foto === 'respinta'
-            ? `Movimenti, ricariche e addebiti degli ultimi ${CONTA_GIORNI} giorni: non leggibili da qui — è un problema di permessi, non un circolo senza movimenti.`
+            ? t('pan.den.movRespinti', { giorni: CONTA_GIORNI })
             : senzaNumeri
-              ? `Movimenti, ricariche e addebiti degli ultimi ${CONTA_GIORNI} giorni: non disponibili finché non c’è una fotografia.`
-              : `Negli ultimi ${CONTA_GIORNI} giorni: ${CONTA(registro.movimenti30)} movimenti, ${EURO(registro.ricariche30)} di ricariche, ${EURO(registro.addebiti30)} di addebiti — dalla fotografia. Le ricariche contano i versamenti in segreteria, non le ricariche con il Fido.`}
-        {' '}Il credito in giacenza è denaro dei soci versato in segreteria: comprende anche le
-        tessere chiuse, perché è una posizione ancora aperta con chi se n&apos;è andato.
+              ? t('pan.den.movSenzaFoto', { giorni: CONTA_GIORNI })
+              : t('pan.den.movNumeri', {
+                giorni: CONTA_GIORNI,
+                movimenti: CONTA(registro.movimenti30),
+                ricariche: EURO(registro.ricariche30),
+                addebiti: EURO(registro.addebiti30),
+              })}
+        {t('pan.den.giacenzaNota')}
         {/* ⚠️ La differenza si DICE. Questi totali contano tutte le
             tessere; gli elenchi «Soci» e «Debiti» qui sotto mostrano
             solo chi è ancora del circolo. Finché le due cose stavano
@@ -518,9 +577,7 @@ export default function SchedaCircoloVista({
         {fraseFuoriElenco !== null && (
           <>
             {fraseFuoriElenco}
-            {perAdmin
-              ? ', ma non nelle sezioni «Soci» e «Debiti dei Soci», che mostrano solo chi è del circolo adesso.'
-              : '.'}
+            {perAdmin ? t('pan.den.fuori.coda') : '.'}
           </>
         )}
       </p>
@@ -530,27 +587,28 @@ export default function SchedaCircoloVista({
         className="scheda-elenco-tasto" onClick={() => setElencoAperto((v) => !v)}
         aria-expanded={elencoAperto}
       >
-        {elencoAperto ? 'Chiudi l’elenco per socio' : `Elenco per socio (${righe.length})`}
+        {elencoAperto ? t('pan.elenco.chiudi') : t('pan.elenco.apri', { n: righe.length })}
       </button>
       {elencoAperto && (inAttesaFoto || senzaNumeri) && (
         <p className="admin-card-hint scheda-nota">
           {inAttesaFoto
-            ? 'Prenotazioni e data dell’ultima si leggono dalla fotografia, che sta ancora arrivando: per ora quelle due colonne sono a zero. I nomi e i saldi sono veri.'
+            ? t('pan.elenco.inArrivo')
             : foto === 'respinta'
-              ? 'Prenotazioni e data dell’ultima si leggono dalla fotografia, che da qui non è leggibile: le due colonne dei conteggi restano a zero. I nomi e i saldi sono veri e aggiornati.'
-              : 'Prenotazioni e data dell’ultima si leggono dalla fotografia, che qui non c’è: i nomi e i saldi sono veri e aggiornati, le due colonne dei conteggi no.'}
+              ? t('pan.elenco.respinta')
+              : t('pan.elenco.assente')}
         </p>
       )}
       {elencoAperto && (
         righe.length === 0
-          ? <p className="admin-empty-text">Nessuna tessera in questo circolo.</p>
+          ? <p className="admin-empty-text">{t('pan.elenco.vuoto')}</p>
           : (
             <div className="scheda-tabella-culla">
               <table className="scheda-tabella">
                 <thead>
                   <tr>
-                    <th>Persona</th><th>Stato</th><th>Pren.</th>
-                    <th>Credito</th><th>Debito</th><th>Class.</th><th>Ultima pren.</th>
+                    <th>{t('pan.tab.persona')}</th><th>{t('pan.tab.stato')}</th><th>{t('pan.tab.pren')}</th>
+                    <th>{t('pan.tab.credito')}</th><th>{t('pan.tab.debito')}</th>
+                    <th>{t('pan.tab.classifica')}</th><th>{t('pan.tab.ultimaPren')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -559,10 +617,10 @@ export default function SchedaCircoloVista({
                       <td>
                         <div className="scheda-td-nome">{r.nome}</div>
                         <div className="scheda-td-sub">
-                          {r.ruolo === 'ospite' ? 'Ospite' : 'Socio'}
+                          {r.ruolo === 'ospite' ? t('pan.elenco.ospite') : t('pan.elenco.socio')}
                         </div>
                       </td>
-                      <td>{ETICHETTA_STATO[r.stato] ?? r.stato}</td>
+                      <td>{etichettaStato(r.stato, t)}</td>
                       <td>{CONTA(r.prenotazioni)}</td>
                       <td>{EURO(r.credito)}</td>
                       <td className={r.debito > 0 ? 'scheda-td-debito' : undefined}>
@@ -593,7 +651,9 @@ export default function SchedaCircoloVista({
           potrà mai succedere. */}
       <p className="admin-card-hint scheda-privacy">
         {perAdmin
-          ? 'Qui non compaiono le conversazioni: le chat delle sfide e delle lezioni restano fra le persone che le hanno scritte.'
+          ? t('pan.privacy')
+          // ⚠️ Ramo del Super Admin: lo legge solo il team Racket
+          // Fever, resta in italiano.
           : 'Questi numeri servono all’assistenza e alla fatturazione. Le conversazioni dei soci non compaiono qui e le regole del database non ne concedono la lettura al team Racket Fever.'}
       </p>
     </div>

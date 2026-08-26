@@ -27,6 +27,7 @@ import {
   importoDaMostrare, Movimento,
 } from '../../../data/movimenti';
 import { creaNotifica } from '../../../data/notifiche';
+import { avviso } from '../../../data/linguaDestinatario';
 import { numeroPerWhatsApp } from './SezioneRichiesteTessera';
 import Modal from './Modal';
 
@@ -108,7 +109,7 @@ export default function SezioneTessereDaSaldare({ circolo }: { circolo: Circolo 
       await saldaTessera(daSaldare.uid, circolo.id);
       await creaNotifica(
         daSaldare.uid,
-        `${circolo.nome} ha registrato la chiusura del tuo conto: la posizione è saldata.`,
+        avviso('avv.cir.contoSaldato', { circolo: circolo.nome }),
         undefined,
         circolo.id,
         true

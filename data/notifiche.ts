@@ -27,6 +27,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { CategoriaNotifica } from './preferenzeNotifiche';
+import { TestoAvviso, componiPerSocio } from './linguaDestinatario';
 
 export interface Notifica {
   id: string;
@@ -61,7 +62,13 @@ export interface Notifica {
 // un giorno la categoria dentro il campo del motivo.
 export async function creaNotifica(
   utenteId: string,
-  testo: string,
+  // ⚠️ O UNA FRASE GIÀ FATTA, O UNA CHIAVE DA TRADURRE. Passando
+  // `avviso('chiave', {...})` la frase viene composta nella lingua
+  // del DESTINATARIO, letta dal suo profilo un istante prima di
+  // scrivere. Passando una stringa si scrive quella, come sempre:
+  // è il motivo per cui i punti non ancora convertiti continuano a
+  // funzionare invece di rompersi.
+  testo: TestoAvviso,
   tipo?: 'lezione',
   circoloId?: string,
   globale?: boolean,
@@ -87,9 +94,17 @@ export async function creaNotifica(
   cardId?: string | null,
 ): Promise<void> {
   const origine = origineUid !== undefined ? origineUid : (auth.currentUser?.uid ?? null);
+  // ⚠️ LA FRASE SI COMPONE QUI, PRIMA DI SCRIVERLA, e non alla
+  // lettura in Home. Un avviso già arrivato resta com'era anche se
+  // chi lo ha ricevuto cambia lingua domani — che è la decisione di
+  // Giorgio del 26 agosto 2026, e l'unica che tiene insieme avviso e
+  // push: una notifica già consegnata al telefono non si può più
+  // toccare, quindi tradurre alla lettura farebbe divergere le due
+  // metà della stessa cosa.
+  const testoScritto = await componiPerSocio(utenteId, testo);
   await addDoc(collection(db, 'notifiche'), {
     utenteId,
-    testo,
+    testo: testoScritto,
     letta: false,
     tipo: tipo ?? null,
     ...(circoloId ? { circoloId } : {}),

@@ -18,6 +18,7 @@ import { PrenotazioneAdmin, cancellaConRimborso, cancellaConRimborsoDiviso, canc
 import { giocatoriDi, quotaChiPrenota, elencoNomi } from '../../../data/giocatori';
 import { Sfida } from '../../../data/sfide';
 import { creaNotifica } from '../../../data/notifiche';
+import { avviso } from '../../../data/linguaDestinatario';
 
 // Gli avvisi sono un di piu': se falliscono non deve mai sembrare che
 // l'annullamento sia fallito — a quel punto la prenotazione e' gia'
@@ -815,11 +816,10 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         // e non succede niente.
         await senzaBloccare(() => creaNotifica(
           socioScelto.uid,
-          (prolungamento
-            ? 'Il circolo ha modificato la tua prenotazione.'
-            : 'Il circolo ha prenotato per te.')
-            + `\n${prolungamento ? 'Aggiunte: ' : ''}${dataLeggibile} ${daA} · ${campoSel.nome}`
-            + (senzaAddebito ? '\nNessun addebito sul tuo credito.' : ''),
+          avviso(prolungamento ? 'avv.cir.modificaPrenDett' : 'avv.cir.prenotaPerTeDett', {
+            dettaglio: `${dataLeggibile} ${daA} · ${campoSel.nome}`,
+            coda: senzaAddebito ? avviso('avv.cir.senzaAddebito') : '',
+          }),
           undefined, circolo.id, undefined, undefined,
           prolungamento ? 'modifica' : undefined,
           // Cade sotto «Le mie partite», dove il socio la cerca.
@@ -833,9 +833,10 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         for (const g of giocatoriEreditati) {
           await senzaBloccare(() => creaNotifica(
             g.uid,
-            'Il circolo ha modificato una prenotazione nella quale eri stato aggiunto.'
-              + `\n${prolungamento ? 'Aggiunte: ' : ''}${dataLeggibile} ${daA} · ${campoSel.nome}`
-              + (senzaAddebito ? '\nNessun addebito sul tuo credito.' : ''),
+            avviso(prolungamento ? 'avv.cir.compagnoProlungaDett' : 'avv.cir.compagnoModificaDett', {
+              dettaglio: `${dataLeggibile} ${daA} · ${campoSel.nome}`,
+              coda: senzaAddebito ? avviso('avv.cir.senzaAddebito') : '',
+            }),
             undefined, circolo.id, undefined, undefined,
             'modifica', 'prenotazioni', undefined, idCard,
           ));
@@ -1054,9 +1055,10 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         // l'errore che risale e nasconde un'operazione riuscita.
         await senzaBloccare(() => creaNotifica(
           daAnnullare.utenteId,
-          `Il circolo ha ${parola()} la tua prenotazione.`
-            + `\n${rigaDettaglio}`
-            + `\nLa tua quota è stata riaccreditata: € ${miaQuota}.`,
+          avviso(restaLaPartita ? 'avv.cir.tuaModificataDett' : 'avv.cir.tuaCancellataDett', {
+            dettaglio: rigaDettaglio,
+            coda: avviso('avv.quotaRiaccreditataCifra', { importo: miaQuota }),
+          }),
           undefined,
           circolo.id,
           undefined, undefined,
@@ -1073,9 +1075,10 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         for (const g of altri) {
           await senzaBloccare(() => creaNotifica(
             g.uid,
-            `Il circolo ha ${parola()} una prenotazione nella quale eri stato aggiunto.`
-              + `\n${rigaDettaglio}`
-              + `\nLa tua quota è stata riaccreditata: € ${g.quota.toFixed(2)}.`,
+            avviso(restaLaPartita ? 'avv.cir.compagnoModificataDett' : 'avv.cir.compagnoCancellataDett', {
+              dettaglio: rigaDettaglio,
+              coda: avviso('avv.quotaRiaccreditataCifra', { importo: g.quota.toFixed(2) }),
+            }),
             undefined,
             circolo.id,
             undefined, undefined, motivoAnnullo,
@@ -1108,9 +1111,12 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         }));
         await senzaBloccare(() => creaNotifica(
           daAnnullare.utenteId,
-          `Il circolo ha ${parola()} la tua prenotazione.`
-            + `\n${rigaDettaglio}`
-            + (importoDaRimborsare(daAnnullare) > 0 ? `\nCredito rimborsato: € ${importoDaRimborsare(daAnnullare).toFixed(2)}.` : ''),
+          avviso(restaLaPartita ? 'avv.cir.tuaModificataDett' : 'avv.cir.tuaCancellataDett', {
+            dettaglio: rigaDettaglio,
+            coda: importoDaRimborsare(daAnnullare) > 0
+              ? avviso('avv.cir.creditoRimborsato', { importo: importoDaRimborsare(daAnnullare).toFixed(2) })
+              : '',
+          }),
           undefined,
           circolo.id,
           undefined, undefined, motivoAnnullo,

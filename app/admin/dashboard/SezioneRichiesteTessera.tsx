@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Circolo } from '../../../data/circoli';
 import { ascoltaRichiesteInSospeso, approvaTessera, rifiutaTessera, Tessera } from '../../../data/tessere';
 import { creaNotifica } from '../../../data/notifiche';
+import { avviso } from '../../../data/linguaDestinatario';
 
 // Il collegamento wa.me vuole il numero in formato internazionale
 // senza spazi ne' simboli: "393331234567", non "+39 333 123 4567".
@@ -55,8 +56,8 @@ export default function SezioneRichiesteTessera({ circolo, approvatore }: {
       await creaNotifica(
         t.uid,
         t.ruolo === 'socio_tesserato'
-          ? `${circolo.nome} non ha accolto la tua richiesta di iscrizione. Puoi contattare la segreteria del circolo per saperne di più.`
-          : `${circolo.nome} non ha accolto la tua richiesta di accesso come Ospite. Puoi contattare la segreteria del circolo per saperne di più.`,
+          ? avviso('avv.cir.rifiutoSocio', { circolo: circolo.nome })
+          : avviso('avv.cir.rifiutoOspite', { circolo: circolo.nome }),
         undefined,
         circolo.id,
         true

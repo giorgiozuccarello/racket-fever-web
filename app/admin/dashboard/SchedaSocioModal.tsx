@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { SocioCircolo, ripristinaSOS, etaDaAnno } from '../../../data/users';
 import { creaNotifica } from '../../../data/notifiche';
+import { avviso } from '../../../data/linguaDestinatario';
 import {
   ricaricaCredito, azzeraCredito, cancellaConRimborso, importoDaRimborsare, PrenotazioneAdmin,
 } from '../../../data/prenotazioniRepo';
@@ -90,20 +91,21 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
           descrizione: 'Rimborso per rimozione dal circolo',
         }); },
       });
+      // ⚠️ I due pezzi facoltativi sono a loro volta frasi da tradurre:
+      // si passano come valori e si risolvono nella lingua del socio.
       const saldo = (socio.credito ?? 0) > 0
-        ? ` Hai € ${(socio.credito ?? 0).toFixed(2)} di credito da ritirare in segreteria.`
+        ? avviso('avv.cir.creditoDaRitirare', { importo: (socio.credito ?? 0).toFixed(2) })
         : (socio.sosUtilizzato ?? 0) > 0
-          ? ` Risulta un debito di € ${(socio.sosUtilizzato ?? 0).toFixed(2)} da saldare in segreteria.`
+          ? avviso('avv.cir.debitoDaSaldare', { importo: (socio.sosUtilizzato ?? 0).toFixed(2) })
           : '';
       await creaNotifica(
         socio.uid,
-        (eOspite
-          ? 'Il circolo ha chiuso la tua posizione di Ospite.'
-          : 'Non fai più parte dei soci del circolo.')
-          + saldo
-          + (esito.prenotazioniCancellate > 0
-            ? ` Le tue ${esito.prenotazioniCancellate} prenotazioni future sono state cancellate e rimborsate.`
-            : ''),
+        avviso(eOspite ? 'avv.cir.chiusaOspiteCoda' : 'avv.cir.fuoriDaiSociCoda', {
+          saldo,
+          coda: esito.prenotazioniCancellate > 0
+            ? avviso('avv.cir.prenotazioniCancellate', { n: esito.prenotazioniCancellate })
+            : '',
+        }),
         undefined,
         circoloId,
         // Globale: da questo momento la persona non è più membro del
@@ -156,7 +158,7 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
     await azzeraCredito(socio.uid, circoloId);
     await creaNotifica(
       socio.uid,
-      `Il circolo ha azzerato il tuo credito wallet (era € ${(socio.credito ?? 0).toFixed(2)}). Se non ti torna, rivolgiti alla segreteria.`,
+      avviso('avv.cir.creditoAzzeratoSito', { importo: (socio.credito ?? 0).toFixed(2) }),
       // ⚠️ IL CIRCOLO MANCAVA, e il gemello dell'app lo passava. Senza,
       // l'avviso finisce legato al circolo principale del socio — quello
       // sbagliato, se qui e' Ospite — e la notifica sul telefono perde

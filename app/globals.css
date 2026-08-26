@@ -1197,3 +1197,27 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-collassa-contenuto > .admin-card > .scheda-circolo{
   margin-bottom:1.1rem;
 }
+
+/* ============================================================
+   IL SELETTORE DELLA LINGUA — Panoramica circolo dell'Admin.
+
+   ⚠️ LARGHEZZA LIMITATA, e non e' vezzo grafico: `.admin-select` nasce
+   a larghezza piena perche' gli altri usi — orari, prezzi, campi —
+   stanno dentro colonne strette. Qui la tendina sta in cima a una
+   scheda larga tutto il pannello, e un menu a tendina lungo mille
+   pixel per tre voci da dieci lettere si legge come un errore di
+   impaginazione.
+
+   ⚠️ Il riquadro ha una riga di stacco sotto perche' e' l'unica cosa
+   della Panoramica che non e' un numero del circolo: senza, si legge
+   come la prima voce dei dati.
+   ============================================================ */
+.admin-lingua{
+  padding-bottom:.9rem;margin-bottom:1rem;
+  border-bottom:1px solid #E9E5D9;
+}
+.admin-lingua .admin-label{margin-top:0}
+.admin-lingua .admin-select{max-width:16rem}
+.admin-hint-lingua{
+  font-size:.78rem;line-height:1.45;color:var(--grigio);margin-top:.45rem;max-width:46rem;
+}
