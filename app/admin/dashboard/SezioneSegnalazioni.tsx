@@ -18,9 +18,11 @@
 
 import { useEffect, useState } from 'react';
 import { Circolo } from '../../../data/circoli';
-import { Segnalazione, testoMotivo } from '../../../data/segnalazioni';
+import { Segnalazione, chiaveMotivo } from '../../../data/segnalazioni';
 import { ascoltaSegnalazioniCircolo, segnaSegnalazione } from '../../../data/segnalazioniRepo';
 import { auth } from '../../../lib/firebase';
+import { useLingua } from '../../../lib/lingua';
+import { ChiaveTesto } from '../../../data/testi';
 
 function quando(ms?: number): string {
   if (!ms) return '';
@@ -32,6 +34,7 @@ function quando(ms?: number): string {
 export default function SezioneSegnalazioni({ circolo }: {
   circolo: Circolo;
 }) {
+  const { t } = useLingua();
   const [segnalazioni, setSegnalazioni] = useState<Segnalazione[]>([]);
   const [errore, setErrore] = useState('');
 
@@ -52,7 +55,7 @@ export default function SezioneSegnalazioni({ circolo }: {
       // del circolo avrebbe scritto l'identificativo di un altro.
       await segnaSegnalazione(s.id, stato, auth.currentUser?.uid ?? '');
     } catch {
-      setErrore('Non sono riuscito ad aggiornare la segnalazione. Riprova.');
+      setErrore(t('adm.seg.erroreAggiorna'));
     }
   };
 
@@ -76,49 +79,47 @@ export default function SezioneSegnalazioni({ circolo }: {
       )}
       <div style={{ flex: 1 }}>
         <div className="admin-list-main">{s.segnalatoNome}</div>
-        <div className="admin-list-sub"><strong>{testoMotivo(s.motivo)}</strong></div>
+        {/* ⚠️ Su Firestore c'è il CODICE del motivo, non la frase: il
+            socio lo sceglie nella sua lingua e l'Admin lo rilegge nella
+            sua. `chiaveMotivo` restituisce la chiave del dizionario, e
+            la frase nasce qui davanti. */}
+        <div className="admin-list-sub"><strong>{t(chiaveMotivo(s.motivo) as ChiaveTesto)}</strong></div>
         <div className="admin-list-sub">
-          Segnalato da {s.daNome || '—'} · {quando(s.creatoIlMs)}
+          {t('adm.seg.segnalatoDa', { chi: s.daNome || t('com.nessunDato'), quando: quando(s.creatoIlMs) })}
         </div>
         {(s.copiaRacchetta || s.copiaClassifica) && (
           <div className="admin-list-sub">
-            Nella scheda: {[s.copiaRacchetta, s.copiaClassifica].filter(Boolean).join(' · ')}
+            {t('adm.seg.nellaScheda', {
+              cosa: [s.copiaRacchetta, s.copiaClassifica].filter(Boolean).join(' · '),
+            })}
           </div>
         )}
       </div>
       {s.stato === 'nuova' ? (
         <>
-          <button className="admin-btn-small" onClick={() => segna(s, 'vista')}>Presa in carico</button>
-          <button className="admin-btn-small" onClick={() => segna(s, 'chiusa')}>Chiudi</button>
+          <button className="admin-btn-small" onClick={() => segna(s, 'vista')}>{t('adm.seg.prendiInCarico')}</button>
+          <button className="admin-btn-small" onClick={() => segna(s, 'chiusa')}>{t('com.chiudi')}</button>
         </>
       ) : (
-        <span className="admin-list-sub">{s.stato === 'vista' ? 'In carico' : 'Chiusa'}</span>
+        <span className="admin-list-sub">{s.stato === 'vista' ? t('adm.seg.inCarico') : t('adm.seg.chiusa')}</span>
       )}
     </div>
   );
 
   return (
     <div>
-      <p className="admin-card-hint">
-        Un socio può segnalare la scheda di un altro socio dall&apos;app. Le segnalazioni arrivano
-        qui e, nello stesso momento, a Racket Fever. Puoi prenderle in carico e chiuderle, ma non
-        cancellarle: è la garanzia che chi segnala ha, e vale anche per noi.
-      </p>
-      <p className="admin-card-hint">
-        Cosa puoi fare: parlare con la persona, sospendere la sua tessera dalla sezione Soci,
-        oppure rimuoverla dal circolo. Per i casi seri scrivici — le segnalazioni le vediamo anche
-        noi e possiamo intervenire sull&apos;account.
-      </p>
+      <p className="admin-card-hint">{t('adm.seg.hintArrivo')}</p>
+      <p className="admin-card-hint">{t('adm.seg.hintCosaPuoiFare')}</p>
 
       {!!errore && <div className="admin-error-text">{errore}</div>}
 
-      {segnalazioni.length === 0 && <p className="admin-empty-text">Nessuna segnalazione.</p>}
+      {segnalazioni.length === 0 && <p className="admin-empty-text">{t('adm.seg.nessuna')}</p>}
 
       {nuove.map((s) => riga(s, false))}
 
       {viste.length > 0 && (
         <>
-          <label className="admin-label" style={{ marginTop: '1rem' }}>Già guardate</label>
+          <label className="admin-label" style={{ marginTop: '1rem' }}>{t('adm.seg.giaGuardate')}</label>
           {viste.map((s) => riga(s, true))}
         </>
       )}

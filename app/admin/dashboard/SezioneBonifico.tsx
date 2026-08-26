@@ -6,6 +6,7 @@ import {
   DatiBonifico, ascoltaBonifico, salvaBonifico, cancellaBonifico,
   ibanValido, ibanNormalizzato, ibanLeggibile,
 } from '../../../data/bonifico';
+import { useLingua } from '../../../lib/lingua';
 
 // ⚠️ GEMELLA della SezioneBonifico nella dashboard mobile.
 //
@@ -15,6 +16,7 @@ import {
 // un'associazione vera non si regala a chiunque abbia scaricato l'app.
 // Vedi il riquadro in `data/bonifico.ts`.
 export default function SezioneBonifico({ circolo }: { circolo: Circolo }) {
+  const { t } = useLingua();
   const [dati, setDati] = useState<DatiBonifico | null>(null);
   const [intestatario, setIntestatario] = useState('');
   const [iban, setIban] = useState('');
@@ -54,7 +56,7 @@ export default function SezioneBonifico({ circolo }: { circolo: Circolo }) {
       setSalvato(true);
       setTimeout(() => setSalvato(false), 2000);
     } catch {
-      setErrore('Non è stato possibile salvare. Controlla la connessione e riprova.');
+      setErrore(t('adm.bon.erroreSalva'));
     } finally {
       setSalvando(false);
     }
@@ -69,7 +71,7 @@ export default function SezioneBonifico({ circolo }: { circolo: Circolo }) {
       setIntestatario('');
       setIban('');
     } catch {
-      setErrore('Non è stato possibile togliere i dati. Riprova.');
+      setErrore(t('adm.bon.erroreTogli'));
     } finally {
       setSalvando(false);
     }
@@ -77,15 +79,12 @@ export default function SezioneBonifico({ circolo }: { circolo: Circolo }) {
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Dati per il bonifico</div>
-      <p className="admin-card-hint">
-        Il conto del circolo su cui i soci versano per ricaricare il credito. Finché questi
-        due campi sono vuoti, nell&apos;app dei soci non compare nessun pulsante «Ricarica».
-        Il credito NON si carica da solo: lo carichi tu dalla scheda del socio quando vedi
-        l&apos;accredito sul conto.
-      </p>
+      <div className="admin-card-title">{t('adm.bon.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.bon.hint')}</p>
 
-      <label className="admin-label">Intestatario del conto</label>
+      <label className="admin-label">{t('adm.bon.intestatario')}</label>
+      {/* Il segnaposto è il nome del circolo pilota: è un esempio, cioè
+          un dato, e resta uguale in tutte e tre le lingue. */}
       <input
         className="admin-input"
         value={intestatario}
@@ -111,7 +110,7 @@ export default function SezioneBonifico({ circolo }: { circolo: Circolo }) {
         // volta sola, e l'errore lo scoprirebbe un socio settimane dopo
         // con un bonifico rifiutato dalla banca.
         <div style={{ fontSize: '.8rem', color: '#B3261E', marginTop: '.4rem' }}>
-          Questo IBAN non è valido: ricontrolla le cifre.
+          {t('adm.bon.ibanNonValido')}
         </div>
       )}
 
@@ -121,7 +120,7 @@ export default function SezioneBonifico({ circolo }: { circolo: Circolo }) {
         onClick={salva}
         disabled={!completo || salvando}
       >
-        {salvato ? 'Salvato ✓' : 'Salva'}
+        {salvato ? t('adm.bon.salvato') : t('com.salva')}
       </button>
 
       {dati && (
@@ -131,7 +130,7 @@ export default function SezioneBonifico({ circolo }: { circolo: Circolo }) {
           onClick={togli}
           disabled={salvando}
         >
-          Togli i dati (il pulsante «Ricarica» sparisce dall&apos;app dei soci)
+          {t('adm.bon.togliDati')}
         </button>
       )}
 

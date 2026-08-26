@@ -35,6 +35,7 @@ import {
 } from '../../../data/maestriRepo';
 import { caricaFotoMaestro, rimuoviFotoMaestro } from '../../../data/storage';
 import { ContiMaestro } from '../../../data/contiMaestro';
+import { useLingua } from '../../../lib/lingua';
 
 // Un campo importo: mostra la stringa che sta scrivendo l'Admin e
 // restituisce il numero solo quando ha senso.
@@ -62,6 +63,8 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
   // credere all'Admin che un Maestro non abbia mai disdetto niente.
   contiIncerti: boolean;
 }) {
+  const { t } = useLingua();
+
   const [fotoUrl, setFotoUrl] = useState<string | null>(maestro.fotoUrl ?? null);
   const [qualifica, setQualifica] = useState(maestro.qualifica ?? '');
   const [discipline, setDiscipline] = useState<string[]>(maestro.discipline ?? []);
@@ -115,9 +118,15 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
         // ⚠️ Non si finge che sia vuota. Se la lettura non riesce e i
         // campi restano in bianco, il primo salvataggio cancella un
         // telefono che c'era — l'Admin non ha modo di accorgersene.
-        setErrore('Non è stato possibile leggere contatti e tariffe. Riapri la scheda prima di salvare, o rischi di sovrascriverli.');
+        setErrore(t('adm.mae.erroreLetturaPrivata'));
       });
     return () => { vivo = false; };
+    // ⚠️ `t` NON sta fra le dipendenze apposta: cambia a ogni cambio di
+    // lingua, e metterlo qui farebbe rileggere la scheda privata da
+    // Firestore solo perché l'Admin ha spostato il selettore. L'avviso
+    // resta nella lingua in cui è comparso, il che è quello che si
+    // vuole: se cambia lingua, la scheda si richiude e si riapre.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maestro.uid]);
 
   const anni = anniDiEsperienza({ insegnaDal: numeroDaTesto(insegnaDal) });
@@ -136,7 +145,7 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
       setFotoUrl(url);
       setSalvato(false);
     } catch {
-      setErrore("Caricamento della foto non riuscito. Riprova.");
+      setErrore(t('adm.mae.erroreCaricamentoFoto'));
     } finally {
       setCaricandoFoto(false);
     }
@@ -187,7 +196,9 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
       }
       setSalvato(true);
     } catch {
-      setErrore('Salvataggio non riuscito. Riprova.');
+      // Stessa frase di tutte le altre schermate: sta nel dizionario
+      // comune, e da lì la prendono anche gli altri salvataggi.
+      setErrore(t('com.errore.salvataggio'));
       setSalvato(false);
     } finally {
       setSalvando(false);
@@ -202,29 +213,29 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
       <div className="scheda-conti">
         <div className="scheda-conto">
           <span className="scheda-conto-n">{conti.fatte}</span>
-          <span className="scheda-conto-et">lezioni date</span>
+          <span className="scheda-conto-et">{t('adm.mae.lezioniDate')}</span>
         </div>
         <div className="scheda-conto">
           <span className="scheda-conto-n">{conti.inProgramma}</span>
-          <span className="scheda-conto-et">in programma</span>
+          <span className="scheda-conto-et">{t('adm.mae.lezioniInProgramma')}</span>
         </div>
         <div className="scheda-conto">
           <span className="scheda-conto-n">{contiIncerti ? '—' : conti.annullate}</span>
           <span className="scheda-conto-et">
-            annullate
-            {!contiIncerti && conti.tardive > 0 && ` · ${conti.tardive} in ritardo`}
+            {t('adm.mae.lezioniAnnullate')}
+            {!contiIncerti && conti.tardive > 0 && ` · ${t('adm.mae.lezioniInRitardo', { n: conti.tardive })}`}
           </span>
         </div>
       </div>
       <p className="admin-card-hint scheda-nota-conti">
         {contiIncerti
-          ? 'Le lezioni annullate non sono state caricate: il numero non è disponibile in questo momento.'
-          : 'Numeri ricavati dalle prenotazioni, non compilati a mano. «In ritardo» sono le disdette arrivate oltre il termine ma prima dell\'inizio: una lezione tolta dalla griglia il giorno dopo è annullata, non in ritardo. Le disdette si contano da quando la registrazione è attiva: quelle avvenute prima non risultano.'}
+          ? t('adm.mae.annullateNonCaricate')
+          : t('adm.mae.notaConti')}
       </p>
 
       {/* ---------- 1. CONTATTI E FOTO ---------- */}
       <div className="scheda-gruppo">
-        <div className="scheda-gruppo-titolo">Contatti e foto</div>
+        <div className="scheda-gruppo-titolo">{t('adm.mae.gruppoContatti')}</div>
         <div className="scheda-foto-riga">
           <div className="scheda-foto">
             {fotoUrl
@@ -234,7 +245,7 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
           </div>
           <div className="scheda-foto-comandi">
             <label className="admin-btn-small scheda-file">
-              {caricandoFoto ? 'Caricamento…' : (fotoUrl ? 'Cambia foto' : 'Carica foto')}
+              {caricandoFoto ? t('com.caricamento') : (fotoUrl ? t('adm.mae.cambiaFoto') : t('adm.mae.caricaFoto'))}
               <input
                 type="file" accept="image/*" disabled={caricandoFoto}
                 onChange={(e) => { scegliFoto(e.target.files?.[0] ?? null); e.target.value = ''; }}
@@ -242,62 +253,61 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
             </label>
             {fotoUrl && (
               <button
-                className="admin-icon-btn danger" aria-label="Togli la foto"
+                className="admin-icon-btn danger" aria-label={t('adm.mae.togliFoto')}
                 onClick={() => { setFotoUrl(null); setSalvato(false); }}
               >🗑</button>
             )}
-            <p className="admin-card-hint scheda-hint-foto">
-              La vedono i soci del circolo. Viene ritagliata quadrata in automatico.
-            </p>
+            <p className="admin-card-hint scheda-hint-foto">{t('adm.mae.notaFoto')}</p>
           </div>
         </div>
 
-        <label className="admin-label">Email (per l&apos;accesso)</label>
+        <label className="admin-label">{t('adm.mae.emailAccesso')}</label>
         <input className="admin-input" value={maestro.email} disabled readOnly />
 
-        <label className="admin-label">Telefono</label>
+        <label className="admin-label">{t('adm.mae.telefono')}</label>
         <input
           className="admin-input" value={telefono} inputMode="tel"
           onChange={(e) => { setTelefono(e.target.value); setSalvato(false); }}
-          placeholder="Es. 340 1234567"
+          placeholder={t('adm.mae.esempioTelefono')}
           disabled={!privataArrivata}
         />
-        <p className="admin-card-hint scheda-riservato">
-          🔒 Riservato: telefono e tariffe li vedono chi entra in Admin — tu e la segreteria
-          con la password del circolo — più il Maestro stesso e Racket Fever. I soci no.
-        </p>
+        <p className="admin-card-hint scheda-riservato">🔒 {t('adm.mae.notaRiservato')}</p>
       </div>
 
       {/* ---------- 2. QUALIFICA E DISCIPLINE ---------- */}
       <div className="scheda-gruppo">
-        <div className="scheda-gruppo-titolo">Qualifica e discipline</div>
+        <div className="scheda-gruppo-titolo">{t('adm.mae.gruppoQualifica')}</div>
 
-        <label className="admin-label">Qualifica</label>
+        <label className="admin-label">{t('adm.mae.qualifica')}</label>
+        {/* ⚠️ Il titolo dentro l'esempio resta in italiano in tutte e tre
+            le lingue: «Istruttore di 2º grado» è il titolo FITP, ed è
+            quello che l'elenco dei suggerimenti qui sotto propone. Solo
+            la parolina «Es.» cambia lingua. */}
         <input
           className="admin-input" value={qualifica} list={`qualifiche-${maestro.uid}`}
           maxLength={MAX_QUALIFICA_MAESTRO}
           onChange={(e) => { setQualifica(e.target.value); setSalvato(false); }}
-          placeholder="Es. Istruttore di 2º grado"
+          placeholder={t('adm.mae.esempioQualifica')}
         />
         <datalist id={`qualifiche-${maestro.uid}`}>
           {QUALIFICHE_SUGGERITE.map((q) => <option key={q} value={q} />)}
         </datalist>
 
-        <label className="admin-label">Insegna dal</label>
+        <label className="admin-label">{t('adm.mae.insegnaDal')}</label>
         <div className="scheda-anno-riga">
           <input
             className="admin-input" value={insegnaDal} inputMode="numeric" maxLength={4}
             onChange={(e) => { setInsegnaDal(e.target.value.replace(/\D/g, '')); setSalvato(false); }}
-            placeholder="Es. 2011"
+            placeholder={t('adm.mae.esempioAnno')}
           />
           {/* L'anno non invecchia, il numero di anni sì: si mostra
               ricavato, così non può restare indietro. */}
           <span className="scheda-anni">
-            {anni === null ? '' : anni === 0 ? 'primo anno' : `${anni} anni di insegnamento`}
+            {anni === null ? '' : anni === 0 ? t('adm.mae.primoAnno') : t('adm.mae.anniInsegnamento', { n: anni })}
           </span>
         </div>
 
-        <label className="admin-label">Discipline</label>
+        <label className="admin-label">{t('adm.mae.discipline')}</label>
         <div className="admin-chip-row">
           {DISCIPLINE.map((d) => (
             <button
@@ -312,7 +322,7 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
 
       {/* ---------- 3. TARIFFE ---------- */}
       <div className="scheda-gruppo">
-        <div className="scheda-gruppo-titolo">Tariffe</div>
+        <div className="scheda-gruppo-titolo">{t('adm.mae.gruppoTariffe')}</div>
         {/* ⚠️ Questo avviso non è decorativo. Scritto un numero qui, la
             cosa più naturale da aspettarsi è che le lezioni comincino a
             costare quella cifra — e non succede: in app la lezione
@@ -320,14 +330,10 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
             piattaforma e regola il campo con la segreteria. Senza
             questa riga, il primo che compila il campo si aspetta un
             incasso che non arriverà mai. */}
-        <p className="admin-card-hint">
-          Promemoria per la segreteria, non un listino. L&apos;app non addebita nulla per
-          la lezione: il Maestro concorda l&apos;importo con l&apos;allievo e regola il campo
-          con voi.
-        </p>
+        <p className="admin-card-hint">{t('adm.mae.notaTariffe')}</p>
         <div className="admin-row">
           <div>
-            <label className="admin-label">Individuale (€/ora)</label>
+            <label className="admin-label">{t('adm.mae.tariffaIndividuale')}</label>
             <input
               className="admin-input" value={tariffaIndividuale} inputMode="decimal"
               onChange={(e) => { setTariffaIndividuale(e.target.value); setSalvato(false); }}
@@ -335,7 +341,7 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
             />
           </div>
           <div>
-            <label className="admin-label">In due (€/ora)</label>
+            <label className="admin-label">{t('adm.mae.tariffaCoppia')}</label>
             <input
               className="admin-input" value={tariffaCoppia} inputMode="decimal"
               onChange={(e) => { setTariffaCoppia(e.target.value); setSalvato(false); }}
@@ -343,7 +349,7 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
             />
           </div>
           <div>
-            <label className="admin-label">Gruppo (€/ora)</label>
+            <label className="admin-label">{t('adm.mae.tariffaGruppo')}</label>
             <input
               className="admin-input" value={tariffaGruppo} inputMode="decimal"
               onChange={(e) => { setTariffaGruppo(e.target.value); setSalvato(false); }}
@@ -351,26 +357,23 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
             />
           </div>
         </div>
-        <label className="admin-label">Nota sulle tariffe</label>
+        <label className="admin-label">{t('adm.mae.etichettaNotaTariffe')}</label>
         <input
           className="admin-input" value={notaTariffe}
           onChange={(e) => { setNotaTariffe(e.target.value); setSalvato(false); }}
-          placeholder="Es. pacchetto 10 lezioni scontato del 10%"
+          placeholder={t('adm.mae.esempioNotaTariffe')}
           disabled={!privataArrivata}
         />
       </div>
 
       {/* ---------- 4. BIOGRAFIA ---------- */}
       <div className="scheda-gruppo">
-        <div className="scheda-gruppo-titolo">Biografia visibile ai soci</div>
-        <p className="admin-card-hint scheda-pubblico">
-          👁 Pubblico: questo testo lo leggono tutti i soci del circolo, insieme a foto,
-          qualifica e discipline, quando scelgono a chi chiedere una lezione.
-        </p>
+        <div className="scheda-gruppo-titolo">{t('adm.mae.gruppoBio')}</div>
+        <p className="admin-card-hint scheda-pubblico">👁 {t('adm.mae.notaBioPubblica')}</p>
         <textarea
           className="admin-input" rows={4} value={bio}
           onChange={(e) => { setBio(e.target.value.slice(0, MAX_BIO_MAESTRO)); setSalvato(false); }}
-          placeholder="Due righe di presentazione: percorso, metodo, con chi lavora meglio."
+          placeholder={t('adm.mae.esempioBio')}
         />
         <div className="scheda-contatore">{bio.length}/{MAX_BIO_MAESTRO}</div>
       </div>
@@ -378,9 +381,9 @@ export default function SchedaMaestro({ maestro, conti, contiIncerti }: {
       {errore && <div className="admin-error-text">{errore}</div>}
 
       <button className="admin-btn-full" onClick={salva} disabled={salvando || caricandoFoto}>
-        {salvando ? 'Salvataggio…'
-          : salvato ? (privataArrivata ? 'Salvato ✓' : 'Salvata solo la parte pubblica')
-            : 'Salva scheda'}
+        {salvando ? t('com.salvataggio')
+          : salvato ? (privataArrivata ? t('adm.mae.salvato') : t('adm.mae.salvatoSoloPubblico'))
+            : t('adm.mae.salvaScheda')}
       </button>
     </div>
   );

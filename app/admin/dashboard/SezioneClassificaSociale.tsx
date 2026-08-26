@@ -5,9 +5,28 @@ import { SocioCircolo, impostaPosizioneClassificaSociale, rimuoviDaClassificaSoc
 import { Circolo, GRADIENTI_CLASSIFICA } from '../../../data/circoli';
 import { aggiornaCircolo } from '../../../data/circoliRepo';
 import { Sfida } from '../../../data/sfide';
+import { ChiaveTesto } from '../../../data/testi';
+import { useLingua } from '../../../lib/lingua';
 import Modal from './Modal';
 
+// ⚠️ I NOMI DEGLI SFONDI ARRIVANO DA `GRADIENTI_CLASSIFICA`
+// (data/circoli.ts) E LI' SONO IN ITALIANO: quel campo e'
+// l'identificativo della sfumatura, non l'etichetta da mostrare, e
+// tradurlo alla fonte vorrebbe dire cambiare un dato che sta anche
+// dentro i documenti dei circoli. Qui si traduce solo la scritta sotto
+// il quadratino di colore. Le stringhe italiane in questa tabella sono
+// CHIAVI DI RICERCA, non testo a schermo: uno sfondo nuovo che non
+// figuri qui mostra il proprio nome grezzo invece di sparire.
+const NOME_SFONDO: Record<string, ChiaveTesto> = {
+  'Verde Pino': 'adm.cla.sfondoVerdePino',
+  'Terra Rossa': 'adm.cla.sfondoTerraRossa',
+  'Blu Notte': 'adm.cla.sfondoBluNotte',
+  Oro: 'adm.cla.sfondoOro',
+  Grafite: 'adm.cla.sfondoGrafite',
+};
+
 export default function SezioneClassificaSociale({ circolo, soci, sfide }: { circolo: Circolo; soci: SocioCircolo[]; sfide: Sfida[] }) {
+  const { t } = useLingua();
   const [formAperto, setFormAperto] = useState(false);
   const [filtroSocio, setFiltroSocio] = useState('');
   const [socioScelto, setSocioScelto] = useState<SocioCircolo | null>(null);
@@ -38,11 +57,14 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
 
   const aggiungi = async () => {
     setErrore('');
-    if (!socioScelto) { setErrore('Scegli un socio.'); return; }
+    if (!socioScelto) { setErrore(t('adm.cla.scegliSocio')); return; }
     const pos = parseInt(posizione, 10);
-    if (!pos || pos < 1) { setErrore('Inserisci una posizione valida (numero intero, da 1 in su).'); return; }
+    if (!pos || pos < 1) { setErrore(t('adm.cla.posizioneNonValidaEstesa')); return; }
     const occupante = posizioneOccupataDa(pos);
-    if (occupante) { setErrore(`Posizione già occupata da ${occupante.nome} ${occupante.cognome}.`); return; }
+    if (occupante) {
+      setErrore(t('adm.cla.posizioneOccupata', { nome: `${occupante.nome} ${occupante.cognome}` }));
+      return;
+    }
     setSalvando(true);
     await impostaPosizioneClassificaSociale(socioScelto.uid, circolo.id, pos);
     setSalvando(false);
@@ -59,9 +81,12 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
     if (!modificaSocio) return;
     setModErrore('');
     const pos = parseInt(modPosizione, 10);
-    if (!pos || pos < 1) { setModErrore('Inserisci una posizione valida.'); return; }
+    if (!pos || pos < 1) { setModErrore(t('adm.cla.posizioneNonValida')); return; }
     const occupante = posizioneOccupataDa(pos, modificaSocio.uid);
-    if (occupante) { setModErrore(`Posizione già occupata da ${occupante.nome} ${occupante.cognome}.`); return; }
+    if (occupante) {
+      setModErrore(t('adm.cla.posizioneOccupata', { nome: `${occupante.nome} ${occupante.cognome}` }));
+      return;
+    }
     setModSalvando(true);
     await impostaPosizioneClassificaSociale(modificaSocio.uid, circolo.id, pos);
     setModSalvando(false);
@@ -88,14 +113,10 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Classifica Sociale</div>
-      <p className="admin-card-hint">
-        Classifica interna del circolo (non ufficiale FITP). Al primo avvio, importa qui
-        la posizione attuale di ogni socio dalla vecchia lista — in seguito potrai comunque
-        correggerla in qualunque momento.
-      </p>
+      <div className="admin-card-title">{t('adm.cla.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.cla.intro')}</p>
 
-      <label className="admin-label">Sfondo della schermata Classifica</label>
+      <label className="admin-label">{t('adm.cla.sfondo')}</label>
       <div className="tema-grid">
         {GRADIENTI_CLASSIFICA.map((g) => {
           const selezionato = gradienteAttuale.da === g.da && gradienteAttuale.a === g.a;
@@ -105,15 +126,15 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
                 className={`tema-swatch${selezionato ? ' tema-swatch-sel' : ''}`}
                 style={{ background: `linear-gradient(160deg, ${g.da}, ${g.a})` }}
               />
-              <span className="tema-label">{g.nome}</span>
+              <span className="tema-label">{NOME_SFONDO[g.nome] ? t(NOME_SFONDO[g.nome]) : g.nome}</span>
             </button>
           );
         })}
       </div>
-      {salvandoGradiente && <p className="admin-card-hint" style={{ marginTop: '.3rem' }}>Salvataggio…</p>}
+      {salvandoGradiente && <p className="admin-card-hint" style={{ marginTop: '.3rem' }}>{t('com.salvataggio')}</p>}
 
       {inClassifica.length === 0 && !formAperto && (
-        <p className="admin-empty-text">Nessun socio ancora in classifica.</p>
+        <p className="admin-empty-text">{t('adm.cla.nessunSocio')}</p>
       )}
 
       {inClassifica.map((soc) => (
@@ -124,9 +145,11 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
             onClick={() => apriModifica(soc)}
           >
             <div className="admin-list-main">{soc.nome} {soc.cognome}</div>
-            <div className="admin-list-sub">Posizione #{soc.posizioneClassificaSociale}</div>
+            <div className="admin-list-sub">
+              {t('adm.cla.posizioneNumero', { n: soc.posizioneClassificaSociale ?? '' })}
+            </div>
           </div>
-          <button className="admin-icon-btn danger" onClick={() => rimuovi(soc.uid)} aria-label="Rimuovi">🗑</button>
+          <button className="admin-icon-btn danger" onClick={() => rimuovi(soc.uid)} aria-label={t('adm.cla.rimuovi')}>🗑</button>
         </div>
       ))}
 
@@ -135,13 +158,13 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
           {socioScelto ? (
             <div className="admin-list-row" style={{ background: '#fff', border: '1.5px solid var(--bordo)', borderRadius: 10, padding: '.7rem 1rem' }}>
               <span style={{ flex: 1, fontWeight: 700 }}>{socioScelto.nome} {socioScelto.cognome}</span>
-              <button type="button" className="admin-btn-small" onClick={() => setSocioScelto(null)}>Cambia</button>
+              <button type="button" className="admin-btn-small" onClick={() => setSocioScelto(null)}>{t('adm.cla.cambia')}</button>
             </div>
           ) : (
             <>
               <input
                 className="admin-input" value={filtroSocio} onChange={(e) => setFiltroSocio(e.target.value)}
-                placeholder="Cerca socio da aggiungere…"
+                placeholder={t('adm.cla.cercaSocio')}
               />
               {risultatiRicerca.map((soc) => (
                 <div
@@ -153,24 +176,24 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
               ))}
             </>
           )}
-          <label className="admin-label">Posizione</label>
+          <label className="admin-label">{t('adm.cla.posizione')}</label>
           <input
             className="admin-input" value={posizione} onChange={(e) => setPosizione(e.target.value)}
-            placeholder="Es. 7" type="number" min={1}
+            placeholder={t('adm.cla.esempioPosizione')} type="number" min={1}
           />
           {errore && <div className="admin-error-text">{errore}</div>}
           <div className="admin-row" style={{ marginTop: '.8rem' }}>
             <button className="admin-btn-full" style={{ background: '#fff', color: 'var(--grigio)', border: '2px solid var(--bordo)' }} onClick={resetForm}>
-              Annulla
+              {t('com.annulla')}
             </button>
             <button className="admin-btn-full" onClick={aggiungi} disabled={salvando}>
-              {salvando ? 'Salvataggio…' : 'Aggiungi'}
+              {salvando ? t('com.salvataggio') : t('adm.cla.aggiungi')}
             </button>
           </div>
         </>
       ) : (
         <button className="admin-btn-full" onClick={() => setFormAperto(true)}>
-          + Aggiungi Socio
+          + {t('adm.cla.aggiungiSocio')}
         </button>
       )}
 
@@ -178,23 +201,23 @@ export default function SezioneClassificaSociale({ circolo, soci, sfide }: { cir
         <div className="admin-modal-title" style={{ textTransform: 'none' }}>
           {modificaSocio?.nome} {modificaSocio?.cognome}
         </div>
-        <label className="admin-label">Posizione</label>
+        <label className="admin-label">{t('adm.cla.posizione')}</label>
         <input
           className="admin-input" value={modPosizione} onChange={(e) => setModPosizione(e.target.value)}
           type="number" min={1}
         />
         {modErrore && <div className="admin-error-text">{modErrore}</div>}
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setModificaSocio(null)}>Annulla</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setModificaSocio(null)}>{t('com.annulla')}</button>
           <button className="admin-modal-btn-confirm" onClick={salvaModifica} disabled={modSalvando}>
-            {modSalvando ? 'Attendere…' : 'Salva'}
+            {modSalvando ? t('com.attendi') : t('com.salva')}
           </button>
         </div>
       </Modal>
 
       <div style={{ marginTop: '1.4rem', paddingTop: '1rem', borderTop: '1.5px solid #EFEBE0' }}>
         <div style={{ fontSize: '.68rem', fontWeight: 800, color: '#B3261E', textTransform: 'uppercase', letterSpacing: '.03em', marginBottom: '.4rem' }}>
-          Solo per i test — rimuovere prima del lancio
+          {t('adm.cla.soloTest')}
         </div>
       </div>
 

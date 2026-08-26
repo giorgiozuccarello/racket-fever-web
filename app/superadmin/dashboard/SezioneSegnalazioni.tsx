@@ -16,7 +16,16 @@
 // ============================================================
 
 import { useEffect, useState } from 'react';
-import { Segnalazione, testoMotivo } from '../../../data/segnalazioni';
+import { Segnalazione, chiaveMotivo } from '../../../data/segnalazioni';
+import { ChiaveTesto, traduci } from '../../../data/testi';
+
+// ⚠️ ITALIANO FISSO, E NON È UNA DIMENTICANZA. Il pannello del Super
+// Admin non ha selettore della lingua e non lo avrà: lo guarda il team
+// Racket Fever, che scrive e parla italiano. Il motivo di una
+// segnalazione però su Firestore è salvato come CODICE — l'ha scelto un
+// socio che poteva avere l'app in tedesco — quindi qui va riletto dal
+// dizionario, chiedendogli l'italiano e basta.
+const motivoInItaliano = (codice: string | null | undefined) => traduci('it', chiaveMotivo(codice) as ChiaveTesto);
 import { ascoltaTutteLeSegnalazioni, segnaSegnalazione } from '../../../data/segnalazioniRepo';
 import { ascoltaCircoli } from '../../../data/circoliRepo';
 import { Circolo } from '../../../data/circoli';
@@ -99,7 +108,7 @@ export default function SezioneSegnalazioni() {
             <div className="admin-list-main">
               {s.segnalatoNome} · <span style={{ fontWeight: 400 }}>{nomeCircolo(s.circoloId)}</span>
             </div>
-            <div className="admin-list-sub"><strong>{testoMotivo(s.motivo)}</strong></div>
+            <div className="admin-list-sub"><strong>{motivoInItaliano(s.motivo)}</strong></div>
             <div className="admin-list-sub">
               Segnalato da {s.daNome || '—'} · {quando(s.creatoIlMs)}
             </div>

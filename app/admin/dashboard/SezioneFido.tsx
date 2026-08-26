@@ -3,14 +3,16 @@
 import { useEffect, useState } from 'react';
 import {
   Circolo, FIDO_PASSO, FIDO_SLIDER_MAX,
-  limiteFidoDi, fidoDaSlider, fidoASlider, fidoIllimitato, etichettaFido,
+  limiteFidoDi, fidoDaSlider, fidoASlider, fidoIllimitato,
 } from '../../../data/circoli';
 import { aggiornaCircolo } from '../../../data/circoliRepo';
+import { useLingua } from '../../../lib/lingua';
 
 // ⚠️ GEMELLA della SezioneFido nella dashboard mobile: stessi testi,
 // stessi scatti, stesso significato dei valori limite. Se cambia una,
 // cambia l'altra — è un numero solo e non può avere due spiegazioni.
 export default function SezioneFido({ circolo }: { circolo: Circolo }) {
+  const { t } = useLingua();
   const [posizione, setPosizione] = useState(fidoASlider(limiteFidoDi(circolo)));
   const [salvando, setSalvando] = useState(false);
 
@@ -32,12 +34,8 @@ export default function SezioneFido({ circolo }: { circolo: Circolo }) {
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Fido</div>
-      <p className="admin-card-hint">
-        Quanto può andare a debito un socio quando il credito non basta a pagare una
-        prenotazione. Il debito si salda in segreteria — lo azzeri dalla scheda del socio,
-        con «Ripristino del Fido». È lo stesso numero per tutti i soci.
-      </p>
+      <div className="admin-card-title">{t('adm.fid.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.fid.hint')}</p>
 
       {/* ⚠️ «Illimitato» su fondo evidenziato, e non è decorazione: è
           l'ultimo scatto dello slider, quello in cui si finisce
@@ -51,7 +49,19 @@ export default function SezioneFido({ circolo }: { circolo: Circolo }) {
           borderRadius: 10, padding: '3px 10px', display: 'inline-block',
         } : undefined}
       >
-        {etichettaFido(limite)}
+        {/* ⚠️ NON si chiama piu' `etichettaFido()` di `data/circoli.ts`:
+            quella funzione compone la frase in italiano ed e' condivisa
+            con l'app e con le Cloud Functions, che questa tornata non
+            tocca. La stessa scaletta — illimitato, spento, cifra per
+            socio — vive adesso qui con le frasi tradotte. Se di là
+            cambia, va cambiata anche qui: sono tre righe, e
+            l'alternativa era una pastiglia in italiano in mezzo a una
+            scheda tedesca. */}
+        {illimitato
+          ? t('adm.fid.illimitato')
+          : limite <= 0
+            ? t('adm.fid.spento')
+            : t('adm.fid.perSocio', { quanto: limite })}
       </div>
 
       <input
@@ -66,12 +76,12 @@ export default function SezioneFido({ circolo }: { circolo: Circolo }) {
 
       <p className="admin-card-hint">
         {illimitato
-          ? 'Nessun tetto: un socio può prenotare a debito senza fine. Usalo solo se sai perché.'
+          ? t('adm.fid.spiegaIllimitato')
           : limite <= 0
-            ? 'Nessun Fido: chi non ha credito a sufficienza non riesce a prenotare e viene mandato in segreteria.'
-            : `Ogni socio può arrivare a € ${limite} di debito. Oltre, la prenotazione si ferma.`}
+            ? t('adm.fid.spiegaSpento')
+            : t('adm.fid.spiegaLimite', { quanto: limite })}
       </p>
-      {salvando && <div className="admin-saving">Salvataggio…</div>}
+      {salvando && <div className="admin-saving">{t('com.salvataggio')}</div>}
     </div>
   );
 }

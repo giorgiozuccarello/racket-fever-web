@@ -25,6 +25,7 @@ import {
   LEZIONE_ANNULLATA_A_META, CONVERSAZIONE_NON_CHIUSA,
 } from '../../../data/lezioniAdmin';
 import { oggiIso } from '../../../data/giorni';
+import { useLingua } from '../../../lib/lingua';
 import Modal from './Modal';
 
 // ⚠️ orarioFineSlot arriva da data/circoli.ts, la stessa che usano la
@@ -41,6 +42,7 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
   circoloId: string;
   nomeEsecutore: string;
 }) {
+  const { t } = useLingua();
   const [daAnnullare, setDaAnnullare] = useState<RigaLezione | null>(null);
   const [elaborando, setElaborando] = useState(false);
   const [errore, setErrore] = useState('');
@@ -56,6 +58,11 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
 
   const apri = (l: RigaLezione) => { setErrore(''); setDaAnnullare(l); };
 
+  // ⚠️ La «e» che unisce due nomi è una parola, non un separatore: in
+  // inglese è «and», in tedesco «und». Concatenarla a mano avrebbe
+  // lasciato un pezzo di italiano in mezzo a una frase tradotta.
+  const congiunzione = ` ${t('adm.lez.congiunzione')} `;
+
   const conferma = async () => {
     if (!daAnnullare) return;
     setErrore('');
@@ -67,7 +74,7 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
       // silenzio avrebbe lasciato all'Admin l'impressione che fossero
       // stati avvisati tutti.
       if (nonAvvisati.length > 0) {
-        setErrore(`Lezione annullata, ma l'avviso non è arrivato a ${nonAvvisati.join(' e ')}. Avvisali tu.`);
+        setErrore(t('adm.lez.annullataMaAvvisoMancato', { chi: nonAvvisati.join(congiunzione) }));
       } else {
         setDaAnnullare(null);
       }
@@ -95,13 +102,13 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
         // convinto che socio e Maestro sappiano.
         const mancati: string[] = Array.isArray(e?.nonAvvisati) ? e.nonAvvisati : [];
         const avvisi = mancati.length > 0
-          ? ` L'avviso non è arrivato a ${mancati.join(' e ')}: avvisali tu.`
-          : ' Socio e Maestro sono stati avvisati.';
+          ? ` ${t('adm.lez.avvisoNonArrivato', { chi: mancati.join(congiunzione) })}`
+          : ` ${t('adm.lez.entrambiAvvisati')}`;
         // ⚠️ Riprovare da qui FUNZIONA: le mezz'ore già cancellate
         // rispondono "già fatto" e si ritenta la chiusura. Costa una
         // seconda coppia di avvisi, quindi si dice, invece di
         // scoraggiarlo come faceva la prima versione.
-        setErrore(`Le mezz'ore sono state liberate, ma la conversazione non si è chiusa${coda}.${avvisi} Puoi ritentare dal popup: il ritentativo rimanda gli avvisi a entrambi. Oppure chiedi al Maestro di chiuderla dalla sua dashboard.`);
+        setErrore(t('adm.lez.conversazioneNonChiusa', { coda, avvisi }));
       } else if (messaggio.startsWith(LEZIONE_ANNULLATA_A_META)) {
         const [, fatte, totali, codice] = messaggio.split(':');
         const coda = codice ? ` (${codice})` : '';
@@ -111,12 +118,16 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
         // è già stata liberata e riprovare completa davvero.
         setErrore(
           fatte === '0'
-            ? `Nessuna mezz'ora è stata annullata${coda}: la lezione è ancora al suo posto. Se sei entrato con la password di segreteria, la sessione potrebbe essere scaduta — rientra e riprova.`
-            : `Annullate ${fatte} di ${totali} mezz'ore${coda}: riprova per completare. La conversazione non è stata chiusa.`,
+            ? t('adm.lez.nessunaAnnullata', { coda })
+            : t('adm.lez.annullateParziali', { fatte, totali, coda }),
         );
       } else if (String(e?.code ?? '').includes('failed-precondition')) {
         // Un rifiuto motivato del server: la frase è già scritta per
         // essere letta.
+        // ⚠️ RESTA IN ITALIANO, e non è una dimenticanza: la frase
+        // arriva dal server già composta, qui c'è solo la stringa
+        // finita. Tradurla vorrebbe dire rileggerla e reinterpretarla,
+        // e si affronta dal server quando servirà.
         setErrore(messaggio);
       } else {
         // ⚠️ Il codice dell'errore si mostra, non si butta. Con il solo
@@ -128,8 +139,8 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
         console.warn('Annullamento lezione: errore non riconosciuto', e);
         setErrore(
           codice
-            ? `Le mezz'ore sono state liberate, ma qualcosa dopo non è riuscito (${codice}). Controlla la chat fra Maestro e allievo.`
-            : 'Le mezz\'ore sono state liberate, ma qualcosa dopo non è riuscito. Controlla la chat fra Maestro e allievo.',
+            ? t('adm.lez.erroreDopoConCodice', { codice })
+            : t('adm.lez.erroreDopo'),
         );
       }
     } finally {
@@ -139,14 +150,10 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Lezioni Prenotate</div>
-      <p className="admin-card-hint">
-        Le lezioni con un Maestro, separate dalle prenotazioni di solo campo. Tocca una riga per
-        annullarla: sparisce da qui, dall&apos;app del socio e dalla dashboard del Maestro,
-        insieme alla loro conversazione.
-      </p>
+      <div className="admin-card-title">{t('adm.lez.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.lez.hint')}</p>
 
-      {lezioni.length === 0 && <p className="admin-empty-text">Nessuna lezione prenotata.</p>}
+      {lezioni.length === 0 && <p className="admin-empty-text">{t('adm.lez.nessunaLezione')}</p>}
 
       {lezioni.map((l) => (
         <div
@@ -159,14 +166,20 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
           }}
         >
           <div style={{ flex: 1 }}>
+            {/* ⚠️ Il nome dell'allievo e quello del Maestro sono dati:
+                passano dentro la frase come segnaposti, così il tedesco
+                può metterli dove vuole. */}
             <div className="admin-list-main">
-              {l.allievoNome}{l.esterno ? ' (esterno)' : ''} — Maestro {l.maestroNome}
+              {t('adm.lez.rigaAllievoMaestro', {
+                allievo: `${l.allievoNome}${l.esterno ? ` (${t('adm.lez.esterno')})` : ''}`,
+                maestro: l.maestroNome,
+              })}
             </div>
             {!l.conCard && (
-              <div className="admin-list-sub">Mezz&apos;ora singola, senza conversazione collegata</div>
+              <div className="admin-list-sub">{t('adm.lez.mezzoraSingola')}</div>
             )}
             <div className="admin-list-sub">
-              {l.campoNome} · {l.dataLabel} {fascia(l.orari)} · {l.orari.length * 0.5}h
+              {l.campoNome} · {l.dataLabel} {fascia(l.orari)} · {l.orari.length * 0.5} {t('com.oreBreve')}
             </div>
           </div>
         </div>
@@ -174,13 +187,16 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
 
       <Modal visible={!!daAnnullare} onClose={() => setDaAnnullare(null)}>
         <div className="admin-modal-title" style={{ textTransform: 'none', fontSize: '1rem' }}>
-          {daAnnullare?.allievoNome} — Maestro {daAnnullare?.maestroNome}
+          {t('adm.lez.rigaAllievoMaestro', {
+            allievo: daAnnullare?.allievoNome ?? '',
+            maestro: daAnnullare?.maestroNome ?? '',
+          })}
         </div>
         <div className="admin-modal-sub">
           {daAnnullare?.campoNome} · {daAnnullare?.dataLabel} {daAnnullare ? fascia(daAnnullare.orari) : ''}
         </div>
         <p className="admin-modal-sub" style={{ marginTop: '.8rem', fontWeight: 700 }}>
-          Vuoi annullare questa lezione?
+          {t('adm.lez.vuoiAnnullare')}
         </p>
         {/* Si dice tutto quello che succede, prima che succeda: sono tre
             effetti su tre persone diverse, e due non stanno in questa
@@ -192,14 +208,14 @@ export default function SezioneLezioniPrenotate({ prenotazioni, circoloId, nomeE
             succede. */}
         <p className="mov-nota-rimborso">
           {daAnnullare?.conCard
-            ? `Si liberano tutte e ${daAnnullare.orari.length} le mezz'ore. La lezione sparisce dall'app del socio e dalla dashboard del Maestro, e la loro conversazione viene chiusa. Nessun rimborso: le lezioni non hanno addebito in app.`
-            : `Si libera questa mezz'ora. È una lezione registrata prima che le mezz'ore venissero collegate fra loro: non ha una conversazione associata, e le altre sue mezz'ore — se ce ne sono — vanno annullate una per una. Nessun rimborso: le lezioni non hanno addebito in app.`}
+            ? t('adm.lez.effettiConCard', { quante: daAnnullare.orari.length })
+            : t('adm.lez.effettiSenzaCard')}
         </p>
         {errore && <div className="admin-error-text">{errore}</div>}
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Indietro</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>{t('com.indietro')}</button>
           <button className="admin-modal-btn-confirm danger" onClick={conferma} disabled={elaborando}>
-            {elaborando ? 'Attendere…' : 'Annulla lezione'}
+            {elaborando ? t('com.attendi') : t('adm.lez.annullaLezione')}
           </button>
         </div>
       </Modal>

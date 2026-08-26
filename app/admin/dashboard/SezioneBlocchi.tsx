@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { Campo, Blocco } from '../../../data/circoli';
 import { rimuoviBlocco } from '../../../data/circoliRepo';
+import { useLingua } from '../../../lib/lingua';
 import Modal from './Modal';
 
 // ============================================================
@@ -35,11 +36,19 @@ import Modal from './Modal';
 // leggere — ma non se ne creano più.
 // ============================================================
 
-const GIORNI_NOMI = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+// ⚠️ Le CHIAVI dei giorni, non i nomi: l'elenco era una costante di
+// stringhe italiane fuori dal componente, e li' dentro il traduttore
+// non arriva. L'ordine e' quello di `Date.getDay()` — 0 e' domenica —
+// e non va toccato: e' l'indice con cui il blocco salva i giorni.
+// Si riusano le forme corte comuni (`com.g.*`), le stesse della griglia.
+const CHIAVI_GIORNI = [
+  'com.g.dom', 'com.g.lun', 'com.g.mar', 'com.g.mer', 'com.g.gio', 'com.g.ven', 'com.g.sab',
+] as const;
 
 export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
   circoloId: string; campi: Campo[]; blocchi: Blocco[];
 }) {
+  const { t } = useLingua();
   const [daRimuovere, setDaRimuovere] = useState<Blocco | null>(null);
   const [inCorso, setInCorso] = useState(false);
   const [errore, setErrore] = useState('');
@@ -61,7 +70,7 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
       await rimuoviBlocco(circoloId, daRimuovere.id);
       setDaRimuovere(null);
     } catch {
-      setErrore('Non è stato possibile rimuovere l’orario riservato. Riprova.');
+      setErrore(t('adm.blo.erroreRimozione'));
     } finally {
       setInCorso(false);
     }
@@ -69,59 +78,56 @@ export default function SezioneBlocchi({ circoloId, campi, blocchi }: {
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Orari Riservati</div>
-      <p className="admin-card-hint">
-        Per riservare un orario vai su Prenotazione Campi, tieni premuto su uno slot
-        libero della griglia, estendi la selezione agli slot accanto e scegli
-        &quot;Riserva&quot;. Dal modulo puoi aggiungere altri giorni e altri campi allo
-        stesso orario riservato, scrivendo etichetta e descrizione una volta sola.
-      </p>
+      <div className="admin-card-title">{t('adm.blo.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.blo.hint')}</p>
 
       {visibili.length === 0 && (
-        <p className="admin-empty-text">Nessun orario riservato.</p>
+        <p className="admin-empty-text">{t('adm.blo.nessunOrario')}</p>
       )}
 
       {visibili.map((b) => {
         const campo = campi.find((c) => c.id === b.campoId);
         const quando = b.tipo === 'ricorrente'
-          ? `Ogni ${(b.giorniSettimana ?? []).map((g) => GIORNI_NOMI[g]).join(', ')}`
+          ? t('adm.blo.ogniGiorni', {
+            giorni: (b.giorniSettimana ?? []).map((g) => t(CHIAVI_GIORNI[g])).join(', '),
+          })
           : b.data ?? '';
         return (
           <div key={b.id} className="admin-list-row">
             <div style={{ flex: 1 }}>
               <div className="admin-list-main">{b.etichetta}</div>
               <div className="admin-list-sub">
-                {campo?.nome ?? 'Campo rimosso'} · {quando} · {b.orarioInizio}–{b.orarioFine}
+                {campo?.nome ?? t('adm.blo.campoRimosso')} · {quando} · {b.orarioInizio}–{b.orarioFine}
               </div>
               {!!b.descrizione && (
                 <div className="admin-list-sub" style={{ fontStyle: 'italic' }}>{b.descrizione}</div>
               )}
               {b.tipo === 'ricorrente' && (
                 <div className="admin-list-sub" style={{ color: '#8A6200', fontWeight: 700 }}>
-                  Ricorrente — creato col sistema precedente
+                  {t('adm.blo.ricorrenteVecchio')}
                 </div>
               )}
             </div>
             <button className="admin-btn-piccolo-rosso" onClick={() => setDaRimuovere(b)}>
-              Rimuovi
+              {t('adm.blo.rimuovi')}
             </button>
           </div>
         );
       })}
 
       <Modal visible={!!daRimuovere} onClose={() => setDaRimuovere(null)}>
-        <div className="admin-modal-title">Rimuovere l&apos;orario riservato?</div>
+        <div className="admin-modal-title">{t('adm.blo.confermaTitolo')}</div>
         <p className="admin-card-hint">
           {daRimuovere?.etichetta} · {daRimuovere?.orarioInizio}–{daRimuovere?.orarioFine}
         </p>
-        <p className="admin-card-hint">Gli slot torneranno prenotabili dai soci.</p>
+        <p className="admin-card-hint">{t('adm.blo.slotTornanoLiberi')}</p>
         {!!errore && <div className="admin-error-text">{errore}</div>}
         <div className="admin-modal-btn-row">
           <button className="admin-modal-btn-cancel" onClick={() => setDaRimuovere(null)} disabled={inCorso}>
-            Annulla
+            {t('com.annulla')}
           </button>
           <button className="admin-btn-danger" onClick={conferma} disabled={inCorso}>
-            {inCorso ? 'Attendere…' : 'Rimuovi'}
+            {inCorso ? t('com.attendi') : t('adm.blo.rimuovi')}
           </button>
         </div>
       </Modal>

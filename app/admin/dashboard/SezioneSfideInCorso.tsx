@@ -6,8 +6,23 @@ import { SocioCircolo } from '../../../data/users';
 import {
   Sfida, concludiSfida, annullaSfida, notificaSfidaConRitentativi,
   nonPresentatoSfidante, nonPresentatoSfidato, modificaRisultatoUfficiale,
-  MINUTI_TIMER_AMMESSI, MINUTI_TIMER_PREDEFINITI, timerLeggibile,
+  MINUTI_TIMER_AMMESSI, MINUTI_TIMER_PREDEFINITI,
 } from '../../../data/sfide';
+import { useLingua } from '../../../lib/lingua';
+import { Traduttore } from '../../../data/testi';
+
+// ⚠️ QUI C'ERA `timerLeggibile` DI `data/sfide`, e non c'e' piu': quella
+// componeva «5 minuti» e «3 ore» in italiano dentro un file condiviso
+// con l'app, che questa tornata non tocca. La stessa scaletta — sotto
+// l'ora si contano i minuti, sopra si arrotonda alle ore — vive adesso
+// qui, con le frasi tradotte. Se un giorno la scaletta cambia di la',
+// va cambiata anche qui: sono tre righe, e l'alternativa era lasciare
+// un valore in italiano in mezzo a una scheda tedesca.
+function timerScritto(t: Traduttore, minuti: number): string {
+  if (minuti < 60) return t('adm.sfi.timerMinuti', { n: minuti });
+  const ore = Math.round(minuti / 60);
+  return ore === 1 ? t('adm.sfi.timerUnOra') : t('adm.sfi.timerOre', { n: ore });
+}
 
 // Legge il campo nuovo e, se manca, il vecchio sì/no: la stessa scala di
 // `durataTimerMs`, altrimenti il valore a schermo direbbe una cosa e il
@@ -22,24 +37,35 @@ import { aggiornaCircolo } from '../../../data/circoliRepo';
 import Modal from './Modal';
 
 function CountdownAdmin({ scadenza }: { scadenza: number }) {
+  // ⚠️ `t` PRIMA DEL RETURN ANTICIPATO: sotto c'e' l'uscita «Scaduta»,
+  // e un gancio chiamato dopo di quella girerebbe un giro si' e uno no.
+  const { t } = useLingua();
+  // ⚠️ `orologio` e non piu' `t`: il nome era gia' preso dal traduttore,
+  // e due `t` nella stessa funzione sono un errore che si scopre a
+  // schermo, non in compilazione.
   const [ora, setOra] = useState(Date.now());
   useEffect(() => {
-    const t = setInterval(() => setOra(Date.now()), 1000);
-    return () => clearInterval(t);
+    const orologio = setInterval(() => setOra(Date.now()), 1000);
+    return () => clearInterval(orologio);
   }, []);
   const restante = Math.max(0, scadenza - ora);
-  if (restante === 0) return <div style={{ color: '#B3261E', fontWeight: 800, fontSize: '.78rem' }}>Scaduta</div>;
+  if (restante === 0) return <div style={{ color: '#B3261E', fontWeight: 800, fontSize: '.78rem' }}>{t('adm.sfi.scaduta')}</div>;
   const giorni = Math.floor(restante / 86400000);
   const ore = Math.floor((restante % 86400000) / 3600000);
   const minuti = Math.floor((restante % 3600000) / 60000);
   const secondi = Math.floor((restante % 60000) / 1000);
-  const testo = giorni > 0 ? `${giorni}g ${ore}h` : ore > 0 ? `${ore}h ${minuti}m` : `${minuti}m ${secondi}s`;
-  return <div style={{ color: '#B3261E', fontWeight: 800, fontSize: '.78rem' }}>Scade tra {testo}</div>;
+  const testo = giorni > 0
+    ? t('adm.sfi.restaGiorniOre', { g: giorni, h: ore })
+    : ore > 0
+      ? t('adm.sfi.restaOreMinuti', { h: ore, m: minuti })
+      : t('adm.sfi.restaMinutiSecondi', { m: minuti, s: secondi });
+  return <div style={{ color: '#B3261E', fontWeight: 800, fontSize: '.78rem' }}>{t('adm.sfi.scadeTra', { tempo: testo })}</div>;
 }
 
 const CINQUE_GIORNI_MS = 5 * 24 * 60 * 60 * 1000;
 
 export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareSfide = true }: { sfide: Sfida[]; soci: SocioCircolo[]; circolo: Circolo; puoCambiareSfide?: boolean }) {
+  const { t } = useLingua();
   const [daConcludere, setDaConcludere] = useState<Sfida | null>(null);
   const [vincitoreScelto, setVincitoreScelto] = useState<string | null>(null);
   const [risultatoTesto, setRisultatoTesto] = useState('');
@@ -76,10 +102,10 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
     setSalvandoModifica(true);
     try {
       await modificaRisultatoUfficiale(daModificare.id, testoModifica);
-      alert('Risultato corretto ✓');
+      alert(`${t('adm.sfi.risultatoCorretto')} ✓`);
       setDaModificare(null);
     } catch {
-      alert('Errore di connessione. Riprova.');
+      alert(t('adm.sfi.erroreConnessione'));
     } finally {
       setSalvandoModifica(false);
     }
@@ -125,6 +151,18 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
         const nomeVincitore = vinceSfidante
           ? `${daConcludere.sfidanteNome} ${daConcludere.sfidanteCognome}`
           : `${daConcludere.sfidatoNome} ${daConcludere.sfidatoCognome}`;
+        // ============================================================
+        // ⚠️ QUESTE QUATTRO FRASI RESTANO IN ITALIANO, ED È VOLUTO.
+        // Non le legge l'Admin: le legge il socio, sul suo telefono.
+        // Passarle da `t(...)` vorrebbe dire comporle nella lingua di
+        // CHI PUBBLICA — un presidente che ha messo la dashboard in
+        // tedesco spedirebbe notifiche tedesche a soci italiani.
+        // La strada giusta esiste già ed è `avviso('chiave', {...})` di
+        // `data/linguaDestinatario.ts`, che legge la lingua di chi
+        // riceve: ma le sue chiavi vivono in `data/traduzioni/avvisi.ts`,
+        // che questa tornata non tocca. Finché non ci si passa, qui si
+        // scrive italiano — che è il ripiego previsto, non una svista.
+        // ============================================================
         await notificaSfidaConRitentativi(
           daConcludere.sfidanteId,
           vinceSfidante
@@ -139,18 +177,18 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
             : `Il circolo ha confermato: ${nomeVincitore} ha vinto la sfida. La tua posizione in classifica è stata aggiornata.`,
           circolo.id,
         );
-        alert('Sfida conclusa e classifica aggiornata ✓');
+        alert(`${t('adm.sfi.conclusaOk')} ✓`);
         setConfermaInvioAperta(false);
         setDaConcludere(null);
         setRisultatoTesto('');
       } else {
-        alert('Questa sfida è già stata gestita nel frattempo (da un altro dispositivo, o per scadenza).');
+        alert(t('adm.sfi.giaGestita'));
         setConfermaInvioAperta(false);
         setDaConcludere(null);
         setRisultatoTesto('');
       }
     } catch {
-      alert('Errore di connessione. Riprova.');
+      alert(t('adm.sfi.erroreConnessione'));
     } finally {
       setConcludendo(false);
     }
@@ -164,14 +202,17 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
       setConfermaAnnullaAperta(false);
       setDaConcludere(null);
       if (esito.giaAnnullata) {
-        alert('Questa sfida era già stata annullata.');
+        alert(t('adm.sfi.giaAnnullata'));
       } else if (esito.oreVere > 0) {
         // Le ore tornano libere e il denaro torna ai due, con la sua
         // riga nel registro.
-        alert(
-          `Sfida annullata. Liberate e rimborsate ${esito.oreVere} `
-          + `${esito.oreVere === 1 ? 'mezz’ora già pagata' : 'mezz’ore già pagate'}.`,
-        );
+        // ⚠️ DUE FRASI INTERE E NON PIÙ UN PEZZO ATTACCATO ALL'ALTRO:
+        // singolare e plurale non si spostano allo stesso modo nelle tre
+        // lingue, e concatenando si sarebbe imposta la grammatica
+        // italiana anche al tedesco.
+        alert(esito.oreVere === 1
+          ? t('adm.sfi.annullataRimborsoUna', { n: esito.oreVere })
+          : t('adm.sfi.annullataRimborsoTante', { n: esito.oreVere }));
       } else {
         setAnnullamentoFatto(true);
       }
@@ -180,8 +221,8 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
       // connessione» un rifiuto dei permessi.
       alert(
         e?.code === 'functions/permission-denied'
-          ? 'Non hai i permessi per annullare questa sfida.'
-          : `Non sono riuscito ad annullare la sfida. ${e?.message ?? ''}`.trim(),
+          ? t('adm.sfi.annullaNegato')
+          : t('adm.sfi.annullaFallito', { motivo: e?.message ?? '' }).trim(),
       );
     } finally {
       setAnnullando(false);
@@ -194,11 +235,11 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
     try {
       if (confermaNonPresentatoDi === 'sfidante') await nonPresentatoSfidante(daConcludere);
       else await nonPresentatoSfidato(daConcludere, soci);
-      alert('Mancata presentazione registrata ✓');
+      alert(`${t('adm.sfi.assenzaRegistrata')} ✓`);
       setConfermaNonPresentatoDi(null);
       setDaConcludere(null);
     } catch {
-      alert('Errore di connessione. Riprova.');
+      alert(t('adm.sfi.erroreConnessione'));
     } finally {
       setRegistrandoAssenza(false);
     }
@@ -240,11 +281,13 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
   const accese = sfideAccese(circolo);
   const cambiaSfideAttive = async (attivo: boolean) => {
     if (!attivo && attive.length > 0) {
-      window.alert(
-        `${attive.length === 1 ? 'C’è ancora una sfida aperta' : `Ci sono ancora ${attive.length} sfide aperte`}. `
-        + 'Concludile o annullale qui sotto, poi potrai spegnere le Sfide: se le spegni adesso, '
-        + 'i soci coinvolti non possono più rispondere e alla scadenza del timer prendono la penalità.',
-      );
+      // ⚠️ FRASE INTERA IN OGNI RAMO, singolare e plurale: prima erano
+      // un pezzo variabile piu' due pezzi fissi incollati, e la coda
+      // fissa («Concludile o annullale…») e' al plurale — in una lingua
+      // che declina, il pezzo singolare non ci si attacca.
+      window.alert(attive.length === 1
+        ? t('adm.sfi.spegniBloccoUna')
+        : t('adm.sfi.spegniBloccoTante', { n: attive.length }));
       return;
     }
     setSalvandoTimer(true);
@@ -254,7 +297,7 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
       // Senza questo, un rifiuto del server restava un errore non
       // gestito nella console del browser e la casella tornava indietro
       // da sola: chi l'aveva toccata non vedeva niente e riprovava.
-      window.alert('Il cambiamento non è stato salvato. Riprova, oppure chiedi al presidente del circolo.');
+      window.alert(t('adm.sfi.cambioNonSalvato'));
     } finally {
       setSalvandoTimer(false);
     }
@@ -262,10 +305,10 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
 
   const testoStato = (sf: Sfida): string => {
     if (sf.fase === 'accordo') {
-      if (sf.accordoSfidante && sf.accordoSfidato) return 'Accordo trovato, in attesa di proposta formale';
-      if (sf.accordoSfidante) return 'Sfidante ha detto "Trovato" — in attesa dello Sfidato';
-      if (sf.accordoSfidato) return 'Sfidato ha detto "Trovato" — in attesa dello Sfidante';
-      return 'Trattativa in chat, nessuno ha ancora risposto';
+      if (sf.accordoSfidante && sf.accordoSfidato) return t('adm.sfi.statoAccordoTrovato');
+      if (sf.accordoSfidante) return t('adm.sfi.statoSfidanteTrovato');
+      if (sf.accordoSfidato) return t('adm.sfi.statoSfidatoTrovato');
+      return t('adm.sfi.statoTrattativa');
     }
     if (sf.fase === 'prenotazione') {
       // ⚠️ RISCRITTO SULLA TRATTATIVA NUOVA. Diceva «in attesa della
@@ -275,24 +318,24 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
       // cercare al telefono un socio che non deve fare niente.
       const quante = (sf.orariProposti ?? []).length;
       if (sf.propostaDi === 'sfidante') {
-        return `Lo Sfidante ha proposto ${quante} mezz’ore — tocca allo Sfidato scegliere o controproporre`;
+        return t('adm.sfi.statoPropostaSfidante', { n: quante });
       }
       if (sf.propostaDi === 'sfidato') {
-        return `Lo Sfidato ha proposto ${quante} mezz’ore — tocca allo Sfidante scegliere o controproporre`;
+        return t('adm.sfi.statoPropostaSfidato', { n: quante });
       }
       // Le sfide nate prima della trattativa a lista.
-      if (sf.propostaAccettata) return 'Proposta accettata (vecchio meccanismo) — in attesa della conferma';
-      if (sf.proposta) return 'Proposta formale inviata (vecchio meccanismo), in attesa di risposta';
-      return 'Accordo trovato, in attesa che lo Sfidante proponga gli orari';
+      if (sf.propostaAccettata) return t('adm.sfi.statoVecchiaAccettata');
+      if (sf.proposta) return t('adm.sfi.statoVecchiaInviata');
+      return t('adm.sfi.statoAttesaOrari');
     }
     return '';
   };
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Sfide in Corso</div>
+      <div className="admin-card-title">{t('adm.sfi.titolo')}</div>
       <p className="admin-card-hint">
-        Dal lancio alla conclusione — qui trovi anche le eventuali discrepanze tra i due risultati dichiarati.
+        {t('adm.sfi.sottotitolo')}
       </p>
 
       {/* ⚠️ L'interruttore sta in cima, prima del timer: con le sfide
@@ -306,31 +349,30 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
           per i Collaboratori. */}
       <div className="admin-riga-interruttore">
         <span>
-          <span className="admin-label">Sfide attive nel circolo</span>
+          <span className="admin-label">{t('adm.sfi.interruttore')}</span>
           <span className="admin-card-hint">
             {accese
-              ? 'I soci vedono il tabellone delle sfide e possono sfidarsi fra loro.'
-              : 'Il tabellone è nascosto ai soci. Al suo posto, nella barra dell’app, trovano la Classifica.'}
-            {!puoCambiareSfide ? ' Solo il presidente può cambiarlo.' : ''}
+              ? t('adm.sfi.accesoSpiega')
+              : t('adm.sfi.spentoSpiega')}
+            {!puoCambiareSfide ? ` ${t('adm.sfi.soloPresidente')}` : ''}
           </span>
         </span>
         {puoCambiareSfide ? (
           <input
             type="checkbox"
             role="switch"
-            aria-label="Sfide attive nel circolo"
+            aria-label={t('adm.sfi.interruttore')}
             checked={accese}
             onChange={(e) => cambiaSfideAttive(e.target.checked)}
             disabled={salvandoTimer}
           />
         ) : (
-          <span className="timer-sfide-valore">{accese ? 'Attive' : 'Spente'}</span>
+          <span className="timer-sfide-valore">{accese ? t('adm.sfi.attive') : t('adm.sfi.spente')}</span>
         )}
       </div>
       {!accese && (
         <p className="admin-card-hint timer-sfide-avviso">
-          Le sfide restano spente finché non le riaccendi. La Classifica Sociale continua a
-          funzionare e i soci la vedono: si aggiorna a mano dalla sezione qui sopra.
+          {t('adm.sfi.spenteAvviso')}
         </p>
       )}
 
@@ -338,7 +380,7 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
       {/* Sul sito il cursore vero non costa niente — è un elemento del
           browser — quindi qui c'è quello, con lo stesso elenco chiuso di
           valori del telefono: 5 minuti, poi da un'ora a ventiquattro. */}
-      <label className="admin-label" htmlFor="timer-sfide">Tempo per rispondere a una sfida</label>
+      <label className="admin-label" htmlFor="timer-sfide">{t('adm.sfi.tempoRisposta')}</label>
       <div className="timer-sfide-riga">
         <input
           id="timer-sfide"
@@ -351,7 +393,7 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
           disabled={salvandoTimer}
           className="timer-sfide-cursore"
         />
-        <span className="timer-sfide-valore">{timerLeggibile(minutiTimer)}</span>
+        <span className="timer-sfide-valore">{timerScritto(t, minutiTimer)}</span>
       </div>
       <div className="admin-chip-row">
         <button
@@ -360,7 +402,7 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
           onClick={() => impostaMinutiTimer(5)}
           disabled={salvandoTimer}
         >
-          5 minuti
+          {t('adm.sfi.timerMinuti', { n: 5 })}
         </button>
         <button
           type="button"
@@ -368,18 +410,17 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
           onClick={() => impostaMinutiTimer(1440)}
           disabled={salvandoTimer}
         >
-          24 ore
+          {t('adm.sfi.timerOre', { n: 24 })}
         </button>
       </div>
       {minutiTimer < 60 && (
         <p className="admin-card-hint timer-sfide-avviso">
-          Con un tempo così corto un socio che non guarda il telefono prende la penalità: tienilo
-          per le prove, non per il gioco vero.
+          {t('adm.sfi.timerCortoAvviso')}
         </p>
       )}
       </>}
 
-      {attive.length === 0 && <p className="admin-empty-text">Nessuna sfida in corso al momento.</p>}
+      {attive.length === 0 && <p className="admin-empty-text">{t('adm.sfi.nessunaInCorso')}</p>}
 
       {attive.map((sf) => {
         const discrepanza = !!sf.risultatoSfidante && !!sf.risultatoSfidato
@@ -404,21 +445,25 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
                 <>
                   <div className="admin-list-sub">
                     {sf.matchDataLabel} · {sf.matchCampoNome} · {sf.matchOrari?.[0]}
-                    {sf.matchViaRegolaCircolo ? ' (fissata d\'ufficio)' : ''}
+                    {sf.matchViaRegolaCircolo ? ` (${t('adm.sfi.fissataUfficio')})` : ''}
                   </div>
+                  {/* ⚠️ `esito` è un valore del database — 'vinta' o 'persa' —
+                      e finiva a schermo così com'era: una parola italiana
+                      dentro una scheda tedesca. Non è testo scritto
+                      dall'Admin, è un'etichetta nostra, quindi si traduce. */}
                   {sf.risultatoSfidante && (
                     <div className="admin-list-sub">
-                      {sf.sfidanteNome}: {sf.risultatoSfidante.esito} {sf.risultatoSfidante.punteggio ? `(${sf.risultatoSfidante.punteggio})` : ''}
+                      {sf.sfidanteNome}: {t(`adm.sfi.esito.${sf.risultatoSfidante.esito}` as any)} {sf.risultatoSfidante.punteggio ? `(${sf.risultatoSfidante.punteggio})` : ''}
                     </div>
                   )}
                   {sf.risultatoSfidato && (
                     <div className="admin-list-sub">
-                      {sf.sfidatoNome}: {sf.risultatoSfidato.esito} {sf.risultatoSfidato.punteggio ? `(${sf.risultatoSfidato.punteggio})` : ''}
+                      {sf.sfidatoNome}: {t(`adm.sfi.esito.${sf.risultatoSfidato.esito}` as any)} {sf.risultatoSfidato.punteggio ? `(${sf.risultatoSfidato.punteggio})` : ''}
                     </div>
                   )}
                   {discrepanza && (
                     <div style={{ color: '#B3261E', fontWeight: 700, fontSize: '.72rem', marginTop: '.2rem' }}>
-                      ⚠ I due risultati non coincidono — verifica con i soci prima di concludere.
+                      ⚠ {t('adm.sfi.discrepanza')}
                     </div>
                   )}
                 </>
@@ -430,22 +475,22 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
       })}
 
       <div style={{ marginTop: '1.2rem', paddingTop: '.9rem', borderTop: '1.5px solid #EFEBE0' }}>
-        <div className="admin-card-title" style={{ fontSize: '.95rem' }}>Storico Sfide (ultimi 5 giorni)</div>
-        <p className="admin-card-hint">Solo per correggere in fretta un errore appena scritto.</p>
-        {storicoRecente.length === 0 && <p className="admin-empty-text">Nessuna sfida conclusa negli ultimi 5 giorni.</p>}
+        <div className="admin-card-title" style={{ fontSize: '.95rem' }}>{t('adm.sfi.storicoTitolo')}</div>
+        <p className="admin-card-hint">{t('adm.sfi.storicoSpiega')}</p>
+        {storicoRecente.length === 0 && <p className="admin-empty-text">{t('adm.sfi.storicoVuoto')}</p>}
         {storicoRecente.map((sf) => (
           <div key={sf.id} className="admin-list-row" style={{ alignItems: 'center' }}>
             <div style={{ flex: 1 }}>
               <div className="admin-list-main">
                 {sf.sfidanteNome} {sf.sfidanteCognome} vs {sf.sfidatoNome} {sf.sfidatoCognome}
               </div>
-              <div className="admin-list-sub">{sf.risultatoUfficiale || '—'}</div>
+              <div className="admin-list-sub">{sf.risultatoUfficiale || t('com.nessunDato')}</div>
             </div>
             <button
               type="button"
               onClick={() => apriModifica(sf)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '.4rem', fontSize: '1rem' }}
-              title="Correggi il risultato"
+              title={t('adm.sfi.correggiRisultato')}
             >
               ✏️
             </button>
@@ -455,7 +500,7 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
 
       <Modal visible={!!daConcludere} onClose={() => setDaConcludere(null)}>
         <div className="admin-modal-title">
-          {daConcludere?.fase === 'accettata' ? 'Concludi la sfida' : 'Info Sfida'}
+          {daConcludere?.fase === 'accettata' ? t('adm.sfi.concludiTitolo') : t('adm.sfi.infoTitolo')}
         </div>
         <p className="admin-card-hint" style={{ textAlign: 'center' }}>
           {daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} vs {daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome}
@@ -463,7 +508,12 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
 
         <div style={{ background: '#F7F4EA', borderRadius: 10, padding: '.8rem', marginTop: '.7rem' }}>
           <div className="admin-list-sub">
-            Posizioni al lancio: {daConcludere?.sfidanteNome} #{daConcludere?.posizioneSfidante} · {daConcludere?.sfidatoNome} #{daConcludere?.posizioneSfidato}
+            {t('adm.sfi.posizioniAlLancio', {
+              sfidante: daConcludere?.sfidanteNome ?? '',
+              posSfidante: daConcludere?.posizioneSfidante ?? '',
+              sfidato: daConcludere?.sfidatoNome ?? '',
+              posSfidato: daConcludere?.posizioneSfidato ?? '',
+            })}
           </div>
           {daConcludere && (daConcludere.fase === 'accordo' || daConcludere.fase === 'prenotazione') && (
             <div className="admin-list-sub" style={{ marginTop: '.3rem' }}>{testoStato(daConcludere)}</div>
@@ -471,49 +521,49 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
           {daConcludere?.fase === 'accettata' && daConcludere.matchData && (
             <div className="admin-list-sub" style={{ fontWeight: 700 }}>
               {daConcludere.matchDataLabel} · {daConcludere.matchCampoNome} · {daConcludere.matchOrari?.[0]}
-              {daConcludere.matchViaRegolaCircolo ? ' — fissata d\'ufficio dal circolo' : ''}
+              {daConcludere.matchViaRegolaCircolo ? ` — ${t('adm.sfi.fissataUfficioCircolo')}` : ''}
             </div>
           )}
         </div>
 
         {daConcludere?.fase === 'accettata' && (
           <>
-            <label className="admin-label" style={{ marginTop: '.9rem' }}>Chi ha vinto?</label>
+            <label className="admin-label" style={{ marginTop: '.9rem' }}>{t('adm.sfi.chiHaVinto')}</label>
             <div className="admin-checkbox-row" onClick={() => setVincitoreScelto(daConcludere?.sfidanteId ?? null)}>
               <input type="checkbox" checked={vincitoreScelto === daConcludere?.sfidanteId} onChange={() => {}} />
-              <span>{daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} (sfidante)</span>
+              <span>{daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} ({t('adm.sfi.ruoloSfidante')})</span>
             </div>
             <div className="admin-checkbox-row" onClick={() => setVincitoreScelto(daConcludere?.sfidatoId ?? null)}>
               <input type="checkbox" checked={vincitoreScelto === daConcludere?.sfidatoId} onChange={() => {}} />
-              <span>{daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome} (sfidato)</span>
+              <span>{daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome} ({t('adm.sfi.ruoloSfidato')})</span>
             </div>
 
-            <label className="admin-label" style={{ marginTop: '.9rem' }}>Risultato ufficiale</label>
+            <label className="admin-label" style={{ marginTop: '.9rem' }}>{t('adm.sfi.risultatoUfficiale')}</label>
             <p className="admin-card-hint" style={{ marginBottom: '.4rem' }}>
-              Scrivi tu il punteggio definitivo — è questo, non le dichiarazioni dei giocatori, a comparire nello storico pubblico.
+              {t('adm.sfi.risultatoSpiega')}
             </p>
             <input
               className="admin-input"
               value={risultatoTesto}
               onChange={(e) => setRisultatoTesto(e.target.value)}
-              placeholder="Es. 6-3 6-4"
+              placeholder={t('adm.sfi.esempioPunteggio')}
             />
 
-            <label className="admin-label" style={{ marginTop: '.9rem' }}>Oppure, mancata presentazione</label>
+            <label className="admin-label" style={{ marginTop: '.9rem' }}>{t('adm.sfi.oppureAssenza')}</label>
             <div style={{ display: 'flex', gap: '.5rem' }}>
               <button
                 type="button"
                 onClick={() => setConfermaNonPresentatoDi('sfidante')}
                 style={{ flex: 1, border: '1.5px solid #B3261E', borderRadius: 8, padding: '.5rem', color: '#B3261E', fontSize: '.78rem', fontWeight: 700, background: 'none', cursor: 'pointer' }}
               >
-                Sfidante assente
+                {t('adm.sfi.sfidanteAssente')}
               </button>
               <button
                 type="button"
                 onClick={() => setConfermaNonPresentatoDi('sfidato')}
                 style={{ flex: 1, border: '1.5px solid #B3261E', borderRadius: 8, padding: '.5rem', color: '#B3261E', fontSize: '.78rem', fontWeight: 700, background: 'none', cursor: 'pointer' }}
               >
-                Sfidato assente
+                {t('adm.sfi.sfidatoAssente')}
               </button>
             </div>
           </>
@@ -529,13 +579,13 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
               fontSize: '.85rem', cursor: 'pointer',
             }}
           >
-            Annulla Sfida Corrente
+            {t('adm.sfi.annullaCorrente')}
           </button>
         )}
 
         <div className="admin-modal-btn-row">
           <button className="admin-modal-btn-cancel" onClick={() => setDaConcludere(null)}>
-            {daConcludere?.fase === 'accettata' ? 'Annulla' : 'Chiudi'}
+            {daConcludere?.fase === 'accettata' ? t('com.annulla') : t('com.chiudi')}
           </button>
           {daConcludere?.fase === 'accettata' && (
             <button
@@ -543,94 +593,94 @@ export default function SezioneSfideInCorso({ sfide, soci, circolo, puoCambiareS
               onClick={apriRevisioneConclusione}
               disabled={!vincitoreScelto || !risultatoTesto.trim() || concludendo}
             >
-              Dichiara Sfida Conclusa
+              {t('adm.sfi.dichiaraConclusa')}
             </button>
           )}
         </div>
       </Modal>
 
       <Modal visible={confermaInvioAperta} onClose={() => setConfermaInvioAperta(false)}>
-        <div className="admin-modal-title">Confermi l&apos;invio?</div>
+        <div className="admin-modal-title">{t('adm.sfi.confermiInvio')}</div>
         <div style={{ background: '#F7F4EA', borderRadius: 10, padding: '.8rem', marginTop: '.6rem' }}>
           <div className="admin-list-sub">
             {daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} vs {daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome}
           </div>
           <div className="admin-list-sub" style={{ fontWeight: 700, marginTop: '.3rem' }}>
-            Vince: {vincitoreScelto === daConcludere?.sfidanteId ? daConcludere?.sfidanteNome : daConcludere?.sfidatoNome} {vincitoreScelto === daConcludere?.sfidanteId ? daConcludere?.sfidanteCognome : daConcludere?.sfidatoCognome}
+            {t('adm.sfi.vince', {
+              nome: vincitoreScelto === daConcludere?.sfidanteId
+                ? `${daConcludere?.sfidanteNome ?? ''} ${daConcludere?.sfidanteCognome ?? ''}`.trim()
+                : `${daConcludere?.sfidatoNome ?? ''} ${daConcludere?.sfidatoCognome ?? ''}`.trim(),
+            })}
           </div>
-          <div className="admin-list-sub" style={{ marginTop: '.3rem' }}>Risultato: {risultatoTesto}</div>
+          <div className="admin-list-sub" style={{ marginTop: '.3rem' }}>{t('adm.sfi.risultatoEtichetta', { risultato: risultatoTesto })}</div>
         </div>
         <p className="admin-card-hint" style={{ marginTop: '.6rem' }}>
-          Questo testo comparirà nello storico pubblico e aggiornerà la classifica — controllalo bene prima di confermare.
+          {t('adm.sfi.avvisoStoricoPubblico')}
         </p>
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setConfermaInvioAperta(false)}>Indietro</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setConfermaInvioAperta(false)}>{t('com.indietro')}</button>
           <button className="admin-modal-btn-confirm" onClick={eseguiConclusione} disabled={concludendo}>
-            {concludendo ? 'Attendere…' : 'Conferma e Invia'}
+            {concludendo ? t('com.attendi') : t('adm.sfi.confermaInvia')}
           </button>
         </div>
       </Modal>
 
       <Modal visible={!!confermaNonPresentatoDi} onClose={() => setConfermaNonPresentatoDi(null)}>
-        <div className="admin-modal-title">Confermi la mancata presentazione?</div>
+        <div className="admin-modal-title">{t('adm.sfi.confermiAssenza')}</div>
         <p className="admin-card-hint" style={{ textAlign: 'center' }}>
           {confermaNonPresentatoDi === 'sfidante'
-            ? `${daConcludere?.sfidanteNome} ${daConcludere?.sfidanteCognome} non si è presentato: verrà congelato dalle sfide per 7 giorni.`
-            : `${daConcludere?.sfidatoNome} ${daConcludere?.sfidatoCognome} non si è presentato: perderà la sua posizione in classifica.`}
+            ? t('adm.sfi.assenzaSfidante', { nome: `${daConcludere?.sfidanteNome ?? ''} ${daConcludere?.sfidanteCognome ?? ''}`.trim() })
+            : t('adm.sfi.assenzaSfidato', { nome: `${daConcludere?.sfidatoNome ?? ''} ${daConcludere?.sfidatoCognome ?? ''}`.trim() })}
         </p>
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setConfermaNonPresentatoDi(null)}>Indietro</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setConfermaNonPresentatoDi(null)}>{t('com.indietro')}</button>
           <button className="admin-modal-btn-confirm danger" onClick={confermaNonPresentato} disabled={registrandoAssenza}>
-            {registrandoAssenza ? 'Attendere…' : 'Conferma'}
+            {registrandoAssenza ? t('com.attendi') : t('com.conferma')}
           </button>
         </div>
       </Modal>
 
       <Modal visible={confermaAnnullaAperta} onClose={() => setConfermaAnnullaAperta(false)}>
-        <div className="admin-modal-title">Annullare questa sfida?</div>
+        <div className="admin-modal-title">{t('adm.sfi.annullareTitolo')}</div>
         <p className="admin-card-hint" style={{ textAlign: 'center' }}>
           {daConcludere?.sfidanteNome} {daConcludere?.sfidanteCognome} vs {daConcludere?.sfidatoNome} {daConcludere?.sfidatoCognome}
           <br /><br />
-          Le ore prenotate per questa sfida vengono liberate e rimborsate a tutti e due, con la
-          loro riga nel registro. Le ore già giocate restano come prenotazioni normali: quelle
-          non si rimborsano. Entrambi i soci saranno avvisati.
-          La classifica NON viene toccata: nessuno vince né perde posizioni.
+          {t('adm.sfi.annullaSpiega')}
         </p>
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setConfermaAnnullaAperta(false)}>Indietro</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setConfermaAnnullaAperta(false)}>{t('com.indietro')}</button>
           <button className="admin-modal-btn-confirm danger" onClick={confermaAnnullaSfida} disabled={annullando}>
-            {annullando ? 'Attendere…' : 'Annulla Sfida'}
+            {annullando ? t('com.attendi') : t('adm.sfi.annullaSfidaBtn')}
           </button>
         </div>
       </Modal>
 
       <Modal visible={annullamentoFatto} onClose={() => setAnnullamentoFatto(false)}>
-        <div className="admin-modal-title">Sfida annullata ✓</div>
+        <div className="admin-modal-title">{t('adm.sfi.annullataTitolo')} ✓</div>
         <p className="admin-card-hint" style={{ textAlign: 'center' }}>
-          Gli slot prenotati/sospesi sono stati liberati, entrambi i soci sono stati avvisati.
-          La classifica non è stata toccata.
+          {t('adm.sfi.annullataSpiega')}
         </p>
         <button className="admin-btn-full" style={{ marginTop: '1rem' }} onClick={() => setAnnullamentoFatto(false)}>
-          Chiudi
+          {t('com.chiudi')}
         </button>
       </Modal>
 
       <Modal visible={!!daModificare} onClose={() => setDaModificare(null)}>
-        <div className="admin-modal-title">Correggi il risultato</div>
+        <div className="admin-modal-title">{t('adm.sfi.correggiRisultato')}</div>
         <p className="admin-card-hint" style={{ textAlign: 'center' }}>
           {daModificare?.sfidanteNome} {daModificare?.sfidanteCognome} vs {daModificare?.sfidatoNome} {daModificare?.sfidatoCognome}
         </p>
-        <label className="admin-label" style={{ marginTop: '.7rem' }}>Risultato ufficiale</label>
+        <label className="admin-label" style={{ marginTop: '.7rem' }}>{t('adm.sfi.risultatoUfficiale')}</label>
         <input
           className="admin-input"
           value={testoModifica}
           onChange={(e) => setTestoModifica(e.target.value)}
-          placeholder="Es. 6-3 6-4"
+          placeholder={t('adm.sfi.esempioPunteggio')}
         />
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setDaModificare(null)}>Annulla</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setDaModificare(null)}>{t('com.annulla')}</button>
           <button className="admin-modal-btn-confirm" onClick={salvaModifica} disabled={!testoModifica.trim() || salvandoModifica}>
-            {salvandoModifica ? 'Attendere…' : 'Salva'}
+            {salvandoModifica ? t('com.attendi') : t('com.salva')}
           </button>
         </div>
       </Modal>

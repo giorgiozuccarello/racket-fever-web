@@ -12,8 +12,23 @@ import { stessaCard } from '../../../data/raggruppamento';
 
 type PezzoRiserva = { campoId: string; campoNome: string; data: string; dataLabel: string; orario: string };
 
+// ============================================================
+// ⚠️ QUESTE DUE TABELLE RESTANO IN ITALIANO, E NON E' UNA DIMENTICANZA
+// DELLA TORNATA DELLE LINGUE. Servono a comporre `dataLeggibile`, che
+// non e' una scritta: e' il campo `dataLabel` che viene SCRITTO su
+// Firestore dentro ogni prenotazione e riletto dal socio mesi dopo. Se
+// lo componesse la lingua dell'Admin, un circolo con la dashboard in
+// tedesco scriverebbe «Montag 26 Aug.» dentro la prenotazione di un
+// socio italiano — e resterebbe li' per sempre. Quello che l'Admin
+// LEGGE a schermo e' `dataMostrata`, poco piu' sotto, ed e' tradotto.
+// ============================================================
 const GIORNI_IT_ESTESO = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
 const MESI_IT = ['gen', 'feb', 'mar', 'apr', 'mag', 'giu', 'lug', 'ago', 'set', 'ott', 'nov', 'dic'];
+
+// Le stesse due tabelle, ma come chiavi del dizionario comune: da qui
+// esce cio' che si vede, indicizzato con `getDay()` (0 = domenica).
+const CHIAVI_GIORNO_BREVE = ['com.g.dom', 'com.g.lun', 'com.g.mar', 'com.g.mer', 'com.g.gio', 'com.g.ven', 'com.g.sab'] as const;
+const CHIAVI_GIORNO_LUNGO = ['com.G.dom', 'com.G.lun', 'com.G.mar', 'com.G.mer', 'com.G.gio', 'com.G.ven', 'com.G.sab'] as const;
 import { PrenotazioneAdmin, cancellaConRimborso, cancellaConRimborsoDiviso, cancellaSenzaRimborso, importoDaRimborsare } from '../../../data/prenotazioniRepo';
 import { giocatoriDi, quotaChiPrenota, elencoNomi } from '../../../data/giocatori';
 import { Sfida } from '../../../data/sfide';
@@ -36,19 +51,27 @@ async function senzaBloccare(fn: () => Promise<unknown>) {
 
 import { formatISO } from '../../../data/settimana';
 import Modal from './Modal';
-
-const GIORNI_IT_BREVE = ['Dom', 'Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab'];
+import { useLingua } from '../../../lib/lingua';
+import { Traduttore } from '../../../data/testi';
 
 // Titolo prominente del pop-up di una prenotazione: chi gioca, con chi —
 // la stessa regola in tutta l'app: le info contano più dell'azione.
-function intestazionePrenotazione(p: PrenotazioneAdmin): string {
+// ⚠️ Il traduttore arriva dal chiamante: questa funzione sta fuori dal
+// componente e un hook, qui dentro, non si puo' chiamare.
+function intestazionePrenotazione(p: PrenotazioneAdmin, t: Traduttore): string {
   if (p.tipo === 'lezione') {
     return p.prenotataDa === 'maestro'
-      ? `${p.maestroNome} ${p.maestroCognome} lezione con ${p.utenteNome} ${p.utenteCognome}`
-      : `${p.utenteNome} ${p.utenteCognome} lezione con ${p.maestroNome} ${p.maestroCognome}`;
+      ? t('adm.pre.titoloLezioneDaMaestro', {
+        maestro: `${p.maestroNome} ${p.maestroCognome}`, allievo: `${p.utenteNome} ${p.utenteCognome}`,
+      })
+      : t('adm.pre.titoloLezioneDaSocio', {
+        allievo: `${p.utenteNome} ${p.utenteCognome}`, maestro: `${p.maestroNome} ${p.maestroCognome}`,
+      });
   }
   if (giocatoriDi(p).length > 0) {
-    return `${p.utenteNome} ${p.utenteCognome} gioca con ${elencoNomi(giocatoriDi(p))}`;
+    return t('adm.pre.titoloGiocaCon', {
+      socio: `${p.utenteNome} ${p.utenteCognome}`, altri: elencoNomi(giocatoriDi(p)),
+    });
   }
   return `${p.utenteNome} ${p.utenteCognome}`;
 }
@@ -58,6 +81,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   // Chi sta operando: finisce nel registro movimenti.
   nomeEsecutore: string;
 }) {
+  const { t } = useLingua();
   const [selDay, setSelDay] = useState(0);
   // Un battito ogni mezzo minuto. Questo pannello sta aperto sul PC
   // della segreteria per ore: senza, gli slot che scoccano non
@@ -408,7 +432,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     // quella che era la prima mezz'ora adesso e' in mezzo: senza questo
     // controllo si accorciava dalla parte sbagliata, in silenzio.
     if (!estremitaDellaRiserva(b, ora)) {
-      alert("Quell'orario riservato è cambiato nel frattempo: riaprilo e riprova.");
+      alert(t('adm.pre.riservaCambiataRiapri'));
       setBloccoInfo(null);
       return;
     }
@@ -423,7 +447,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       }
       setBloccoInfo(null);
     } catch {
-      alert("Non è stato possibile modificare l'orario riservato. Riprova.");
+      alert(t('adm.pre.erroreModificaRiserva'));
     } finally {
       setElaborandoRiserva(false);
     }
@@ -433,14 +457,14 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     if (elaborandoRiserva) return;
     const b = blocchiRif.current.find((x) => x.id === bFotografia.id);
     if (!b) {
-      alert("Quell'orario riservato non c'è più: è stato rimosso nel frattempo.");
+      alert(t('adm.pre.riservaSparita'));
       setSceltaProlungaRiserva(null); setSelezioneMultipla([]);
       return;
     }
     // Prima la domanda tecnica, poi quella drammatica.
     const dopoLUltima = orarioFineSlot(ore[ore.length - 1]);
     if (b.orarioFine !== ore[0] && b.orarioInizio !== dopoLUltima) {
-      alert("Quell'orario riservato è cambiato nel frattempo: rifai la selezione.");
+      alert(t('adm.pre.riservaCambiataRiseleziona'));
       setSceltaProlungaRiserva(null); setSelezioneMultipla([]);
       return;
     }
@@ -451,12 +475,15 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       && x.data === b.data && ore.includes(x.orario));
     if (sotto.length > 0) {
       const nomi = Array.from(new Set(sotto.map((x) => `${x.utenteNome} ${x.utenteCognome}`.trim()))).filter(Boolean);
+      // ⚠️ Due frasi intere unite da uno spazio, e non una frase spezzata
+      // a meta': «c’è {nomi}» da solo e' un pezzo di grammatica italiana
+      // che in tedesco non si incastra dove serve.
       setConferma({
-        titolo: 'C’è già una prenotazione',
-        testo: `In quelle mezz’ore ${nomi.length > 0 ? `c’è ${nomi.join(', ')}` : 'c’è una prenotazione'}. `
-          + 'Allungando l’orario riservato NON viene cancellata né rimborsata: resta valida, '
-          + 'e il campo risulterà riservato e prenotato allo stesso tempo.',
-        etichetta: 'Allunga lo stesso',
+        titolo: t('adm.pre.giaPrenotazioneTitolo'),
+        testo: `${nomi.length > 0
+          ? t('adm.pre.inQuelleMezzOreCe', { nomi: nomi.join(', ') })
+          : t('adm.pre.inQuelleMezzOreCePrenotazione')} ${t('adm.pre.allungaNonCancella')}`,
+        etichetta: t('adm.pre.allungaLoStesso'),
         azione: () => void allungaDavvero(b, ore),
       });
       return;
@@ -470,7 +497,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     // un tempo di lettura umano.
     const b = blocchiRif.current.find((x) => x.id === bFotografia.id);
     if (!b) {
-      alert("Quell'orario riservato non c'è più: è stato rimosso nel frattempo.");
+      alert(t('adm.pre.riservaSparita'));
       setSceltaProlungaRiserva(null); setSelezioneMultipla([]);
       return;
     }
@@ -485,7 +512,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     // nessuno slot: la riserva sparisce dalla griglia e sopravvive solo
     // nell'elenco «Orari Riservati».
     if (b.orarioFine !== ore[0] && b.orarioInizio !== dopoLUltima) {
-      alert("Quell'orario riservato è cambiato nel frattempo: rifai la selezione.");
+      alert(t('adm.pre.riservaCambiataRiseleziona'));
       setSceltaProlungaRiserva(null); setSelezioneMultipla([]);
       return;
     }
@@ -498,7 +525,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       setSceltaProlungaRiserva(null);
       setSelezioneMultipla([]);
     } catch {
-      alert("Non è stato possibile allungare l'orario riservato. Riprova.");
+      alert(t('adm.pre.erroreAllungaRiserva'));
     } finally {
       setElaborandoRiserva(false);
     }
@@ -533,9 +560,12 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     return gruppi;
   };
 
+  // ⚠️ Qui `dataLabel` NON finisce su Firestore — `aggiungiBlocco` scrive
+  // la sola data ISO — quindi si usa la versione tradotta: e' una scritta
+  // che l'Admin legge nel riepilogo, e basta.
   const pezziDaOre = (ore: string[]): PezzoRiserva[] => ore.map((o) => ({
     campoId: campoSel?.id ?? '', campoNome: campoSel?.nome ?? '',
-    data: dataSelIso, dataLabel: dataLeggibile, orario: o,
+    data: dataSelIso, dataLabel: dataMostrata, orario: o,
   }));
 
   // Vero se la selezione si attacca a un pezzo gia' messo da parte: la
@@ -575,19 +605,18 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   const apriSceltaAdmin = (ore: string[]) => {
     const valide = ore.filter((o) => !slotNelPassato(dataSelIso, o));
     if (valide.length === 0) {
-      alert('Quelle mezz’ore sono appena passate: scegline altre.');
+      alert(t('adm.pre.mezzOrePassateScegli'));
       return;
     }
     if (valide.length < ore.length) {
-      alert('Ho tolto dalla selezione le mezz’ore appena passate.');
+      alert(t('adm.pre.tolteMezzOrePassate'));
     }
     // ⚠️ Il ramo della composizione sta SOPRA la guardia: sotto, chi
     // stava componendo un orario riservato si sentiva parlare di
     // prenotazioni mentre stava facendo tutt'altro.
     if (componendoRiserva) {
       if (valide.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE && !tocaUnPezzoGiaMessoDaParte(valide)) {
-        alert(`Ogni tratto di un orario riservato parte da ${MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5} ora. `
-          + 'Ogni pezzo che aggiungi è un tratto a sé: deve reggersi da solo.');
+        alert(t('adm.pre.trattoMinimo', { ore: MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5 }));
         return;
       }
       const attaccate = riserveAdiacenti(valide);
@@ -598,11 +627,9 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       };
       if (attaccate.length > 0) {
         setConferma({
-          titolo: 'C’è già un orario riservato qui accanto',
-          testo: `«${attaccate[0].etichetta}» confina con questo pezzo. Il pezzo nascerà come orario `
-            + 'riservato a sé, perché fa parte di quello che stai componendo. Se volevi allungare '
-            + 'quello esistente, annulla e ricomincia da uno slot attaccato.',
-          etichetta: 'Va bene',
+          titolo: t('adm.pre.riservaAccantoTitolo'),
+          testo: t('adm.pre.pezzoConfinaConRiserva', { etichetta: attaccate[0].etichetta }),
+          etichetta: t('adm.pre.vaBene'),
           azione: prosegue,
         });
         return;
@@ -615,10 +642,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     if (valide.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE
       && prenotazioniAdiacenti(valide).length === 0
       && riserveAdiacenti(valide).length === 0) {
-      alert(`Una prenotazione nuova parte da ${MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5} ora. `
-        + "La mezz'ora singola si aggiunge solo a una prenotazione o a un orario riservato già "
-        + "esistenti, cliccando lo slot attaccato — non alle lezioni né alle sfide. "
-        + 'Per prenotare da zero tieni premuto e seleziona.');
+      alert(`${t('adm.pre.prenotazioneMinimo', { ore: MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5 })} `
+        + t('adm.pre.comeSiAggiungeLaMezzOra'));
       return;
     }
     setOreDaAssegnare(valide);
@@ -635,8 +660,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     // c'e' di mezzo il pannello «Cosa vuoi fare?», e in quel tempo la
     // prenotazione accanto puo' essere stata annullata da qualcun altro.
     if (oreDaAssegnare.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE) {
-      alert(`Una prenotazione nuova parte da ${MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5} ora. `
-        + "La prenotazione qui accanto non c'è più: la mezz'ora resta sola, e da sola non si prenota.");
+      alert(`${t('adm.pre.prenotazioneMinimo', { ore: MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5 })} `
+        + t('adm.pre.vicinaSparita'));
       setOreDaAssegnare([]); setSelezioneMultipla([]);
       return;
     }
@@ -669,8 +694,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       return;
     }
     if (oreDaAssegnare.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE) {
-      alert(`Un orario riservato parte da ${MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5} ora. `
-        + "La mezz'ora singola si può solo aggiungere a un orario riservato già esistente.");
+      alert(`${t('adm.pre.riservaMinimo', { ore: MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5 })} `
+        + t('adm.pre.riservaSoloAggiunta'));
       return;
     }
     setOreDaRiservare([...oreDaAssegnare]);
@@ -695,7 +720,18 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     .filter((so) => `${so.nome} ${so.cognome}`.toLowerCase().includes(filtroSocio.trim().toLowerCase()))
     .slice(0, 6);
 
+  // ⚠️ DUE DATE E NON UNA, ed e' la distinzione portante di questo file
+  // dopo la tornata delle lingue. `dataLeggibile` e' un DATO: viene
+  // scritto nel campo `dataLabel` della prenotazione e lo rilegge il
+  // socio, che puo' parlare un'altra lingua ancora — resta italiano,
+  // come tutto cio' che finisce su Firestore. `dataMostrata` e' una
+  // SCRITTA: la legge solo l'Admin, qui e ora, nella sua lingua.
   const dataLeggibile = `${GIORNI_IT_ESTESO[giornoSel.getDay()]} ${giornoSel.getDate()} ${MESI_IT[giornoSel.getMonth()]}`;
+  const dataMostrata = t('adm.pre.dataEstesa', {
+    giorno: t(CHIAVI_GIORNO_LUNGO[giornoSel.getDay()]),
+    numero: giornoSel.getDate(),
+    mese: t(`com.m.${giornoSel.getMonth() + 1}` as 'com.m.1'),
+  });
 
   // Blocco sincrono contro il doppio click, come nell'app mobile:
   // "elaborando" e' uno stato React e non chiude la finestra fra il
@@ -710,13 +746,11 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     // stato possibile completare la prenotazione. Riprova." — un
     // invito a riprovare qualcosa che non riuscira' mai.
     if (!circoloOperativo(circolo)) {
-      alert(
-        (statoCircolo(circolo) === 'chiuso'
-          ? 'Il circolo non fa più parte della rete Racket Fever'
-          : 'Il circolo è momentaneamente sospeso dalla rete Racket Fever')
-        + ': non è possibile creare nuove prenotazioni. Le prenotazioni già confermate '
-        + 'restano valide. Per informazioni contatta il team Racket Fever.'
-      );
+      alert(t('adm.pre.circoloNonOperativo', {
+        stato: statoCircolo(circolo) === 'chiuso'
+          ? t('adm.pre.circoloChiuso')
+          : t('adm.pre.circoloSospeso'),
+      }));
       return;
     }
     if (invioInCorso.current) return;
@@ -726,7 +760,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     // aperto anche a lungo. Il controllo sullo slot non basta.
     if (oreDaPrenotare.some((o) => slotNelPassato(dataSelIso, o))) {
       // Stesso canale degli altri errori di questa sezione.
-      alert('Una o più mezz\u2019ore sono nel frattempo passate: chiudi e riseleziona.');
+      alert(t('adm.pre.mezzOrePassateRiseleziona'));
       return;
     }
     // ⚠️ LA REGOLA DELLA MEZZ'ORA VIVE ANCHE QUI, nella funzione che
@@ -737,8 +771,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     // Prolungando il minimo non si applica: e' un'aggiunta — e
     // `prolungamento` si spegne appena si cambia intestatario.
     if (oreDaPrenotare.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE && !prolungamento) {
-      alert(`Una prenotazione nuova parte da ${MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5} ora: `
-        + "la mezz'ora singola si può solo aggiungere a una prenotazione esistente.");
+      alert(`${t('adm.pre.prenotazioneMinimo', { ore: MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5 })} `
+        + t('adm.pre.prenotazioneSoloAggiunta'));
       return;
     }
     if (modalitaEsterno && !nomeEsterno.trim()) return;
@@ -806,6 +840,14 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       }
       // Una sola notifica per l'intero blocco, non una per mezz'ora.
       if (!modalitaEsterno && socioScelto) {
+        // ⚠️ QUESTA FRASE RESTA IN ITALIANO DI PROPOSITO. Non la legge
+        // l'Admin: e' il dettaglio di un avviso che legge il SOCIO, e
+        // l'involucro attorno lo compone gia' `avviso()` nella lingua di
+        // chi riceve. Tradurla con `t` vorrebbe dire scrivere «von 18:00
+        // bis 19:00» dentro la notifica di un socio italiano solo perche'
+        // la dashboard del circolo e' in tedesco. Il giorno che anche
+        // questo pezzo dovra' seguire il destinatario, la strada e'
+        // `avviso()`, non `t`.
         const daA = oreDaPrenotare.length > 1
           ? `dalle ${oreDaPrenotare[0]} alle ${orarioFineSlot(oreDaPrenotare[oreDaPrenotare.length - 1])}`
           : `alle ${oreDaPrenotare[0]}`;
@@ -845,8 +887,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       chiudiPrenotazioneAdmin();
     } catch (e: any) {
       const inParte = fatte > 0
-        ? ` Le prime ${fatte} di ${oreDaPrenotare.length} mezz'ore sono state prenotate: aggiorna la griglia prima di riprovare, o le ritroverai come già occupate.`
-        : ' Riprova.';
+        ? t('adm.pre.parzialePrenotazioni', { fatte, totale: oreDaPrenotare.length })
+        : t('adm.pre.riprovaFrase');
       // ⚠️ I DUE MODI IN CUI FALLISCE UN PROLUNGAMENTO CON COMPAGNI:
       // un compagno non ha piu' la tessera, oppure non e' piu' fra i
       // compagni del socio e le regole rifiutano la mezz'ora nuova —
@@ -858,12 +900,9 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         && (e?.message === 'UTENTE_NON_TROVATO' || e?.code === 'permission-denied');
       if (bloccatoDaiCompagni && fatte === 0) {
         setConferma({
-          titolo: 'Uno dei giocatori non può essere aggiunto',
-          testo: `${elencoNomi(giocatoriEreditati)}: o non è più tesserato in questo circolo, o non è `
-            + 'più fra i compagni del socio. Puoi togliere i giocatori e premere di nuovo Conferma: '
-            + 'la mezz’ora viene aggiunta al solo titolare, la partita resta una sola, ma il costo '
-            + 'delle mezz’ore aggiunte sarà tutto suo.',
-          etichetta: 'Togli i giocatori',
+          titolo: t('adm.pre.giocatoreNonAggiungibile'),
+          testo: t('adm.pre.giocatoreNonAggiungibileTesto', { nomi: elencoNomi(giocatoriEreditati) }),
+          etichetta: t('adm.pre.togliGiocatori'),
           // ⚠️ `prolungamento` resta acceso: si sta ancora allungando la
           // stessa partita, e il cardId e' quello. Spegnerlo spezzerebbe
           // la card, che e' proprio il ripiego da evitare.
@@ -871,11 +910,11 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         });
         return;
       }
-      alert((e?.message === 'SLOT_OCCUPATO'
-        ? 'Una di quelle mezz\'ore è stata appena prenotata da qualcun altro.'
+      alert(`${e?.message === 'SLOT_OCCUPATO'
+        ? t('adm.pre.slotOccupato')
         : e?.message === 'UTENTE_NON_TROVATO'
-          ? 'Uno dei giocatori non è più tesserato in questo circolo.'
-          : 'Non è stato possibile completare la prenotazione.') + inParte);
+          ? t('adm.pre.giocatoreNonTesserato')
+          : t('adm.pre.errorePrenotazione')} ${inParte}`);
     } finally {
       invioInCorso.current = false;
       setElaborando(false);
@@ -891,13 +930,13 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     const tuttiIPezzi = [...pezziRiserva, ...pezziDaOre(oreDaRiservare)]
       .filter((x) => !slotNelPassato(x.data, x.orario));
     if (tuttiIPezzi.length === 0) {
-      alert('Quelle mezz’ore sono appena passate: scegline altre.');
+      alert(t('adm.pre.mezzOrePassateScegli'));
       return;
     }
     if (tuttiIPezzi.length < pezziRiserva.length + oreDaRiservare.length) {
       setPezziRiserva(pezziRiserva.filter((x) => !slotNelPassato(x.data, x.orario)));
       setOreDaRiservare(oreDaRiservare.filter((o) => !slotNelPassato(dataSelIso, o)));
-      alert('Ho tolto dalla riserva le mezz’ore appena passate: ricontrolla e conferma.');
+      alert(t('adm.pre.tolteMezzOrePassateRiserva'));
       return;
     }
     // ⚠️ La regola della mezz'ora applicata a OGNI TRATTO, non al
@@ -906,8 +945,10 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     const tratti = blocchiDaiPezzi(tuttiIPezzi);
     const corto = tratti.find((g) => g.orari.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE);
     if (corto) {
-      alert(`Un orario riservato parte da ${MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5} ora. `
-        + `Il tratto di ${corto.dataLabel} su ${corto.campoNome} alle ${corto.orari[0]} è più corto: allungalo o toglilo.`);
+      alert(`${t('adm.pre.riservaMinimo', { ore: MINIMO_SLOT_NUOVA_PRENOTAZIONE * 0.5 })} `
+        + t('adm.pre.trattoTroppoCorto', {
+          data: corto.dataLabel, campo: corto.campoNome, ora: corto.orari[0],
+        }));
       return;
     }
     // ⚠️ L'avviso arriva PRIMA della scrittura e si puo' annullare: e'
@@ -919,14 +960,20 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     if (sotto.length > 0 && !gia) {
       const nomi = Array.from(new Set(sotto.map((x) => `${x.utenteNome} ${x.utenteCognome}`.trim()))).filter(Boolean);
       const quanti = nomi.length > 0 ? nomi.length : sotto.length;
+      // ⚠️ Tre frasi intere e non una frase cucita: il singolare, il
+      // plurale e il caso «non so i nomi» sono tre chiavi separate,
+      // perche' in tedesco cambiano di verbo e di ordine.
+      const chi = nomi.length === 0
+        ? t('adm.pre.inQuesteOreCiSonoPrenotazioni')
+        : quanti === 1
+          ? t('adm.pre.inQuesteOreCeGia', { nomi: nomi.join(', ') })
+          : t('adm.pre.inQuesteOreCiSonoGia', { nomi: nomi.join(', ') });
       setConferma({
-        titolo: quanti === 1 ? 'C’è già una prenotazione' : `Ci sono già ${quanti} prenotazioni`,
-        testo: `In queste ore ${quanti === 1 ? 'c’è già' : 'ci sono già'} `
-          + `${nomi.length > 0 ? nomi.join(', ') : 'delle prenotazioni'}. `
-          + 'Riservando l’orario NON vengono cancellate né rimborsate: restano valide, e il campo '
-          + 'risulterà riservato e prenotato allo stesso tempo. Se vanno tolte, annulla qui e '
-          + 'cancellale dalla griglia una per una — così ognuno riceve il suo rimborso.',
-        etichetta: 'Riserva lo stesso',
+        titolo: quanti === 1
+          ? t('adm.pre.giaPrenotazioneTitolo')
+          : t('adm.pre.giaPrenotazioniTitolo', { quanti }),
+        testo: `${chi} ${t('adm.pre.riservaNonCancella')}`,
+        etichetta: t('adm.pre.riservaLoStesso'),
         azione: () => void confermaRiserva(true),
       });
       return;
@@ -965,10 +1012,10 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       }
       chiudiRiserva();
     } catch {
-      alert("Non è stato possibile riservare l'orario."
+      alert(`${t('adm.pre.erroreRiserva')} `
         + (fattiTratti > 0
-          ? ` I primi ${fattiTratti} tratti sono già stati riservati: controlla «Orari Riservati» prima di riprovare, o li ritroverai doppi.`
-          : ' Riprova.'));
+          ? t('adm.pre.parzialeTratti', { fatti: fattiTratti })
+          : t('adm.pre.riprovaFrase')));
     } finally {
       invioInCorso.current = false;
       setElaborando(false);
@@ -1005,6 +1052,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     // ⚠️ Non parte vuota: oggi non esiste un percorso che arrivi alle
     // notifiche senza passare da `leggiEsito`, ma un avviso con una riga
     // bianca in mezzo e' il genere di cosa che si scopre in produzione.
+    // ⚠️ E NON PASSA DA `t`, come il `daA` della prenotazione: questa
+    // riga finisce dentro un avviso che legge il SOCIO, non l'Admin.
     let rigaDettaglio = `${daAnnullare.campoNome} · ${daAnnullare.dataLabel}, ore ${fasciaOraria(daAnnullare.orario)}`;
     const leggiEsito = (restano: number) => {
       restaLaPartita = restano > 0;
@@ -1018,6 +1067,9 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     const cardSuperstite = () => (restaLaPartita ? (daAnnullare.cardId ?? undefined) : undefined);
     // ⚠️ «cancellato» e non «annullato»: e' la parola che usa l'app,
     // e sono lo stesso avviso letto dalla stessa persona.
+    // ⚠️ E NON PASSA DA `t` per due ragioni, non una: oggi nessuno la
+    // chiama — resta qui perche' l'avviso del socio potrebbe tornare a
+    // servirsene — e comunque e' testo del SOCIO, come `rigaDettaglio`.
     const parola = () => (restaLaPartita ? 'modificato' : 'cancellato');
     try {
       if (!daAnnullare.utenteId) {
@@ -1136,10 +1188,12 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       // spinner spento e nessuna spiegazione. Che e' il modo peggiore
       // di fallire: sembra che non sia successo niente, mentre la
       // prenotazione e' ancora li'.
+      // ⚠️ `e.message` arriva dal server e resta com'e': e' un messaggio
+      // che il dizionario non conosce, non una scritta di questa pagina.
       setErroreAnnullo(
         e?.message?.includes('termine')
           ? e.message
-          : 'Annullamento non riuscito: la prenotazione è ancora attiva. Riprova.',
+          : t('adm.pre.erroreAnnullo'),
       );
     } finally {
       setElaborando(false);
@@ -1148,15 +1202,13 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Prenotazione Campi</div>
+      <div className="admin-card-title">{t('adm.pre.titolo')}</div>
+      {/* ⚠️ Il grassetto e' una chiave a se', e lo spazio che lo segue sta
+          nel JSX e non dentro la traduzione: uno spazio in fondo a una
+          riga del dizionario e' la prima cosa che qualcuno ripulisce. */}
       <p className="admin-card-hint">
-        <strong>Tieni premuto</strong> su uno slot libero e clicca quelli accanto per selezionare
-        almeno un&apos;ora: è così che si prenota o si riserva. Il click singolo su uno slot libero
-        non prenota — la mezz&apos;ora singola si può solo aggiungere a una prenotazione o a un
-        orario riservato già esistenti, cliccando lo slot attaccato. Clicca su uno slot occupato
-        per vedere chi ha prenotato ed eventualmente annullare. Le mezz&apos;ore già cominciate
-        diventano grigie: non si possono più assegnare né riservare, ma restano cliccabili se
-        hanno qualcosa sopra.
+        <strong>{t('adm.pre.hintTieniPremuto')}</strong>{' '}{t('adm.pre.hintSelezione')}{' '}
+        {t('adm.pre.hintOccupato')}{' '}{t('adm.pre.hintPassate')}
       </p>
 
       <div className="pc-row">
@@ -1171,12 +1223,15 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             onClick={() => { setSelezioneMultipla([]); setSelDay(i); }}
             className={`pc-day ${i === selDay ? 'selected' : ''}`}
           >
-            <div className="pc-day-label">{i === 0 ? 'Oggi' : GIORNI_IT_BREVE[d.getDay()]}</div>
+            {/* ⚠️ Forma corta dal dizionario comune, la stessa che usa la
+                griglia dell'app: in tedesco «Mittwoch» in una colonna
+                larga cosi' non ci sta, «Mi» si'. */}
+            <div className="pc-day-label">{i === 0 ? t('com.oggi') : t(CHIAVI_GIORNO_BREVE[d.getDay()])}</div>
             <div className="pc-day-num">{d.getDate()}</div>
             {/* ⚠️ Il mese, che su sette giorni non serviva: su quattordici
                 si attraversa un cambio di mese e due chip mostrerebbero
                 lo stesso numero senza modo di distinguerle. */}
-            <div className="pc-day-mese">{MESI_IT[d.getMonth()]}</div>
+            <div className="pc-day-mese">{t(`com.m.${d.getMonth() + 1}` as 'com.m.1')}</div>
           </button>
         ))}
       </div>
@@ -1193,11 +1248,11 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       </div>
 
       <div className="pc-legend">
-        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-libero" /> Libero</span>
-        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-occupato" /> Prenotato</span>
-        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-lezione" /> Lezione</span>
-        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-riservato" /> Riservato</span>
-        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-passato" /> Ora passata</span>
+        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-libero" /> {t('adm.pre.statoLibero')}</span>
+        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-occupato" /> {t('adm.pre.statoPrenotato')}</span>
+        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-lezione" /> {t('adm.pre.statoLezione')}</span>
+        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-riservato" /> {t('adm.pre.statoRiservato')}</span>
+        <span className="pc-legend-item"><span className="pc-legend-dot pc-legend-passato" /> {t('adm.pre.statoPassato')}</span>
       </div>
 
       {/* ⚠️ La fascia che ricorda una riserva in composizione: tornando
@@ -1206,12 +1261,19 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       {componendoRiserva && (
         <div className="pc-componendo">
           <div style={{ flex: 1 }}>
-            <strong>Stai componendo «{etichettaRiserva.trim() || 'orario riservato'}»</strong>
+            {/* ⚠️ Le virgolette stanno DENTRO la traduzione: sono «…» in
+                italiano, “…” in inglese e „…“ in tedesco, e metterle qui
+                nel JSX le avrebbe congelate all'italiano ovunque. */}
+            <strong>
+              {t('adm.pre.staiComponendo', {
+                etichetta: etichettaRiserva.trim() || t('adm.pre.orarioRiservatoMinuscolo'),
+              })}
+            </strong>
             <div className="pc-barra-sub">
-              {pezziRiserva.length * 0.5}h già messe da parte · scegli altri orari e premi Conferma
+              {t('adm.pre.giaMesseDaParte', { ore: pezziRiserva.length * 0.5 })}
             </div>
           </div>
-          <button className="admin-btn-piccolo-rosso" onClick={chiudiRiserva}>Annulla</button>
+          <button className="admin-btn-piccolo-rosso" onClick={chiudiRiserva}>{t('com.annulla')}</button>
         </div>
       )}
 
@@ -1220,22 +1282,25 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           <div style={{ flex: 1 }}>
             <strong>
               {selezioneMultipla[0]} - {orarioFineSlot(selezioneMultipla[selezioneMultipla.length - 1])}
-              {'  ·  '}{selezioneMultipla.length * 0.5}h
+              {/* ⚠️ Lo spazio prima dell'unita' c'e' per il tedesco, dove
+                  l'abbreviazione e' «Std.» e attaccata al numero non si
+                  legge. In italiano e in inglese resta una «h» staccata. */}
+              {'  ·  '}{selezioneMultipla.length * 0.5} {t('com.oreBreve')}
             </strong>
             {/* Sotto il minimo la riga dice cosa manca: con il pulsante
                 spento e nessuna spiegazione, l'Admin resta a chiedersi
                 cosa ha sbagliato. */}
             <div className="pc-barra-sub">
-              {confermaPossibile ? 'Clicca gli slot tratteggiati per estendere' : "Aggiungi almeno un'altra mezz'ora"}
+              {confermaPossibile ? t('adm.pre.cliccaTratteggiati') : t('adm.pre.aggiungiAltraMezzOra')}
             </div>
           </div>
-          <button className="admin-modal-btn-cancel" onClick={() => setSelezioneMultipla([])}>Annulla</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setSelezioneMultipla([])}>{t('com.annulla')}</button>
           <button
             className="admin-modal-btn-confirm"
             disabled={!confermaPossibile}
             onClick={() => apriSceltaAdmin([...selezioneMultipla])}
           >
-            Conferma
+            {t('com.conferma')}
           </button>
         </div>
       )}
@@ -1245,10 +1310,13 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           const blocco = bloccoAttivo(ora);
           const p = !blocco ? prenotazioneSlot(ora) : undefined;
           const eLezione = p?.tipo === 'lezione';
-          let sotto = 'Libero';
-          if (p?.sfidaId) sotto = 'Sfida in corso';
+          // ⚠️ Etichette corte: nello slot ci stanno una decina di
+          // caratteri, quindi in tedesco si usa la parola breve — la
+          // stessa che sta in legenda, cosi' le due si riconoscono.
+          let sotto = t('adm.pre.statoLibero');
+          if (p?.sfidaId) sotto = t('adm.pre.sfidaInCorso');
           else if (p) sotto = p.utenteCognome ? `${p.utenteNome} ${p.utenteCognome[0]}.` : p.utenteNome;
-          else if (blocco) sotto = 'Riservato';
+          else if (blocco) sotto = t('adm.pre.statoRiservato');
           // ⚠️ Gia' messo da parte per la riserva in composizione: in
           // griglia risulta ancora libero — nessun documento e' stato
           // scritto — e senza un segno lo si riselezionava creando un
@@ -1256,7 +1324,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           const giaMessoDaParte = componendoRiserva && pezziRiserva.some(
             (x) => x.campoId === selCampoId && x.data === dataSelIso && x.orario === ora,
           );
-          if (giaMessoDaParte && !p && !blocco) sotto = 'Da riservare';
+          if (giaMessoDaParte && !p && !blocco) sotto = t('adm.pre.daRiservare');
           // Stessa regola dell'app: dall'INIZIO dello slot in poi
           // quell'ora non e' piu' gestibile da nessuno.
           const passato = slotNelPassato(dataSelIso, ora);
@@ -1317,8 +1385,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       {/* Prolunga o nuova prenotazione: compare quando il blocco
           scelto tocca una prenotazione ancora attiva. */}
       <Modal visible={!!sceltaProlunga} onClose={() => { setSceltaProlunga(null); setSelezioneMultipla([]); }}>
-        <div className="admin-modal-title">C&apos;è già una prenotazione qui accanto</div>
-        <p className="admin-modal-sub">Vuoi prolungarla, oppure è una partita a sé?</p>
+        <div className="admin-modal-title">{t('adm.pre.prenotazioneAccantoTitolo')}</div>
+        <p className="admin-modal-sub">{t('adm.pre.prolungareOppure')}</p>
 
         {sceltaProlunga?.vicine.map((v) => (
           <button
@@ -1326,11 +1394,11 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             className="pc-scelta-btn"
             onClick={() => prosegui(sceltaProlunga.ore, v)}
           >
-            <strong>Prolunga quella delle {v.orario}</strong>
+            <strong>{t('adm.pre.prolungaQuellaDelle', { ora: v.orario })}</strong>
             <span>
               {v.utenteNome} {v.utenteCognome}
-              {giocatoriDi(v).length > 0 ? ` · con ${elencoNomi(giocatoriDi(v))}` : ''}
-              {v.maestroNome ? ` · Lezione con ${v.maestroNome}` : ''}
+              {giocatoriDi(v).length > 0 ? ` · ${t('adm.pre.conGiocatori', { nomi: elencoNomi(giocatoriDi(v)) })}` : ''}
+              {v.maestroNome ? ` · ${t('adm.pre.lezioneCon', { maestro: v.maestroNome })}` : ''}
             </span>
           </button>
         ))}
@@ -1344,8 +1412,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             className="pc-scelta-btn nuova"
             onClick={() => sceltaProlunga && prosegui(sceltaProlunga.ore, null)}
           >
-            <strong>È una prenotazione nuova</strong>
-            <span>Non verrà unita a quella accanto</span>
+            <strong>{t('adm.pre.prenotazioneNuova')}</strong>
+            <span>{t('adm.pre.nonUnitaAccanto')}</span>
           </button>
         )}
 
@@ -1353,7 +1421,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             questa griglia: senza, la barra verde restava accesa con il
             suo «Conferma» su una scelta abbandonata. */}
         <button className="admin-modal-btn-cancel" style={{ marginTop: '.8rem', width: '100%' }} onClick={() => { setSceltaProlunga(null); setSelezioneMultipla([]); }}>
-          Annulla
+          {t('com.annulla')}
         </button>
       </Modal>
 
@@ -1364,13 +1432,13 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           mentre si compone, `apriSceltaAdmin` non apre questo pannello —
           ma e' una fragilita' gratuita. */}
       <Modal visible={oreDaAssegnare.length > 0} onClose={() => { setOreDaAssegnare([]); setSelezioneMultipla([]); }}>
-        <div className="admin-modal-title">Cosa vuoi fare?</div>
+        <div className="admin-modal-title">{t('adm.pre.cosaVuoiFare')}</div>
         <p className="admin-modal-sub">
           {oreDaAssegnare.length > 1
-            ? `${oreDaAssegnare[0]} - ${orarioFineSlot(oreDaAssegnare[oreDaAssegnare.length - 1])} (${oreDaAssegnare.length * 0.5}h)`
+            ? `${oreDaAssegnare[0]} - ${orarioFineSlot(oreDaAssegnare[oreDaAssegnare.length - 1])} (${oreDaAssegnare.length * 0.5} ${t('com.oreBreve')})`
             : oreDaAssegnare[0] ? fasciaOraria(oreDaAssegnare[0]) : ''}
         </p>
-        <p className="admin-modal-sub">{campoSel?.nome} · {dataLeggibile}</p>
+        <p className="admin-modal-sub">{campoSel?.nome} · {dataMostrata}</p>
         {/* ⚠️ Condizionati tutti e due, e per la stessa ragione: al
             pannello si arriva con una mezz'ora sola solo quando c'e'
             qualcosa di attaccato da allungare, e va offerto solo cio'
@@ -1378,13 +1446,13 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         {(oreDaAssegnare.length >= MINIMO_SLOT_NUOVA_PRENOTAZIONE
           || prenotazioniAdiacenti(oreDaAssegnare).length > 0) && (
           <button className="pc-scelta-btn" onClick={vaiAPrenotazione}>
-            <strong>Prenota</strong><span>Per un socio o per un esterno</span>
+            <strong>{t('adm.pre.azPrenota')}</strong><span>{t('adm.pre.azPrenotaSub')}</span>
           </button>
         )}
         {(oreDaAssegnare.length >= MINIMO_SLOT_NUOVA_PRENOTAZIONE
           || riserveAdiacenti(oreDaAssegnare).length > 0) && (
           <button className="pc-scelta-btn riserva" onClick={vaiARiserva}>
-            <strong>Riserva</strong><span>Orario non prenotabile dai soci</span>
+            <strong>{t('adm.pre.azRiserva')}</strong><span>{t('adm.pre.azRiservaSub')}</span>
           </button>
         )}
         {/* Le condizioni si rivalutano a ogni disegno: se la
@@ -1393,13 +1461,10 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         {oreDaAssegnare.length < MINIMO_SLOT_NUOVA_PRENOTAZIONE
           && prenotazioniAdiacenti(oreDaAssegnare).length === 0
           && riserveAdiacenti(oreDaAssegnare).length === 0 && (
-          <p className="admin-modal-sub">
-            Quello che c&apos;era qui accanto non c&apos;è più: da sola, questa mezz&apos;ora non si
-            può né prenotare né riservare. Tieni premuto sulla griglia e seleziona almeno un&apos;ora.
-          </p>
+          <p className="admin-modal-sub">{t('adm.pre.accantoSparito')}</p>
         )}
         <button className="admin-modal-btn-cancel" style={{ marginTop: '.8rem' }} onClick={() => { setOreDaAssegnare([]); setSelezioneMultipla([]); }}>
-          Annulla
+          {t('com.annulla')}
         </button>
       </Modal>
 
@@ -1408,13 +1473,13 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           socio e si scrive un nome, e il click fuori chiudeva anche
           mentre la scrittura era in volo. */}
       <Modal visible={oreDaPrenotare.length > 0} onClose={() => {}}>
-        <div className="admin-modal-title">Prenota come Circolo</div>
+        <div className="admin-modal-title">{t('adm.pre.prenotaComeCircolo')}</div>
         <p className="admin-modal-sub">
           {oreDaPrenotare.length > 1
-            ? `${oreDaPrenotare[0]} - ${orarioFineSlot(oreDaPrenotare[oreDaPrenotare.length - 1])} (${oreDaPrenotare.length * 0.5}h)`
+            ? `${oreDaPrenotare[0]} - ${orarioFineSlot(oreDaPrenotare[oreDaPrenotare.length - 1])} (${oreDaPrenotare.length * 0.5} ${t('com.oreBreve')})`
             : oreDaPrenotare[0] ? fasciaOraria(oreDaPrenotare[0]) : ''}
         </p>
-        <p className="admin-modal-sub">{campoSel?.nome} · {dataLeggibile}</p>
+        <p className="admin-modal-sub">{campoSel?.nome} · {dataMostrata}</p>
 
         <div className="pc-toggle-row">
           <button
@@ -1428,14 +1493,14 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
               if (!modalitaEsterno) return;
               staccaDalProlungamento(); setModalitaEsterno(false); setNomeEsterno('');
             }}
-          >Per un socio</button>
+          >{t('adm.pre.perUnSocio')}</button>
           <button
             className={`pc-toggle-btn${modalitaEsterno ? ' selezionato' : ''}`}
             onClick={() => {
               if (modalitaEsterno) return;
               staccaDalProlungamento(); setModalitaEsterno(true); setSocioScelto(null); setFiltroSocio('');
             }}
-          >Per un esterno</button>
+          >{t('adm.pre.perUnEsterno')}</button>
         </div>
 
         {modalitaEsterno ? (
@@ -1449,17 +1514,15 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
               onChange={(e) => setNomeEsterno(e.target.value)}
               disabled={prolungamento}
               style={prolungamento ? { opacity: 0.6 } : undefined}
-              placeholder="Nome e cognome dell'esterno"
+              placeholder={t('adm.pre.phNomeEsterno')}
             />
-            <p className="admin-card-hint">
-              L&apos;esterno non ha un account: la prenotazione non genera alcun addebito.
-            </p>
+            <p className="admin-card-hint">{t('adm.pre.esternoNessunAddebito')}</p>
           </>
         ) : socioScelto ? (
           <div className="admin-list-row">
             <div style={{ flex: 1, fontWeight: 700 }}>{socioScelto.nome} {socioScelto.cognome}</div>
             <button className="admin-btn-small" onClick={() => { staccaDalProlungamento(); setSocioScelto(null); setFiltroSocio(''); }}>
-              Cambia
+              {t('adm.pre.cambia')}
             </button>
           </div>
         ) : (
@@ -1467,20 +1530,20 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             <input
               className="admin-input" value={filtroSocio}
               onChange={(e) => setFiltroSocio(e.target.value)}
-              placeholder="Cerca Socio/Tesserato o Ospite…"
+              placeholder={t('adm.pre.phCercaSocio')}
             />
             {risultatiSoci.map((so) => (
               <div key={so.uid} className="admin-list-row admin-list-row-clickable" onClick={() => { staccaDalProlungamento(); setSocioScelto(so); }}>
                 <div style={{ flex: 1 }}>
                   {so.nome} {so.cognome}
-                  {so.ruoloTessera === 'ospite' && <span className="admin-etichetta-ospite"> (ospite)</span>}
+                  {so.ruoloTessera === 'ospite' && <span className="admin-etichetta-ospite"> {t('adm.pre.ospite')}</span>}
                 </div>
-                <div className="admin-list-sub">credito € {(so.credito ?? 0).toFixed(2)}</div>
+                {/* Il simbolo dell'euro non si traduce: sta dentro la frase
+                    perche' in tedesco va DOPO la cifra. */}
+                <div className="admin-list-sub">{t('adm.pre.creditoCifra', { importo: (so.credito ?? 0).toFixed(2) })}</div>
               </div>
             ))}
-            <p className="admin-card-hint">
-              Il costo verrà scalato dal credito del socio, come per una sua prenotazione.
-            </p>
+            <p className="admin-card-hint">{t('adm.pre.costoDalCredito')}</p>
           </>
         )}
 
@@ -1492,11 +1555,11 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             valgono per tutta la prenotazione. */}
         {giocatoriEreditati.length > 0 && (
           <div className="pc-nota-giocatori">
-            <strong>In campo anche: {elencoNomi(giocatoriEreditati)}</strong>
+            <strong>{t('adm.pre.inCampoAnche', { nomi: elencoNomi(giocatoriEreditati) })}</strong>
             <p className="admin-card-hint">
               {senzaAddebito
-                ? 'Nessun addebito: né al socio né a loro.'
-                : 'La quota di queste mezz’ore sarà divisa fra tutti, e a ciascuno verrà scalata la sua.'}
+                ? t('adm.pre.nessunAddebitoNessuno')
+                : t('adm.pre.quotaDivisa')}
             </p>
           </div>
         )}
@@ -1504,18 +1567,18 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         {!modalitaEsterno && (
           <label className="pc-spunta-riga">
             <input type="checkbox" checked={senzaAddebito} onChange={(e) => setSenzaAddebito(e.target.checked)} />
-            <span>Non addebitare il costo al socio</span>
+            <span>{t('adm.pre.nonAddebitare')}</span>
           </label>
         )}
 
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={chiudiPrenotazioneAdmin} disabled={elaborando}>Annulla</button>
+          <button className="admin-modal-btn-cancel" onClick={chiudiPrenotazioneAdmin} disabled={elaborando}>{t('com.annulla')}</button>
           <button
             className="admin-modal-btn-confirm"
             onClick={confermaPrenotazione}
             disabled={elaborando || (modalitaEsterno ? !nomeEsterno.trim() : !socioScelto)}
           >
-            {elaborando ? 'Attendere…' : 'Conferma'}
+            {elaborando ? t('com.attendi') : t('com.conferma')}
           </button>
         </div>
       </Modal>
@@ -1529,13 +1592,13 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           chiedere niente e senza modo di tornare indietro. Si esce dai
           pulsanti, come sull'app, dove quel gesto non esiste. */}
       <Modal visible={oreDaRiservare.length > 0} onClose={() => {}}>
-        <div className="admin-modal-title">Riserva orario</div>
+        <div className="admin-modal-title">{t('adm.pre.riservaOrarioTitolo')}</div>
         <p className="admin-modal-sub">
           {oreDaRiservare.length > 1
-            ? `${oreDaRiservare[0]} - ${orarioFineSlot(oreDaRiservare[oreDaRiservare.length - 1])} (${oreDaRiservare.length * 0.5}h)`
+            ? `${oreDaRiservare[0]} - ${orarioFineSlot(oreDaRiservare[oreDaRiservare.length - 1])} (${oreDaRiservare.length * 0.5} ${t('com.oreBreve')})`
             : oreDaRiservare[0] ? fasciaOraria(oreDaRiservare[0]) : ''}
         </p>
-        <p className="admin-modal-sub">{campoSel?.nome} · {dataLeggibile}</p>
+        <p className="admin-modal-sub">{campoSel?.nome} · {dataMostrata}</p>
 
         {/* ⚠️ Gli altri giorni e gli altri campi gia' messi da parte:
             una selezione sparsa non si puo' leggere dalla griglia, che
@@ -1543,7 +1606,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             l'Admin confermerebbe alla cieca. */}
         {pezziRiserva.length > 0 && (
           <div className="pc-riepilogo-riserva">
-            <strong>Già messi da parte</strong>
+            <strong>{t('adm.pre.giaMessiDaParte')}</strong>
             {blocchiDaiPezzi(pezziRiserva).map((g) => (
               <div key={`${g.campoId}|${g.data}|${g.orari[0]}`} className="pc-riepilogo-riga">
                 <span style={{ flex: 1 }}>
@@ -1555,7 +1618,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
                     x.campoId === g.campoId && x.data === g.data && g.orari.includes(x.orario)
                   )))}
                 >
-                  Togli
+                  {t('adm.pre.togli')}
                 </button>
               </div>
             ))}
@@ -1569,31 +1632,32 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           onClick={aggiungiAltriOrariAllaRiserva}
           disabled={elaborando}
         >
-          + Aggiungi altri giorni o campi
+          {t('adm.pre.aggiungiGiorniCampi')}
         </button>
 
-        <label className="admin-label">Etichetta</label>
+        <label className="admin-label">{t('adm.pre.etichetta')}</label>
         <input
           className="admin-input" value={etichettaRiserva}
           onChange={(e) => setEtichettaRiserva(e.target.value.slice(0, 14))}
-          placeholder="Es. Scuola Tennis" maxLength={14}
+          placeholder={t('adm.pre.phEtichetta')} maxLength={14}
         />
+        {/* ⚠️ Il tetto dei quattordici caratteri vale in tutte e tre le
+            lingue: e' lo spazio dello slot, non una regola di lingua.
+            L'etichetta la scrive l'Admin e resta come l'ha scritta. */}
         <p className="admin-card-hint">
-          Compare sotto &quot;Riservato&quot; nello slot — {14 - etichettaRiserva.length} caratteri rimasti
+          {t('adm.pre.etichettaAiuto', { n: 14 - etichettaRiserva.length })}
         </p>
 
-        <label className="admin-label">Descrizione</label>
+        <label className="admin-label">{t('adm.pre.descrizione')}</label>
         <textarea
           className="admin-input" value={descrizioneRiserva}
           onChange={(e) => setDescrizioneRiserva(e.target.value)}
-          placeholder="Di cosa si tratta, per chi tocca lo slot…" rows={3}
+          placeholder={t('adm.pre.phDescrizione')} rows={3}
         />
-        <p className="admin-card-hint">
-          La vedranno soci, maestri e admin toccando lo slot riservato.
-        </p>
+        <p className="admin-card-hint">{t('adm.pre.descrizioneAiuto')}</p>
 
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={chiudiRiserva} disabled={elaborando}>Annulla</button>
+          <button className="admin-modal-btn-cancel" onClick={chiudiRiserva} disabled={elaborando}>{t('com.annulla')}</button>
           <button
             className="admin-modal-btn-confirm"
             /* ⚠️ Avvolto: il parametro `gia` non e' un evento del mouse.
@@ -1603,7 +1667,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             onClick={() => void confermaRiserva()}
             disabled={elaborando || !etichettaRiserva.trim()}
           >
-            {elaborando ? 'Attendere…' : 'Riserva'}
+            {elaborando ? t('com.attendi') : t('adm.pre.azRiserva')}
           </button>
         </div>
       </Modal>
@@ -1612,7 +1676,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         {/* ⚠️ Tutto dal blocco VIVO, non dalla fotografia scattata
             all'apertura: con i due mescolati il pop-up arrivava a dire
             due cose diverse insieme, e poi a rifiutare. */}
-        <div className="admin-modal-title">Orario riservato</div>
+        <div className="admin-modal-title">{t('adm.pre.orarioRiservatoTitolo')}</div>
         <div className="admin-modal-sub">
           {campi.find((c) => c.id === bloccoVivo?.campoId)?.nome} · {bloccoVivo?.orarioInizio} - {bloccoVivo?.orarioFine}
         </div>
@@ -1634,9 +1698,9 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
               onClick={() => {
                 if (unaSolaMezzOra(bloccoVivo)) {
                   setConferma({
-                    titolo: "Rimuovere l'orario riservato?",
-                    testo: `«${bloccoVivo.etichetta}» sparisce e lo slot torna prenotabile dai soci.`,
-                    etichetta: 'Rimuovi',
+                    titolo: t('adm.pre.rimuovereRiservaTitolo'),
+                    testo: t('adm.pre.rimuovereRiservaTesto', { etichetta: bloccoVivo.etichetta }),
+                    etichetta: t('adm.pre.rimuovi'),
                     azione: () => void togliMezzOraDallaRiserva(bloccoInfo.blocco, bloccoInfo.ora),
                   });
                   return;
@@ -1645,17 +1709,17 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
               }}
             >
               {unaSolaMezzOra(bloccoVivo)
-                ? "Rimuovi l'orario riservato"
-                : `Togli la mezz'ora delle ${bloccoInfo.ora}`}
+                ? t('adm.pre.rimuoviOrarioRiservato')
+                : t('adm.pre.togliMezzOra', { ora: bloccoInfo.ora })}
             </button>
           ) : (
             <p className="admin-card-hint" style={{ textAlign: 'center' }}>
-              Per accorciare questo orario riservato clicca la prima o l&apos;ultima mezz&apos;ora.
+              {t('adm.pre.perAccorciare')}
             </p>
           )
         )}
         <button className="admin-modal-btn-cancel" onClick={() => setBloccoInfo(null)} style={{ marginTop: '1rem' }}>
-          Chiudi
+          {t('com.chiudi')}
         </button>
       </Modal>
 
@@ -1666,8 +1730,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           l'Admin non doveva riscrivere ogni volta.
           ============================================================ */}
       <Modal visible={!!sceltaProlungaRiserva} onClose={() => { setSceltaProlungaRiserva(null); setSelezioneMultipla([]); }}>
-        <div className="admin-modal-title">C&apos;è già un orario riservato qui accanto</div>
-        <p className="admin-modal-sub">Vuoi allungarlo, oppure è una riserva a sé?</p>
+        <div className="admin-modal-title">{t('adm.pre.riservaAccantoTitolo')}</div>
+        <p className="admin-modal-sub">{t('adm.pre.allungareOppure')}</p>
         {sceltaProlungaRiserva?.vicine.map((b) => (
           <button
             key={b.id}
@@ -1675,7 +1739,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             disabled={elaborandoRiserva}
             onClick={() => prolungaRiserva(b, sceltaProlungaRiserva.ore)}
           >
-            <strong>Allunga «{b.etichetta}»</strong>
+            <strong>{t('adm.pre.allungaEtichetta', { etichetta: b.etichetta })}</strong>
             <span>{b.orarioInizio} - {b.orarioFine}</span>
           </button>
         ))}
@@ -1690,8 +1754,8 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
               setEtichettaRiserva(''); setDescrizioneRiserva('');
             }}
           >
-            <strong>È una riserva nuova</strong>
-            <span>Non verrà unita a quella accanto</span>
+            <strong>{t('adm.pre.riservaNuova')}</strong>
+            <span>{t('adm.pre.nonUnitaAccanto')}</span>
           </button>
         )}
         <button
@@ -1699,7 +1763,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           style={{ marginTop: '.8rem', width: '100%' }}
           onClick={() => { setSceltaProlungaRiserva(null); setSelezioneMultipla([]); }}
         >
-          Annulla
+          {t('com.annulla')}
         </button>
       </Modal>
 
@@ -1708,7 +1772,7 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         <div className="admin-modal-title">{conferma?.titolo}</div>
         <p className="admin-modal-sub">{conferma?.testo}</p>
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setConferma(null)}>Annulla</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setConferma(null)}>{t('com.annulla')}</button>
           <button
             className="admin-btn-danger"
             onClick={() => { const a = conferma?.azione; setConferma(null); a?.(); }}
@@ -1719,44 +1783,53 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
       </Modal>
 
       <Modal visible={!!sfidaInfo} onClose={() => setSfidaInfo(null)}>
-        <div className="admin-modal-title">Sfida in corso</div>
+        <div className="admin-modal-title">{t('adm.pre.sfidaInCorso')}</div>
         <p className="admin-card-hint" style={{ textAlign: 'center' }}>
           {sfidaInfo?.sfidanteNome} {sfidaInfo?.sfidanteCognome} vs {sfidaInfo?.sfidatoNome} {sfidaInfo?.sfidatoCognome}
         </p>
 
         <div style={{ background: '#F7F4EA', borderRadius: 10, padding: '.8rem', marginTop: '.6rem' }}>
           <div className="admin-list-sub">
-            Posizioni al lancio: {sfidaInfo?.sfidanteNome} #{sfidaInfo?.posizioneSfidante} · {sfidaInfo?.sfidatoNome} #{sfidaInfo?.posizioneSfidato}
+            {t('adm.pre.posizioniAlLancio', {
+              sfidante: sfidaInfo?.sfidanteNome ?? '',
+              posSfidante: sfidaInfo?.posizioneSfidante ?? '',
+              sfidato: sfidaInfo?.sfidatoNome ?? '',
+              posSfidato: sfidaInfo?.posizioneSfidato ?? '',
+            })}
           </div>
           {sfidaInfo?.fase === 'accettata' && sfidaInfo?.matchData && (
             <div className="admin-list-sub" style={{ fontWeight: 700, marginTop: '.3rem' }}>
               {sfidaInfo.matchDataLabel} · {sfidaInfo.matchCampoNome} · {sfidaInfo.matchOrari?.[0]}
             </div>
           )}
+          {/* ⚠️ `esito` e' un valore di Firestore — 'vinta' o 'persa' —
+              e finora finiva a schermo cosi' com'e'. Non e' testo scritto
+              dall'Admin: e' un codice con due soli valori, quindi si
+              traduce come si traduce una pastiglia. Il punteggio invece
+              e' scritto da chi ha giocato e resta com'e'. */}
           {sfidaInfo?.risultatoSfidante && (
             <div className="admin-list-sub">
-              {sfidaInfo.sfidanteNome}: {sfidaInfo.risultatoSfidante.esito} {sfidaInfo.risultatoSfidante.punteggio ? `(${sfidaInfo.risultatoSfidante.punteggio})` : ''}
+              {sfidaInfo.sfidanteNome}: {t(sfidaInfo.risultatoSfidante.esito === 'vinta' ? 'adm.pre.esitoVinta' : 'adm.pre.esitoPersa')} {sfidaInfo.risultatoSfidante.punteggio ? `(${sfidaInfo.risultatoSfidante.punteggio})` : ''}
             </div>
           )}
           {sfidaInfo?.risultatoSfidato && (
             <div className="admin-list-sub">
-              {sfidaInfo.sfidatoNome}: {sfidaInfo.risultatoSfidato.esito} {sfidaInfo.risultatoSfidato.punteggio ? `(${sfidaInfo.risultatoSfidato.punteggio})` : ''}
+              {sfidaInfo.sfidatoNome}: {t(sfidaInfo.risultatoSfidato.esito === 'vinta' ? 'adm.pre.esitoVinta' : 'adm.pre.esitoPersa')} {sfidaInfo.risultatoSfidato.punteggio ? `(${sfidaInfo.risultatoSfidato.punteggio})` : ''}
             </div>
           )}
         </div>
 
         <p className="admin-card-hint" style={{ textAlign: 'center', marginTop: '.8rem' }}>
-          Per annullarla, vai nella sezione &quot;Sfide in Corso&quot; e usa &quot;Annulla Sfida Corrente&quot;
-          — da qui puoi solo consultarla.
+          {t('adm.pre.sfidaSoloConsultazione')}
         </p>
         <button className="admin-btn-full" style={{ marginTop: '1rem' }} onClick={() => setSfidaInfo(null)}>
-          Ho capito
+          {t('adm.pre.hoCapito')}
         </button>
       </Modal>
 
       <Modal visible={!!daAnnullare} onClose={() => setDaAnnullare(null)}>
         <div className="admin-modal-title" style={{ textTransform: 'none', fontSize: '1rem' }}>
-          {daAnnullare ? intestazionePrenotazione(daAnnullare) : ''}
+          {daAnnullare ? intestazionePrenotazione(daAnnullare, t) : ''}
         </div>
         <div className="admin-modal-sub">
           {daAnnullare?.campoNome} · {daAnnullare?.dataLabel} {daAnnullare ? fasciaOraria(daAnnullare.orario) : ''}
@@ -1773,33 +1846,24 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
                 piu', e al socio restava in Home la card "lezione
                 confermata, campi non occupati" finche' il Maestro non
                 chiudeva la chat a mano. */}
-            <p className="mov-nota-bloccata">
-              Le lezioni non si annullano dalla griglia, mezz&apos;ora per mezz&apos;ora: vai
-              nella sezione &quot;Lezioni Prenotate&quot; e annullala per intero. Da lì si
-              chiude anche la conversazione fra Maestro e allievo, che altrimenti resterebbe
-              aperta su una lezione che non c&apos;è più.
-            </p>
+            <p className="mov-nota-bloccata">{t('adm.pre.lezioneNonAnnullabile')}</p>
             <div className="admin-modal-btn-row">
-              <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Chiudi</button>
+              <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>{t('com.chiudi')}</button>
             </div>
           </>
         ) : bloccataInMezzo ? (
           <>
             {/* Le informazioni restano tutte: sparisce solo il pulsante
                 di cancellazione, sostituito dalla spiegazione. */}
-            <p className="mov-nota-bloccata">
-              Non puoi cancellare questa mezz&apos;ora: sta in mezzo alla prenotazione
-              e resterebbero due spezzoni separati. Cancella dalle estremità — la
-              prima o l&apos;ultima mezz&apos;ora.
-            </p>
+            <p className="mov-nota-bloccata">{t('adm.pre.mezzOraInMezzo')}</p>
             <div className="admin-modal-btn-row">
-              <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Chiudi</button>
+              <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>{t('com.chiudi')}</button>
             </div>
           </>
         ) : (
           <>
             <p className="admin-modal-sub" style={{ marginTop: '.8rem', fontWeight: 700 }}>
-              Vuoi annullare questa prenotazione?
+              {t('adm.pre.vuoiAnnullare')}
             </p>
             {/* Chi viene rimborsato e come: sta SOTTO la domanda perche'
                 riguarda la conseguenza della cancellazione.
@@ -1809,16 +1873,23 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
                 racconta una possibilita' che non esiste. */}
             <p className="mov-nota-rimborso">
               {!daAnnullare?.utenteId || importoDaRimborsare(daAnnullare) === 0
-                ? 'Non è previsto rimborso per questa cancellazione.'
+                ? t('adm.pre.nessunRimborso')
                 : daAnnullare && giocatoriDi(daAnnullare).length > 0
-                  ? `Saranno rimborsati ${daAnnullare.utenteNome} ${daAnnullare.utenteCognome} (€ ${quotaChiPrenota(daAnnullare).toFixed(2)}) e ${elencoNomi(giocatoriDi(daAnnullare))}, ognuno per la sua quota.`
-                  : `Il credito sarà rimborsato a ${daAnnullare?.utenteNome} ${daAnnullare?.utenteCognome}: € ${importoDaRimborsare(daAnnullare).toFixed(2)}.`}
+                  ? t('adm.pre.rimborsoDiviso', {
+                    titolare: `${daAnnullare.utenteNome} ${daAnnullare.utenteCognome}`,
+                    importo: quotaChiPrenota(daAnnullare).toFixed(2),
+                    altri: elencoNomi(giocatoriDi(daAnnullare)),
+                  })
+                  : t('adm.pre.rimborsoSingolo', {
+                    nome: `${daAnnullare?.utenteNome} ${daAnnullare?.utenteCognome}`,
+                    importo: importoDaRimborsare(daAnnullare).toFixed(2),
+                  })}
             </p>
             {erroreAnnullo && <div className="admin-error-text">{erroreAnnullo}</div>}
             <div className="admin-modal-btn-row">
-              <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>Indietro</button>
+              <button className="admin-modal-btn-cancel" onClick={() => setDaAnnullare(null)}>{t('com.indietro')}</button>
               <button className="admin-modal-btn-confirm danger" onClick={confermaAnnulla} disabled={elaborando}>
-                {elaborando ? 'Attendere…' : 'Cancella prenotazione'}
+                {elaborando ? t('com.attendi') : t('adm.pre.cancellaPrenotazione')}
               </button>
             </div>
           </>

@@ -35,11 +35,16 @@
 
 import SchedaCircoloVista from '../../superadmin/dashboard/SchedaCircoloVista';
 import SelettoreLingua from './SelettoreLingua';
-import { LinguaProvider } from '../../../lib/lingua';
+// ⚠️ QUI NON C'È PIÙ `LinguaProvider`, ed è un cambio della tornata
+// 106: l'involucro è salito su `page.tsx` e adesso copre tutta la
+// dashboard. Rimetterlo qui creerebbe un secondo stato della lingua
+// annidato dentro il primo — questa sezione cambierebbe lingua e le
+// altre ventotto no.
 import SezioneCollassabile from './SezioneCollassabile';
-import SezioneSoci, { ETICHETTA_SOCI } from './SezioneSoci';
-import SezioneDebitiSoci, { ETICHETTA_DEBITI } from './SezioneDebitiSoci';
+import SezioneSoci, { etichettaSoci } from './SezioneSoci';
+import SezioneDebitiSoci, { etichettaDebiti } from './SezioneDebitiSoci';
 import { SocioCircolo } from '../../../data/users';
+import { useLingua } from '../../../lib/lingua';
 
 export default function SezionePanoramicaCircolo({
   circoloId, statoCircolo, attivatoIlMs, puoAggiornare = true, soci, onSelezionaSocio,
@@ -57,24 +62,29 @@ export default function SezionePanoramicaCircolo({
   soci: SocioCircolo[];
   onSelezionaSocio: (uid: string) => void;
 }) {
+  // Serve solo alle etichette delle due sottosezioni annidate: i testi
+  // della scheda se li traduce `SchedaCircoloVista` per conto suo.
+  const { t } = useLingua();
+
   return (
     // ============================================================
-    // ⚠️ IL CONTENITORE DELLA LINGUA AVVOLGE SOLO QUESTO, e non il
-    // sito intero. Dentro ci stanno le due cose che devono parlarsi:
-    // il selettore e la scheda che si ridisegna quando cambia. Fuori
-    // di qui — pagine pubbliche, resto della dashboard, pannello di
-    // rete — la lingua non esiste e non deve esistere.
+    // ⚠️ IL CONTENITORE DELLA LINGUA NON E' PIU' QUI: sta su
+    // `page.tsx` e avvolge tutta la dashboard dell'Admin, perche' dalla
+    // tornata 106 non e' piu' questa sola sezione a tradursi. Il
+    // selettore invece resta qui, dove l'Admin lo ha sempre trovato:
+    // e' il comando, non la memoria.
     //
-    // ⚠️ 'admin': e' la stessa preferenza che l'Admin trova nell'app
-    // sulla Panoramica del telefono (chiave `rf.lingua.admin`), e sono
-    // due dispositivi diversi con due memorie diverse. Il socio e il
-    // Maestro hanno le loro, e non si parlano con questa.
+    // ⚠️ 'admin' (il ruolo con cui `page.tsx` monta l'involucro): e' la
+    // stessa preferenza che l'Admin trova nell'app sulla Panoramica del
+    // telefono (chiave `rf.lingua.admin`), e sono due dispositivi
+    // diversi con due memorie diverse. Il socio e il Maestro hanno le
+    // loro, e non si parlano con questa.
     //
-    // ⚠️ E `SchedaCircoloVista` senza questo involucro resta in
-    // italiano: e' il caso del Super Admin, che apre la stessa scheda
-    // dal pannello di rete e un selettore non ce l'ha.
+    // ⚠️ E `SchedaCircoloVista` fuori dalla dashboard dell'Admin resta
+    // in italiano: e' il caso del Super Admin, che apre la stessa
+    // scheda dal pannello di rete — li' l'involucro non c'e' e un
+    // selettore non ce l'ha.
     // ============================================================
-    <LinguaProvider ruolo="admin">
     <div className="admin-card">
       <SelettoreLingua />
       <SchedaCircoloVista
@@ -92,14 +102,13 @@ export default function SezionePanoramicaCircolo({
           .admin-collassa-wrapper` in globals.css toglie il doppio
           incolonnamento. Gli identificativi restano distinti, quindi
           ognuna si ricorda da sola se era aperta. */}
-      <SezioneCollassabile id="soci" {...ETICHETTA_SOCI}>
+      <SezioneCollassabile id="soci" {...etichettaSoci(t)}>
         <SezioneSoci soci={soci} onSelezionaSocio={onSelezionaSocio} />
       </SezioneCollassabile>
 
-      <SezioneCollassabile id="debiti" {...ETICHETTA_DEBITI}>
+      <SezioneCollassabile id="debiti" {...etichettaDebiti(t)}>
         <SezioneDebitiSoci soci={soci} onSelezionaSocio={onSelezionaSocio} />
       </SezioneCollassabile>
     </div>
-    </LinguaProvider>
   );
 }

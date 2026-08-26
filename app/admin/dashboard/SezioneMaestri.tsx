@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { MaestroConUid, creaMaestro, rimuoviMaestro, impostaAccessoAdmin } from '../../../data/maestriRepo';
 import { contiDelMaestro, PrenotazioneDaContare } from '../../../data/contiMaestro';
 import { ascoltaLezioniAnnullate, LezioneAnnullata } from '../../../data/lezioniAnnullate';
+import { useLingua } from '../../../lib/lingua';
 import SchedaMaestro from './SchedaMaestro';
 
 export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
@@ -11,6 +12,8 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
   maestri: MaestroConUid[];
   prenotazioni: PrenotazioneDaContare[];
 }) {
+  const { t } = useLingua();
+
   // ⚠️ L'ascolto delle lezioni annullate sta QUI e non nella pagina.
   // Quei documenti servono soltanto ai conteggi dentro la scheda di un
   // Maestro, e questa sezione è collassata: tenendo l'ascolto più su si
@@ -58,10 +61,15 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
     try {
       await rimuoviMaestro(m);
     } catch (e: any) {
+      // ⚠️ Il nome e il cognome entrano come segnaposto e non incollati
+      // davanti alla frase: in tedesco la persona non sta sempre in
+      // testa, e una frase composta a pezzi qui obbligherebbe le altre
+      // due lingue a seguire l'ordine italiano.
+      const chi = `${m.nome} ${m.cognome}`;
       setErroreRimozione(
         e?.message === 'ACCESSO_ADMIN_NON_REVOCATO'
-          ? `${m.nome} ${m.cognome} non è stato rimosso: non è stato possibile togliergli l'accesso Admin. Riprova — se si cancellasse ora, quell'accesso resterebbe attivo e non sarebbe più revocabile.`
-          : `${m.nome} ${m.cognome} non è stato rimosso. Riprova.`,
+          ? t('adm.mae.rimozioneAccessoNonRevocato', { nome: chi })
+          : t('adm.mae.rimozioneFallita', { nome: chi }),
       );
     }
   };
@@ -71,11 +79,11 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
   const crea = async () => {
     setErrore('');
     if (!nome.trim() || !cognome.trim() || !email.trim() || !password) {
-      setErrore('Compila tutti i campi.');
+      setErrore(t('adm.mae.compilaTuttiICampi'));
       return;
     }
     if (password.length < 6) {
-      setErrore('La password deve avere almeno 6 caratteri.');
+      setErrore(t('adm.mae.passwordTroppoCorta'));
       return;
     }
     setCreando(true);
@@ -85,8 +93,8 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
       reset();
       setFormAperto(false);
     } catch (err: any) {
-      if (err.code === 'auth/email-already-in-use') setErrore('Esiste già un account con questa email.');
-      else setErrore('Si è verificato un errore. Riprova.');
+      if (err.code === 'auth/email-already-in-use') setErrore(t('adm.mae.emailGiaUsata'));
+      else setErrore(t('com.errore.generico'));
     } finally {
       setCreando(false);
     }
@@ -103,8 +111,16 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
       // quindi senza un messaggio l'Admin vede la spunta rimettersi
       // dov'era e pensa a un tocco andato a vuoto — mentre l'accesso
       // Admin di quella persona e' ancora acceso.
+      //
+      // ⚠️ Due frasi intere e non un verbo infilato in mezzo a una
+      // sola: «togliere/concedere» in tedesco finisce in fondo alla
+      // frase, e una sola frase con il buco a metà non si potrebbe
+      // tradurre senza storpiarla.
+      const chi = `${m.nome} ${m.cognome}`;
       setErroreRimozione(
-        `Non è stato possibile ${m.puoAccedereAdmin ? 'togliere' : 'concedere'} l'accesso Admin a ${m.nome} ${m.cognome}. Riprova.`,
+        m.puoAccedereAdmin
+          ? t('adm.mae.accessoNonTolto', { nome: chi })
+          : t('adm.mae.accessoNonConcesso', { nome: chi }),
       );
     } finally {
       setAggiornandoUid(null);
@@ -113,15 +129,11 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Maestri</div>
-      <p className="admin-card-hint">
-        Ogni Maestro ha un proprio account, separato dal tuo: gestisce solo le proprie
-        lezioni, non prezzi, soci o incassi — a meno che
-        tu non gli conceda esplicitamente anche l&apos;accesso Admin.
-      </p>
+      <div className="admin-card-title">{t('adm.mae.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.mae.intro')}</p>
 
       {maestri.length === 0 && !formAperto && (
-        <p className="admin-empty-text">Nessun Maestro ancora aggiunto.</p>
+        <p className="admin-empty-text">{t('adm.mae.nessunMaestro')}</p>
       )}
 
       {maestri.map((m) => (
@@ -139,16 +151,16 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
               aria-expanded={schedaAperta === m.uid}
               onClick={() => setSchedaAperta(schedaAperta === m.uid ? null : m.uid)}
             >
-              {schedaAperta === m.uid ? 'Chiudi scheda' : 'Scheda'}
+              {schedaAperta === m.uid ? t('adm.mae.chiudiScheda') : t('adm.mae.scheda')}
             </button>
-            <button className="admin-icon-btn danger" onClick={() => rimuovi(m)} aria-label="Rimuovi">🗑</button>
+            <button className="admin-icon-btn danger" onClick={() => rimuovi(m)} aria-label={t('adm.mae.rimuovi')}>🗑</button>
           </div>
           <label className="admin-checkbox-row">
             <input
               type="checkbox" checked={!!m.puoAccedereAdmin}
               onChange={() => toggleAccessoAdmin(m)} disabled={aggiornandoUid === m.uid}
             />
-            <span>{aggiornandoUid === m.uid ? 'Aggiornamento…' : 'Può accedere anche come Admin Circolo'}</span>
+            <span>{aggiornandoUid === m.uid ? t('adm.mae.aggiornamento') : t('adm.mae.puoAccedereAdmin')}</span>
           </label>
           {/* ⚠️ Montata solo da aperta, e con key sull'identificativo:
               la scheda tiene in memoria quello che si sta scrivendo, e
@@ -170,45 +182,54 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
 
       {datiCreati && (
         <>
-          <p className="admin-card-hint">Maestro creato ✓ — comunica queste credenziali:</p>
+          <p className="admin-card-hint">{t('adm.mae.creatoCredenziali')}</p>
           <div className="superadmin-credenziali">
-            <div><span>Nome</span><code>{datiCreati.nome}</code></div>
-            <div><span>Email</span><code>{datiCreati.email}</code></div>
-            <div><span>Password</span><code>{datiCreati.password}</code></div>
+            {/* ⚠️ Chiave diversa da quella del modulo: qui sotto c'è il
+                nome E il cognome insieme, quindi «Nome» vale «nome e
+                cognome» — in inglese e in tedesco sarebbe «First name»
+                sopra un nome intero. */}
+            <div><span>{t('adm.mae.credenzialiNome')}</span><code>{datiCreati.nome}</code></div>
+            <div><span>{t('adm.mae.campoEmail')}</span><code>{datiCreati.email}</code></div>
+            <div><span>{t('adm.mae.campoPassword')}</span><code>{datiCreati.password}</code></div>
           </div>
         </>
       )}
 
       {formAperto ? (
         <>
-          <label className="admin-label">Nome</label>
-          <input className="admin-input" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Mario" />
-          <label className="admin-label">Cognome</label>
-          <input className="admin-input" value={cognome} onChange={(e) => setCognome(e.target.value)} placeholder="Rossi" />
-          <label className="admin-label">Email</label>
-          <input className="admin-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="maestro@circolo.it" />
-          <label className="admin-label">Password</label>
-          <input className="admin-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Almeno 6 caratteri" />
+          {/* ⚠️ Anche i nomi di esempio sono tradotti: «Mario Rossi» è il
+              nome finto con cui in Italia si spiega un modulo, e in
+              inglese e in tedesco quel ruolo lo fanno altri due nomi.
+              Non è il nome di una persona vera — quello sarebbe un dato
+              e resterebbe com'è. */}
+          <label className="admin-label">{t('adm.mae.campoNome')}</label>
+          <input className="admin-input" value={nome} onChange={(e) => setNome(e.target.value)} placeholder={t('adm.mae.esempioNome')} />
+          <label className="admin-label">{t('adm.mae.campoCognome')}</label>
+          <input className="admin-input" value={cognome} onChange={(e) => setCognome(e.target.value)} placeholder={t('adm.mae.esempioCognome')} />
+          <label className="admin-label">{t('adm.mae.campoEmail')}</label>
+          <input className="admin-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('adm.mae.esempioEmail')} />
+          <label className="admin-label">{t('adm.mae.campoPassword')}</label>
+          <input className="admin-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t('adm.mae.esempioPassword')} />
 
           <label className="admin-checkbox-row" style={{ marginTop: '.8rem' }}>
             <input type="checkbox" checked={consentiAdmin} onChange={(e) => setConsentiAdmin(e.target.checked)} />
-            <span>Consenti anche l&apos;accesso come Admin Circolo</span>
+            <span>{t('adm.mae.consentiAccessoAdmin')}</span>
           </label>
 
           {errore && <div className="admin-error-text">{errore}</div>}
 
           <div className="admin-row" style={{ marginTop: '.8rem' }}>
             <button className="admin-btn-full" style={{ background: '#fff', color: 'var(--grigio)', border: '2px solid var(--bordo)' }} onClick={() => { setFormAperto(false); reset(); }}>
-              Annulla
+              {t('com.annulla')}
             </button>
             <button className="admin-btn-full" onClick={crea} disabled={creando}>
-              {creando ? 'Creazione…' : 'Crea Maestro'}
+              {creando ? t('adm.mae.creazione') : t('adm.mae.creaMaestro')}
             </button>
           </div>
         </>
       ) : (
         <button className="admin-btn-full" onClick={() => { setDatiCreati(null); setFormAperto(true); }}>
-          + Aggiungi Maestro
+          + {t('adm.mae.aggiungiMaestro')}
         </button>
       )}
     </div>

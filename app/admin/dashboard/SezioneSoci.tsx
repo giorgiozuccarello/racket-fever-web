@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { SocioCircolo } from '../../../data/users';
+import { Traduttore } from '../../../data/testi';
+import { useLingua } from '../../../lib/lingua';
 
 // ⚠️ Titolo e descrizione stanno QUI, accanto alla sezione che
 // descrivono, e non nel punto in cui viene montata. Sono montate in due
@@ -9,16 +11,25 @@ import { SocioCircolo } from '../../../data/users';
 // il Collaboratore — e finche' le stringhe erano scritte a mano in
 // tutti e due, cambiarne una voleva dire due sezioni con lo stesso
 // contenuto e due nomi diversi a seconda di chi guarda. Oggi il posto è
-// uno solo — la Panoramica, per tutti — ma le costanti restano: è il
-// modo giusto di tenerle comunque.
-export const ETICHETTA_SOCI = {
-  titolo: 'Soci/Tesserati e Ospiti',
-  descrizione: 'Anagrafica e credito di Soci/Tesserati e Ospiti',
-};
+// uno solo — la Panoramica, per tutti — ma le etichette restano qui: è
+// il modo giusto di tenerle comunque.
+//
+// ⚠️ ERA UNA COSTANTE, ADESSO E' UNA FUNZIONE, e il motivo è la lingua:
+// una costante si costruisce una volta sola quando il file viene
+// caricato, cioè prima che si sappia quale lingua ha scelto l'Admin, e
+// resterebbe ferma su quella del primo disegno. Chi la monta le passa
+// il suo `t` e la ricostruisce a ogni render.
+export function etichettaSoci(t: Traduttore) {
+  return {
+    titolo: t('adm.els.titolo'),
+    descrizione: t('adm.els.descrizione'),
+  };
+}
 
 export default function SezioneSoci({ soci, onSelezionaSocio }: {
   soci: SocioCircolo[]; onSelezionaSocio: (uid: string) => void;
 }) {
+  const { t } = useLingua();
   const [filtro, setFiltro] = useState('');
 
   const risultati = filtro.trim().length === 0 ? [] : soci
@@ -27,15 +38,12 @@ export default function SezioneSoci({ soci, onSelezionaSocio }: {
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Soci/Tesserati e Ospiti</div>
-      <p className="admin-card-hint">
-        Cerca un Socio/Tesserato o un Ospite per vedere il suo profilo, ricaricare il credito o
-        impostare il Fido
-      </p>
+      <div className="admin-card-title">{t('adm.els.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.els.hint')}</p>
 
       <input
         className="admin-input" value={filtro} onChange={(e) => setFiltro(e.target.value)}
-        placeholder="Cerca Socio/Tesserato o Ospite…"
+        placeholder={t('adm.els.cerca')}
       />
 
       {risultati.map((soc) => (
@@ -55,7 +63,7 @@ export default function SezioneSoci({ soci, onSelezionaSocio }: {
             <div className="admin-list-main">
               {soc.nome} {soc.cognome}
               {soc.ruoloTessera === 'ospite' && (
-                <span className="admin-etichetta-ospite"> (ospite)</span>
+                <span className="admin-etichetta-ospite"> {t('adm.els.ospite')}</span>
               )}
             </div>
             <div className="admin-list-sub">{soc.email}</div>
@@ -64,7 +72,7 @@ export default function SezioneSoci({ soci, onSelezionaSocio }: {
         </div>
       ))}
       {filtro.trim().length > 0 && risultati.length === 0 && (
-        <p className="admin-empty-text">Nessun socio trovato.</p>
+        <p className="admin-empty-text">{t('adm.els.nessunRisultato')}</p>
       )}
     </div>
   );

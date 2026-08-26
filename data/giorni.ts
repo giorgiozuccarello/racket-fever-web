@@ -66,16 +66,37 @@ export function dataScrittaBene(v: string): boolean {
 // Nomi a mano e non toLocaleDateString: su Hermes i dati di
 // localizzazione possono mancare del tutto, e uscirebbe in inglese o
 // con un errore a runtime.
-export function giornoBreve(iso: string): string {
+// ============================================================
+// ⚠️ IL TRADUTTORE È FACOLTATIVO, E DEVE RESTARE FACOLTATIVO.
+//
+// Queste due funzioni le chiamano tre mondi diversi: le schermate, che
+// un traduttore ce l'hanno; le Cloud Functions, che non hanno né
+// contesto né React; e il codice che compone testi da SCRIVERE su
+// Firestore, che deve produrre italiano sempre — perché quella stringa
+// la rilegge un'altra persona, magari in un'altra lingua, mesi dopo.
+//
+// Chiamata senza `t` risponde in italiano, esattamente come prima.
+// Chiamata con `t` risponde nella lingua di chi guarda. Renderlo
+// obbligatorio vorrebbe dire o rompere le Functions, o mettere la
+// lingua della segreteria dentro i dati.
+// ============================================================
+type TraduceMese = (chiave: string) => string;
+
+export function giornoBreve(iso: string, t?: TraduceMese): string {
   const d = giornoDi(iso);
-  return `${d.getDate()} ${MESI[d.getMonth()]}`;
+  const mese = t ? t(`com.m.${d.getMonth() + 1}`) : MESI[d.getMonth()];
+  return `${d.getDate()} ${mese}`;
 }
 
-export function dataNumerica(iso: string): string {
+// ⚠️ IN TEDESCO LE DATE HANNO I PUNTI, non le barre: «26.08.2026». È
+// l'unica differenza di formato fra le tre lingue, e senza, un tedesco
+// legge una data che gli sembra sbagliata pur essendo giusta.
+export function dataNumerica(iso: string, tedesco = false): string {
   const d = giornoDi(iso);
   const gg = String(d.getDate()).padStart(2, '0');
   const mm = String(d.getMonth() + 1).padStart(2, '0');
-  return `${gg}/${mm}/${d.getFullYear()}`;
+  const sep = tedesco ? '.' : '/';
+  return `${gg}${sep}${mm}${sep}${d.getFullYear()}`;
 }
 
 // Un indirizzo su cui si puo' mandare qualcuno. Serve perche' il link

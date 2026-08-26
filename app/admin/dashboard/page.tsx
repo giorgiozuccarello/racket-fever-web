@@ -42,6 +42,7 @@ import SezionePrenotazioni from './SezionePrenotazioni';
 import SezioneNotePrenotazioni from './SezioneNotePrenotazioni';
 import SezioneLezioniPrenotate from './SezioneLezioniPrenotate';
 import { ascoltaMaestriCircolo, MaestroConUid } from '../../../data/maestriRepo';
+import { LinguaProvider, useLingua } from '../../../lib/lingua';
 
 export default function AdminDashboard() {
   const router = useRouter();
@@ -152,13 +153,114 @@ export default function AdminDashboard() {
   };
 
   if (caricando || !responsabile || !circolo) {
+    // ⚠️ ANCHE L'ATTESA HA IL SUO INVOLUCRO, e non e' quello di sotto
+    // spostato: sono due rami dello stesso `if`, non si montano mai
+    // insieme e non si annidano mai. Serve perche' `SplashCaricamento`
+    // chiama `useLingua` per una parola sola — «Caricamento…» — e senza
+    // un contenitore sopra di se' quella parola resterebbe in italiano
+    // anche per un Admin che ha scelto il tedesco.
     return (
-      <div className="admin-splash">
-        <div className="logo-mark" aria-hidden="true" />
-        <p className="mono" style={{ marginTop: '1rem', opacity: 0.8 }}>Caricamento…</p>
-      </div>
+      <LinguaProvider ruolo="admin">
+        <SplashCaricamento />
+      </LinguaProvider>
     );
   }
+
+  return (
+    // ============================================================
+    // ⚠️ L'INVOLUCRO DELLA LINGUA STA QUI, E PRIMA STAVA PIÙ IN BASSO.
+    // Fino alla tornata 106 avvolgeva la sola Panoramica: era l'unica
+    // sezione tradotta, e il selettore viveva dentro di lei. Da adesso
+    // la dashboard è tradotta tutta, e un involucro che copre una
+    // sezione sola vorrebbe dire un Admin tedesco che legge la
+    // Panoramica in tedesco e le altre ventotto sezioni in italiano.
+    //
+    // ⚠️ E RESTA FUORI DAL RESTO DEL SITO. Non sale sul `layout.tsx`
+    // della radice: quello trasformerebbe in componente client il
+    // guscio di ogni pagina pubblica per una preferenza che riguarda
+    // solo chi ha fatto l'accesso da Admin. Sale fin qui, e non un
+    // livello più su.
+    //
+    // ⚠️ E `SchedaCircoloVista` aperta dal Super Admin resta in
+    // italiano, che è come deve stare: quella pagina questo involucro
+    // non ce l'ha, `useLingua` risponde con la lingua di serie, e il
+    // team Racket Fever non si ritrova il pannello di rete in tedesco
+    // perché l'Admin di un circolo ha scelto così.
+    // ============================================================
+    <LinguaProvider ruolo="admin">
+      <ContenutoDashboard
+        circolo={circolo}
+        campi={campi}
+        blocchi={blocchi}
+        soci={soci}
+        prenotazioni={prenotazioni}
+        maestri={maestri}
+        sfide={sfide}
+        responsabile={responsabile}
+        scadenzaSessione={scadenzaSessione}
+        socioSelUid={socioSelUid}
+        onSelezionaSocio={setSocioSelUid}
+        onEsci={logout}
+      />
+    </LinguaProvider>
+  );
+}
+
+// L'attesa: una parola sola, ma passa dal traduttore come tutto il
+// resto. Componente a se' per lo stesso motivo di `ContenutoDashboard`
+// — vedi il commento qui sotto.
+function SplashCaricamento() {
+  const { t } = useLingua();
+  return (
+    <div className="admin-splash">
+      <div className="logo-mark" aria-hidden="true" />
+      <p className="mono" style={{ marginTop: '1rem', opacity: 0.8 }}>{t('com.caricamento')}</p>
+    </div>
+  );
+}
+
+// ============================================================
+// ⚠️ PERCHE' LA DASHBOARD E' UN COMPONENTE A PARTE E NON IL CORPO DI
+// `AdminDashboard`. NON RIPORTARLA DENTRO.
+//
+// `AdminDashboard` e' il componente che MONTA `LinguaProvider`.
+// `useLingua()` chiamato li' dentro non leggerebbe il contenitore che
+// sta montando in quel momento — leggerebbe quello che c'e' PIU' SU,
+// cioe' nessuno: il valore di serie del contesto. Risultato: la
+// dashboard resterebbe in italiano per sempre e il cambio di lingua
+// dal selettore non arriverebbe mai qui, mentre le sezioni figlie
+// cambierebbero. Un guasto che si vede solo provando a cambiare
+// lingua, ed e' il modo piu' rapido di far sembrare rotto il selettore.
+//
+// Quindi tutto quello che ha bisogno di `t` sta QUI, sotto il
+// contenitore. E sta al primo livello del file, non annidato dentro
+// `AdminDashboard`: un componente definito dentro un altro componente
+// viene ricreato a ogni disegno, e React lo tratta come un tipo nuovo —
+// smonterebbe e rimonterebbe tutte e ventotto le sezioni a ogni
+// battito di stato, perdendo quali erano aperte.
+// ============================================================
+type PropsContenuto = {
+  circolo: Circolo;
+  campi: Campo[];
+  blocchi: Blocco[];
+  soci: SocioCircolo[];
+  prenotazioni: PrenotazioneAdmin[];
+  maestri: MaestroConUid[];
+  sfide: Sfida[];
+  responsabile: ProfiloResponsabile;
+  // Nulla per l'Admin vero: vedi `AdminDashboard`.
+  scadenzaSessione: number | null;
+  socioSelUid: string | null;
+  onSelezionaSocio: (uid: string | null) => void;
+  onEsci: () => void;
+};
+
+function ContenutoDashboard({
+  circolo, campi, blocchi, soci, prenotazioni, maestri, sfide,
+  responsabile, scadenzaSessione, socioSelUid, onSelezionaSocio, onEsci,
+}: PropsContenuto) {
+  const { t } = useLingua();
+  const router = useRouter();
 
   return (
     <div className="admin-shell">
@@ -173,7 +275,7 @@ export default function AdminDashboard() {
             <div className="admin-header-logo admin-header-logo-fallback">{circolo.sigla}</div>
           )}
           <div>
-            <div className="mono" style={{ opacity: 0.75 }}>ADMIN CIRCOLO</div>
+            <div className="mono" style={{ opacity: 0.75 }}>{t('adm.gen.ruoloIntestazione')}</div>
             <h1 className="display" style={{ fontSize: '1.7rem', marginTop: '.2rem' }}>{circolo.nome}</h1>
             {/* ⚠️ CHI SEI, scritto. Le due porte d'ingresso — l'account
                 del responsabile e la password condivisa dello staff —
@@ -183,8 +285,15 @@ export default function AdminDashboard() {
                 due casi, quel silenzio si legge come un guasto. */}
             {scadenzaSessione != null && (
               <div className="admin-header-collab">
-                Accesso Collaboratore · scade alle {new Date(scadenzaSessione)
-                  .toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}
+                {/* ⚠️ L'ora resta scritta all'italiana (24 ore, `it-IT`)
+                    anche in inglese e in tedesco: e' l'orologio del
+                    circolo, e tutta la dashboard — griglia campi
+                    compresa — mostra le ore cosi'. Due formati nella
+                    stessa schermata si leggono come un errore. */}
+                {t('adm.gen.accessoCollaboratore', {
+                  ora: new Date(scadenzaSessione)
+                    .toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }),
+                })}
               </div>
             )}
           </div>
@@ -197,7 +306,7 @@ export default function AdminDashboard() {
         <div className="admin-header-fine">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-rf-completo.png" alt="Racket Fever" width={453} height={96} className="admin-header-marchio" />
-          <button className="btn btn-outline admin-logout-btn" onClick={logout}>Esci</button>
+          <button className="btn btn-outline admin-logout-btn" onClick={onEsci}>{t('adm.gen.esci')}</button>
         </div>
       </header>
 
@@ -228,8 +337,8 @@ export default function AdminDashboard() {
       <div className="admin-larga">
         <SezioneCollassabile
           id="panoramica"
-          titolo="Panoramica Circolo"
-          descrizione="I numeri del circolo: persone, attività, denaro, e l'elenco per socio"
+          titolo={t('adm.gen.sez.panoramica.titolo')}
+          descrizione={t('adm.gen.sez.panoramica.descrizione')}
           apertaDiPartenza
         >
           <SezionePanoramicaCircolo
@@ -237,7 +346,7 @@ export default function AdminDashboard() {
             statoCircolo={statoCircolo(circolo)}
             attivatoIlMs={attivazioneCircoloMs(circolo)}
             soci={soci}
-            onSelezionaSocio={setSocioSelUid}
+            onSelezionaSocio={onSelezionaSocio}
             puoAggiornare={scadenzaSessione == null}
           />
         </SezioneCollassabile>
@@ -251,13 +360,13 @@ export default function AdminDashboard() {
             server (`resettaCircolo`), la chiama solo il team Racket
             Fever dalla scheda del circolo, e prima del reset totale
             propone di archiviare il registro. */}
-        <SezioneCollassabile id="personalizza" titolo="Personalizza App" descrizione="Colori e logo dell'app mostrati ai soci">
+        <SezioneCollassabile id="personalizza" titolo={t('adm.gen.sez.personalizza.titolo')} descrizione={t('adm.gen.sez.personalizza.descrizione')}>
           <SezionePersonalizzaApp circolo={circolo} />
         </SezioneCollassabile>
         <SezioneCollassabile
           id="banner"
-          titolo="Banner Marketing"
-          descrizione="Gli sponsor che girano in Home e in Classifica"
+          titolo={t('adm.gen.sez.banner.titolo')}
+          descrizione={t('adm.gen.sez.banner.descrizione')}
         >
           <SezioneBannerMarketing circolo={circolo} />
         </SezioneCollassabile>
@@ -271,49 +380,49 @@ export default function AdminDashboard() {
             comando destinato a essere respinto. */}
         {scadenzaSessione == null && (
           <>
-            <SezioneCollassabile id="password" titolo="Password Circolo" descrizione="Password che i soci usano per accedere">
+            <SezioneCollassabile id="password" titolo={t('adm.gen.sez.password.titolo')} descrizione={t('adm.gen.sez.password.descrizione')}>
               <SezionePassword circolo={circolo} />
             </SezioneCollassabile>
-            <SezioneCollassabile id="collaboratori" titolo="Collaboratori" descrizione="Accesso rapido per lo staff, senza account personale">
+            <SezioneCollassabile id="collaboratori" titolo={t('adm.gen.sez.collaboratori.titolo')} descrizione={t('adm.gen.sez.collaboratori.descrizione')}>
               <SezioneCollaboratori circoloId={circolo.id} />
             </SezioneCollassabile>
           </>
         )}
-        <SezioneCollassabile id="campi" titolo="Campi" descrizione="Nome e disciplina dei campi">
+        <SezioneCollassabile id="campi" titolo={t('adm.gen.sez.campi.titolo')} descrizione={t('adm.gen.sez.campi.descrizione')}>
           <SezioneCampi circoloId={circolo.id} campi={campi} />
         </SezioneCollassabile>
         {/* La Bacheca sta PRIMA dei Tornei, e nell'ordine c'e' un
             senso: la bacheca e' quotidiana — una chiusura, una quota,
             un avviso — mentre un torneo si pubblica ogni tanto. Quello
             che si usa tutti i giorni sta sopra. */}
-        <SezioneCollassabile id="bacheca" titolo="Bacheca" descrizione="Avvisi, volantini e comunicazioni per i tuoi soci">
+        <SezioneCollassabile id="bacheca" titolo={t('adm.gen.sez.bacheca.titolo')} descrizione={t('adm.gen.sez.bacheca.descrizione')}>
           {/* ⚠️ Il Collaboratore vede la bacheca ma non il comando che fa
               squillare i telefoni: `avvisaBacheca` pretende il
               responsabile. Stessa regola dell'app. */}
           <SezioneBacheca circolo={circolo} autoreNome={circolo.nome} puoNotificare={scadenzaSessione == null} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="tornei" titolo="Tornei" descrizione="Pubblica un torneo sulla bacheca della rete">
+        <SezioneCollassabile id="tornei" titolo={t('adm.gen.sez.tornei.titolo')} descrizione={t('adm.gen.sez.tornei.descrizione')}>
           <SezioneTornei circolo={circolo} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="limite" titolo="Limite Prenotazioni" descrizione="Limite di prenotazioni settimanali per socio">
+        <SezioneCollassabile id="limite" titolo={t('adm.gen.sez.limite.titolo')} descrizione={t('adm.gen.sez.limite.descrizione')}>
           <SezioneLimite circolo={circolo} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="fido" titolo="Fido" descrizione="Quanto può andare a debito un socio quando il credito non basta">
+        <SezioneCollassabile id="fido" titolo={t('adm.gen.sez.fido.titolo')} descrizione={t('adm.gen.sez.fido.descrizione')}>
           <SezioneFido circolo={circolo} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="bonifico" titolo="Dati per il bonifico" descrizione="Il conto su cui i soci versano per ricaricare il credito">
+        <SezioneCollassabile id="bonifico" titolo={t('adm.gen.sez.bonifico.titolo')} descrizione={t('adm.gen.sez.bonifico.descrizione')}>
           <SezioneBonifico circolo={circolo} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="limite-cancellazione" titolo="Limite Cancellazione Prenotazioni Campi" descrizione="Entro quante ore prima un socio può disdire un campo">
+        <SezioneCollassabile id="limite-cancellazione" titolo={t('adm.gen.sez.limite-cancellazione.titolo')} descrizione={t('adm.gen.sez.limite-cancellazione.descrizione')}>
           <SezioneLimiteCancellazione circolo={circolo} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="prezzi" titolo="Prezzi" descrizione="Tariffe orarie e fasce speciali">
+        <SezioneCollassabile id="prezzi" titolo={t('adm.gen.sez.prezzi.titolo')} descrizione={t('adm.gen.sez.prezzi.descrizione')}>
           <SezionePrezzi circoloId={circolo.id} campi={campi} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="blocchi" titolo="Orari Riservati" descrizione="Manutenzione, tornei, corsi — orari non prenotabili">
+        <SezioneCollassabile id="blocchi" titolo={t('adm.gen.sez.blocchi.titolo')} descrizione={t('adm.gen.sez.blocchi.descrizione')}>
           <SezioneBlocchi circoloId={circolo.id} campi={campi} blocchi={blocchi} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="richieste" titolo="Richieste in sospeso" descrizione="Chi ha chiesto di entrare nel circolo">
+        <SezioneCollassabile id="richieste" titolo={t('adm.gen.sez.richieste.titolo')} descrizione={t('adm.gen.sez.richieste.descrizione')}>
           <SezioneRichiesteTessera circolo={circolo} approvatore={responsabile.email} />
         </SezioneCollassabile>
         {/* Accanto alle richieste, non in fondo: sono le due cose che
@@ -321,8 +430,8 @@ export default function AdminDashboard() {
             «cosa è arrivato». */}
         <SezioneCollassabile
           id="segnalazioni"
-          titolo="Segnalazioni"
-          descrizione="Soci che hanno segnalato la scheda di un altro socio"
+          titolo={t('adm.gen.sez.segnalazioni.titolo')}
+          descrizione={t('adm.gen.sez.segnalazioni.descrizione')}
         >
           <SezioneSegnalazioni circolo={circolo} />
         </SezioneCollassabile>
@@ -331,28 +440,28 @@ export default function AdminDashboard() {
             per la tabella e per la stampa. */}
         <button className="admin-riga-registro" onClick={() => router.push('/admin/movimenti')}>
           <div style={{ flex: 1, textAlign: 'left' }}>
-            <div className="admin-riga-registro-titolo">Registro Movimenti</div>
+            <div className="admin-riga-registro-titolo">{t('adm.gen.registroTitolo')}</div>
             <div className="admin-riga-registro-sub">
-              Ricariche, addebiti e rimborsi — prova in caso di contestazione, con stampa
+              {t('adm.gen.registroDescrizione')}
             </div>
           </div>
           <span aria-hidden>›</span>
         </button>
 
-        <SezioneCollassabile id="saldare" titolo="Tessere da saldare" descrizione="Ex soci con credito da restituire o debito da recuperare">
+        <SezioneCollassabile id="saldare" titolo={t('adm.gen.sez.saldare.titolo')} descrizione={t('adm.gen.sez.saldare.descrizione')}>
           <SezioneTessereDaSaldare circolo={circolo} />
         </SezioneCollassabile>
         {/* «Soci» e «Debiti dei Soci» stanno DENTRO la Panoramica, in
             cima alla pagina, per tutti. Non esistono più sciolte per
             nessuno: erano rimaste qui per il solo Collaboratore, e due
             strade per la stessa schermata prima o poi divergono. */}
-        <SezioneCollassabile id="maestri" titolo="Maestri" descrizione="Anagrafica, account e accesso dei maestri del circolo">
+        <SezioneCollassabile id="maestri" titolo={t('adm.gen.sez.maestri.titolo')} descrizione={t('adm.gen.sez.maestri.descrizione')}>
           <SezioneMaestri circoloId={circolo.id} maestri={maestri} prenotazioni={prenotazioni} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="classifica" titolo="Classifica Sociale" descrizione="Ranking dei soci e gestione posizioni">
+        <SezioneCollassabile id="classifica" titolo={t('adm.gen.sez.classifica.titolo')} descrizione={t('adm.gen.sez.classifica.descrizione')}>
           <SezioneClassificaSociale circolo={circolo} soci={soci} sfide={sfide} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="sfide" titolo="Sfide in Corso" descrizione="Sfide sociali dal lancio alla conclusione">
+        <SezioneCollassabile id="sfide" titolo={t('adm.gen.sez.sfide.titolo')} descrizione={t('adm.gen.sez.sfide.descrizione')}>
           <SezioneSfideInCorso sfide={sfide} soci={soci} circolo={circolo} puoCambiareSfide={scadenzaSessione == null} />
         </SezioneCollassabile>
         <SchedaSocioModal
@@ -360,15 +469,15 @@ export default function AdminDashboard() {
           limiteFido={limiteFidoDi(circolo)}
           socio={socioSelUid ? soci.find((x) => x.uid === socioSelUid) ?? null : null}
           prenotazioni={prenotazioni}
-          onClose={() => setSocioSelUid(null)}
+          onClose={() => onSelezionaSocio(null)}
         />
-        <SezioneCollassabile id="prenotazioni" titolo="Prenotazione Campi" descrizione="Griglia campi — clicca uno slot per i dettagli">
+        <SezioneCollassabile id="prenotazioni" titolo={t('adm.gen.sez.prenotazioni.titolo')} descrizione={t('adm.gen.sez.prenotazioni.descrizione')}>
           <SezionePrenotazioni campi={campi} blocchi={blocchi} prenotazioni={prenotazioni} sfide={sfide} circolo={circolo} soci={soci} nomeEsecutore={`${responsabile.nome} ${responsabile.cognome}`} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="note" titolo="Note alle Prenotazioni" descrizione="Prenotazioni con note lasciate dai soci">
+        <SezioneCollassabile id="note" titolo={t('adm.gen.sez.note.titolo')} descrizione={t('adm.gen.sez.note.descrizione')}>
           <SezioneNotePrenotazioni prenotazioni={prenotazioni} />
         </SezioneCollassabile>
-        <SezioneCollassabile id="lezioni" titolo="Lezioni Prenotate" descrizione="Calendario riepilogativo delle lezioni con i maestri">
+        <SezioneCollassabile id="lezioni" titolo={t('adm.gen.sez.lezioni.titolo')} descrizione={t('adm.gen.sez.lezioni.descrizione')}>
           <SezioneLezioniPrenotate
             prenotazioni={prenotazioni}
             circoloId={circolo.id}

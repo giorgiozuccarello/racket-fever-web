@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { ascoltaPasswordCollaboratore, impostaPasswordCollaboratore } from '../../../data/circoliRepo';
 import { sessioniAperteDelCircolo, revocaSessioniDelCircolo } from '../../../data/collaboratori';
+import { useLingua } from '../../../lib/lingua';
 
 export default function SezioneCollaboratori({ circoloId }: { circoloId: string }) {
+  const { t } = useLingua();
   const [passwordAttuale, setPasswordAttuale] = useState<string | null>(null);
   const [pass, setPass] = useState('');
   const [caricato, setCaricato] = useState(false);
@@ -49,46 +51,44 @@ export default function SezioneCollaboratori({ circoloId }: { circoloId: string 
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Accesso Collaboratori</div>
-      <p className="admin-card-hint">
-        Una seconda password, distinta da quella dei soci, per far entrare nella
-        Dashboard Admin chi ti aiuta in segreteria — senza dovergli dare le tue
-        credenziali personali. Ogni accesso dura 12 ore: passate quelle, la password
-        va ridigitata, ed è lì che una password cambiata fa effetto.
-      </p>
+      <div className="admin-card-title">{t('adm.cob.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.cob.hint')}</p>
       <div className="admin-row">
         <input
           className="admin-input" value={pass}
           onChange={(e) => setPass(e.target.value)} autoCapitalize="none"
-          placeholder="Imposta una password"
+          placeholder={t('adm.cob.phPassword')}
         />
         <button className="admin-btn-small" onClick={salva} disabled={salvando}>
-          {ok ? 'Salvato ✓' : passwordAttuale ? 'Aggiorna' : 'Attiva'}
+          {ok ? t('adm.cob.salvato') : passwordAttuale ? t('adm.cob.aggiorna') : t('adm.cob.attiva')}
         </button>
       </div>
       {!passwordAttuale && caricato && (
         <p className="admin-card-hint" style={{ marginTop: '.5rem' }}>
-          Non ancora attivata: finché non imposti una password, nessuno può entrare come Collaboratore.
+          {t('adm.cob.nonAttivata')}
         </p>
       )}
 
       {aperte !== null && (
         <>
-          <div className="superadmin-subtitolo">Accessi in corso</div>
+          <div className="superadmin-subtitolo">{t('adm.cob.accessiInCorso')}</div>
+          {/* ⚠️ Tre frasi intere e non un pezzo cucito addosso a un
+              numero: «C'è 1» e «Ci sono 2» cambiano il verbo, e in
+              tedesco cambia anche il resto della frase. */}
           <p className="admin-card-hint">
             {aperte === 0
-              ? 'Nessuno è collegato come Collaboratore in questo momento.'
-              : `${aperte === 1 ? 'C’è 1 accesso aperto' : `Ci sono ${aperte} accessi aperti`} in questo momento.`}
-            {' '}Ogni accesso dura 12 ore, poi la password va ridigitata. Se qualcuno non deve
-            più entrare, cambia la password qui sopra e chiudi subito gli accessi aperti: la
-            password nuova vale dal prossimo ingresso, questi restano validi fino a scadenza.
+              ? t('adm.cob.nessunoCollegato')
+              : aperte === 1
+                ? t('adm.cob.unAccessoAperto')
+                : t('adm.cob.piuAccessiAperti', { quanti: aperte })}
+            {' '}{t('adm.cob.notaScadenza')}
           </p>
           <button
             className="admin-btn-full admin-btn-danger"
             onClick={() => setConfermaRevoca(true)}
             disabled={revocando || aperte === 0}
           >
-            {revocando ? 'Chiusura…' : 'Chiudi subito tutti gli accessi'}
+            {revocando ? t('adm.cob.chiusuraInCorso') : t('adm.cob.chiudiSubitoTutti')}
           </button>
         </>
       )}
@@ -96,14 +96,10 @@ export default function SezioneCollaboratori({ circoloId }: { circoloId: string 
       {confermaRevoca && (
         <div className="admin-modal-backdrop" onClick={() => setConfermaRevoca(false)}>
           <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-modal-title">Chiudere tutti gli accessi?</div>
-            <p className="admin-modal-sub">
-              Chi sta usando la Dashboard come Collaboratore verrà rimandato alla schermata di
-              accesso. Potrà rientrare solo con la password attuale — quindi se l&apos;hai appena
-              cambiata, con quella nuova. Tu non vieni toccato.
-            </p>
+            <div className="admin-modal-title">{t('adm.cob.confermaTitolo')}</div>
+            <p className="admin-modal-sub">{t('adm.cob.confermaTesto')}</p>
             <div className="admin-modal-btn-row">
-              <button className="admin-modal-btn-cancel" onClick={() => setConfermaRevoca(false)}>Indietro</button>
+              <button className="admin-modal-btn-cancel" onClick={() => setConfermaRevoca(false)}>{t('com.indietro')}</button>
               <button
                 className="admin-modal-btn-confirm danger"
                 onClick={async () => {
@@ -115,7 +111,7 @@ export default function SezioneCollaboratori({ circoloId }: { circoloId: string 
                   }
                 }}
               >
-                Chiudi tutti
+                {t('adm.cob.chiudiTutti')}
               </button>
             </div>
           </div>

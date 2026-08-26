@@ -11,19 +11,16 @@ import {
   caricaLogoCircolo, caricaSponsorSfide, rimuoviImmagineSponsor, impostaDurataSponsor,
   spostaImmagineSponsor, impostaLinkSponsor,
 } from '../../../data/storage';
+import { useLingua } from '../../../lib/lingua';
 
 export default function SezionePersonalizzaApp({ circolo }: { circolo: Circolo }) {
+  const { t } = useLingua();
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Personalizza App</div>
-      <p className="admin-card-hint">
-        Il colore dell&apos;app ora si sceglie tra 8 Temi coordinati — il selettore per
-        l&apos;Admin arriva a breve; nel frattempo tutti i circoli usano il Tema Bianco
-        di default. Qui resta il logo; i banner degli sponsor hanno una sezione loro,
-        qui sotto.
-      </p>
+      <div className="admin-card-title">{t('adm.per.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.per.intro')}</p>
 
-      <div className="superadmin-subtitolo" style={{ marginTop: '.5rem' }}>Logo dell&apos;App</div>
+      <div className="superadmin-subtitolo" style={{ marginTop: '.5rem' }}>{t('adm.per.logoTitolo')}</div>
       <SezioneLogoInterna circolo={circolo} />
     </div>
   );
@@ -35,9 +32,10 @@ export default function SezionePersonalizzaApp({ circolo }: { circolo: Circolo }
 // sponsor, e deve trovarlo per nome invece di ricordarsi che sta sotto
 // il logo.
 export function SezioneBannerMarketing({ circolo }: { circolo: Circolo }) {
+  const { t } = useLingua();
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Banner Marketing</div>
+      <div className="admin-card-title">{t('adm.ban.titolo')}</div>
       <SezioneSponsorInterna circolo={circolo} />
     </div>
   );
@@ -51,6 +49,7 @@ export function SezioneBannerMarketing({ circolo }: { circolo: Circolo }) {
 // taglio lo fa il codice prendendo il rettangolo 3:1 piu' grande
 // centrato nell'immagine scelta.
 function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
+  const { t } = useLingua();
   // L'indice della riga che sta caricando. Durante un caricamento sono
   // bloccati tutti i pulsanti, "Togli" compreso: ogni operazione
   // rilegge la lista dal documento, la modifica e la riscrive.
@@ -101,7 +100,9 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
     } catch (e: any) {
       // Il messaggio vero, quando c'e': «questa GIF pesa 6,2 MB» dice
       // cosa fare, «errore durante il caricamento» no.
-      setErrore(e?.message ?? 'Errore durante il caricamento. Riprova.');
+      // ⚠️ Quel messaggio arriva da `data/storage.ts` ed e' ancora in
+      // italiano: la traduzione di quel file non e' di questa tornata.
+      setErrore(e?.message ?? t('adm.per.erroreCaricamento'));
     } finally {
       setInCarico(null);
       if (inputRef.current) inputRef.current.value = '';
@@ -112,7 +113,7 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
   const occupato = inCarico !== null || rimuovendo;
 
   const rimuovi = async (indice: number) => {
-    if (!confirm('Togliere questo sponsor? Sparisce dalla Home e dalla Classifica di tutti i soci.')) return;
+    if (!confirm(t('adm.ban.confermaTogli'))) return;
     setErrore('');
     // Bloccato finche' non ha finito: ogni operazione rilegge la lista,
     // la modifica e la riscrive. Due che si accavallano riscrivono
@@ -122,7 +123,7 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
     try {
       await rimuoviImmagineSponsor(circolo.id, indice);
     } catch {
-      setErrore('Non sono riuscito a togliere l’immagine. Riprova.');
+      setErrore(t('adm.ban.erroreTogli'));
     } finally {
       setRimuovendo(false);
     }
@@ -159,7 +160,7 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
     try {
       await impostaDurataSponsor(circolo.id, indice, secondi);
     } catch {
-      setErrore('Non sono riuscito a salvare il tempo di questo sponsor. Riprova.');
+      setErrore(t('adm.ban.erroreDurata'));
     }
   };
 
@@ -169,7 +170,7 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
     try {
       await spostaImmagineSponsor(circolo.id, indice, verso);
     } catch {
-      setErrore('Non sono riuscito a spostare lo sponsor. Riprova.');
+      setErrore(t('adm.ban.erroreSposta'));
     } finally {
       setRimuovendo(false);
     }
@@ -177,25 +178,12 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
 
   return (
     <div>
-      <p className="admin-card-hint">
-        Compare in cima alla Classifica Sfide e in Home, sotto le tre caselle. Serve
-        un&apos;immagine larga tre volte la sua altezza — l&apos;ideale e&apos; 1200x400
-        pixel. Se le proporzioni sono diverse viene ritagliata dal centro. Puoi
-        caricarne fino a {MAX_IMMAGINI_SPONSOR}: si alternano da sole, ognuna per il
-        tempo che le dai qui sotto. Le frecce spostano lo sponsor nell&apos;ordine di
-        rotazione — il Main Sponsor va in cima.
-      </p>
-      <p className="admin-card-hint">
-        Vanno bene JPEG, PNG, WebP e GIF, anche animate. Una GIF non viene ritagliata:
-        entra così com&apos;è e il riquadro le taglia i bordi, quindi tieni logo e
-        scritte al centro. Massimo 2 MB.
-      </p>
+      <p className="admin-card-hint">{t('adm.ban.intro', { quanti: MAX_IMMAGINI_SPONSOR })}</p>
+      <p className="admin-card-hint">{t('adm.ban.formati')}</p>
 
       {iFisso >= 0 && (
         <div className="sponsor-nota-fisso">
-          Lo Sponsor {iFisso + 1} è a Fisso: fra i tuoi resta l&apos;unico visibile e gli
-          altri non compaiono. Riportalo ad almeno {DURATA_SPONSOR_MINIMA} secondi per rimettere
-          in gioco tutti.
+          {t('adm.ban.notaFisso', { n: iFisso + 1, secondi: DURATA_SPONSOR_MINIMA })}
         </div>
       )}
 
@@ -208,7 +196,7 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
         return (
           <div key={indice} className="sponsor-riga" style={spento ? { opacity: 0.55 } : undefined}>
             <div className="sponsor-riga-testata">
-              <span className="sponsor-riga-numero">Sponsor {indice + 1}</span>
+              <span className="sponsor-riga-numero">{t('adm.ban.sponsorNumero', { n: indice + 1 })}</span>
               <span style={{ display: 'flex', gap: '.35rem', alignItems: 'center' }}>
                 {url && immagini.length > 1 && (
                   <>
@@ -216,7 +204,7 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
                       type="button" className="sponsor-riga-ordine"
                       onClick={() => sposta(indice, -1)}
                       disabled={occupato || indice === 0}
-                      aria-label="Sposta questo sponsor più in alto"
+                      aria-label={t('adm.ban.spostaSu')}
                     >
                       ↑
                     </button>
@@ -224,7 +212,7 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
                       type="button" className="sponsor-riga-ordine"
                       onClick={() => sposta(indice, 1)}
                       disabled={occupato || indice >= immagini.length - 1}
-                      aria-label="Sposta questo sponsor più in basso"
+                      aria-label={t('adm.ban.spostaGiu')}
                     >
                       ↓
                     </button>
@@ -235,16 +223,16 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
                     type="button" className="sponsor-riga-togli"
                     onClick={() => rimuovi(indice)} disabled={occupato}
                   >
-                    Togli
+                    {t('adm.ban.togli')}
                   </button>
                 )}
               </span>
             </div>
             {url ? (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={url} alt={`Sponsor ${indice + 1}`} className="sponsor-anteprima" />
+              <img src={url} alt={t('adm.ban.sponsorNumero', { n: indice + 1 })} className="sponsor-anteprima" />
             ) : (
-              <div className="sponsor-anteprima sponsor-anteprima-vuota">Nessuno sponsor</div>
+              <div className="sponsor-anteprima sponsor-anteprima-vuota">{t('adm.ban.nessunoSponsor')}</div>
             )}
             <button
               className="admin-btn-full"
@@ -252,7 +240,9 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
               onClick={() => apriSelettore(indice)}
               disabled={occupato}
             >
-              {inCarico === indice ? 'Caricamento…' : url ? 'Cambia immagine' : 'Carica immagine'}
+              {inCarico === indice
+                ? t('com.caricamento')
+                : url ? t('adm.ban.cambiaImmagine') : t('adm.ban.caricaImmagine')}
             </button>
 
             {url && (
@@ -270,13 +260,13 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
                   }}
                   onPointerUp={() => salvaDurata(indice, posizioni[indice] ?? 0)}
                   onKeyUp={() => salvaDurata(indice, posizioni[indice] ?? 0)}
-                  aria-label={`Durata dello sponsor ${indice + 1}, in secondi`}
+                  aria-label={t('adm.ban.durataAria', { n: indice + 1 })}
                 />
                 <span className="sponsor-timer-valore">
                   {(INTERVALLI_SPONSOR[posizioni[indice] ?? 0] ?? 0) === 0
-                    ? 'Fisso — solo questo'
-                    : `${INTERVALLI_SPONSOR[posizioni[indice] ?? 0]} secondi`}
-                  {spento ? ' · non visibile' : ''}
+                    ? t('adm.ban.fisso')
+                    : t('adm.ban.secondi', { n: INTERVALLI_SPONSOR[posizioni[indice] ?? 0] })}
+                  {spento ? ` · ${t('adm.ban.nonVisibile')}` : ''}
                 </span>
               </div>
             )}
@@ -301,7 +291,7 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
           gia' — e li' il "+" non deve comparire affatto. */}
       {righe === immagini.length && righe < MAX_IMMAGINI_SPONSOR && (
         <button type="button" className="sponsor-aggiungi" onClick={() => setRigaExtra(true)}>
-          + Aggiungi immagine
+          + {t('adm.ban.aggiungiImmagine')}
         </button>
       )}
 
@@ -334,6 +324,7 @@ function SezioneSponsorInterna({ circolo }: { circolo: Circolo }) {
 function CasellaLinkSponsor({ circoloId, indice, valore, immagine, bloccato }: {
   circoloId: string; indice: number; valore: string; immagine: string; bloccato: boolean;
 }) {
+  const { t } = useLingua();
   const [testo, setTesto] = useState(valore);
   const [salvando, setSalvando] = useState(false);
   const [errore, setErrore] = useState('');
@@ -341,6 +332,8 @@ function CasellaLinkSponsor({ circoloId, indice, valore, immagine, bloccato }: {
 
   const salva = async () => {
     const buono = normalizzaLinkBanner(testo);
+    // ⚠️ Il testo dell'errore arriva da `data/linkBanner.ts` ed e'
+    // ancora in italiano: quel file non fa parte di questa tornata.
     const problema = erroreLink(testo);
     if (problema) {
       setErrore(problema);
@@ -352,7 +345,7 @@ function CasellaLinkSponsor({ circoloId, indice, valore, immagine, bloccato }: {
     try {
       await impostaLinkSponsor(circoloId, indice, testo, immagine);
     } catch (e: any) {
-      setErrore(e?.message ?? 'Non sono riuscito a salvare l’indirizzo. Riprova.');
+      setErrore(e?.message ?? t('adm.ban.erroreLink'));
       setTesto(valore);
     } finally {
       setSalvando(false);
@@ -370,18 +363,16 @@ function CasellaLinkSponsor({ circoloId, indice, valore, immagine, bloccato }: {
         onChange={(e) => setTesto(e.target.value)}
         onBlur={salva}
         onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-        placeholder="Sito dello sponsor (facoltativo)"
-        aria-label={`Indirizzo del sito dello sponsor ${indice + 1}`}
+        placeholder={t('adm.ban.sitoPlaceholder')}
+        aria-label={t('adm.ban.sitoAria', { n: indice + 1 })}
       />
       {errore
         ? <div className="admin-error-text">{errore}</div>
         : (
           <p className="admin-card-hint" style={{ marginTop: '.25rem' }}>
             {salvando
-              ? 'Salvo…'
-              : valore
-                ? 'Il socio che tocca il banner viene avvisato e poi esce sul browser.'
-                : 'Vuoto: il banner resta un cartellone e non si può toccare.'}
+              ? t('com.salvataggio')
+              : valore ? t('adm.ban.linkAttivo') : t('adm.ban.linkVuoto')}
           </p>
         )}
     </div>
@@ -389,6 +380,7 @@ function CasellaLinkSponsor({ circoloId, indice, valore, immagine, bloccato }: {
 }
 
 function SezioneLogoInterna({ circolo }: { circolo: Circolo }) {
+  const { t } = useLingua();
   const [caricando, setCaricando] = useState(false);
   const [errore, setErrore] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -401,7 +393,7 @@ function SezioneLogoInterna({ circolo }: { circolo: Circolo }) {
     try {
       await caricaLogoCircolo(circolo.id, file);
     } catch {
-      setErrore('Errore durante il caricamento. Riprova.');
+      setErrore(t('adm.per.erroreCaricamento'));
     } finally {
       setCaricando(false);
       if (inputRef.current) inputRef.current.value = '';
@@ -410,15 +402,12 @@ function SezioneLogoInterna({ circolo }: { circolo: Circolo }) {
 
   return (
     <div>
-      <p className="admin-card-hint">
-        Carica un&apos;immagine: viene ritagliata quadrata (dal centro) e
-        ridimensionata automaticamente, poi mostrata al posto della sigla.
-      </p>
+      <p className="admin-card-hint">{t('adm.per.logoIntro')}</p>
 
       <div style={{ display: 'flex', justifyContent: 'center', margin: '.8rem 0' }}>
         {circolo.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={circolo.logoUrl} alt="Logo circolo" className="superadmin-logo-preview" />
+          <img src={circolo.logoUrl} alt={t('adm.per.logoAlt')} className="superadmin-logo-preview" />
         ) : (
           <div
             className="superadmin-logo-preview"
@@ -443,7 +432,7 @@ function SezioneLogoInterna({ circolo }: { circolo: Circolo }) {
         onChange={gestisciFile} style={{ display: 'none' }}
       />
       <button className="admin-btn-full" onClick={() => inputRef.current?.click()} disabled={caricando}>
-        {caricando ? 'Caricamento…' : circolo.logoUrl ? 'Cambia logo' : 'Carica logo'}
+        {caricando ? t('com.caricamento') : circolo.logoUrl ? t('adm.per.cambiaLogo') : t('adm.per.caricaLogo')}
       </button>
     </div>
   );

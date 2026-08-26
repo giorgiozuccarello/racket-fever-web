@@ -40,6 +40,7 @@
 // copiato dentro le Cloud Functions, dove quella riga sarebbe una
 // funzione che non parte.
 import { Lingua, LINGUA_DI_SERIE } from './linguaBase';
+import { admin } from './traduzioni/admin';
 import { avvisi } from './traduzioni/avvisi';
 import { comune } from './traduzioni/comune';
 import { panoramica } from './traduzioni/panoramica';
@@ -64,9 +65,9 @@ export function blocco<T extends Record<string, string>>(
 // e la Panoramica — sono copia esatta di quelli dell'app, e devono
 // restarlo: e' la stessa scheda vista da due parti.
 const DIZIONARIO = {
-  it: { ...avvisi.it, ...comune.it, ...panoramica.it },
-  en: { ...avvisi.en, ...comune.en, ...panoramica.en },
-  de: { ...avvisi.de, ...comune.de, ...panoramica.de },
+  it: { ...admin.it, ...avvisi.it, ...comune.it, ...panoramica.it },
+  en: { ...admin.en, ...avvisi.en, ...comune.en, ...panoramica.en },
+  de: { ...admin.de, ...avvisi.de, ...comune.de, ...panoramica.de },
 };
 
 export type ChiaveTesto = keyof typeof DIZIONARIO.it;
@@ -114,4 +115,26 @@ export type Traduttore = (chiave: ChiaveTesto, valori?: ValoriTesto) => string;
 
 export function traduttore(lingua: Lingua): Traduttore {
   return (chiave, valori) => traduci(lingua, chiave, valori);
+}
+
+// ============================================================
+// IL TRADUTTORE CON LA PORTA LARGA.
+//
+// ⚠️ SERVE A CHI COMPONE LA CHIAVE MENTRE GIRA. `traduci` accetta solo
+// chiavi che esistono, e in compilazione è la difesa migliore che
+// abbiamo: una chiave storpiata è un errore rosso, non una schermata
+// con scritto «adm.tor.stato». Ma `com.m.${mese + 1}` è una chiave che
+// nasce durante l'esecuzione, e TypeScript non può saperne niente.
+//
+// ⚠️ E SERVE AI FILE CHE NON POSSONO IMPORTARE QUESTO. `data/giorni.ts`
+// e `data/tornei.ts` vengono copiati dentro le Cloud Functions e non
+// importano il dizionario: dichiarano una loro firma larga
+// `(chiave: string) => string` e chi li chiama gli passa questo.
+//
+// ⚠️ NON SI USA PER COMODITÀ. Ogni chiamata con la porta larga è un
+// controllo in meno: si adopera dove la chiave è davvero composta a
+// mano, mai per evitare di scrivere il tipo giusto.
+// ============================================================
+export function libero(t: Traduttore): (chiave: string) => string {
+  return (chiave: string) => t(chiave as ChiaveTesto);
 }

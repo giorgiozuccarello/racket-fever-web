@@ -21,8 +21,24 @@ import { Circolo } from '../../../data/circoli';
 import {
   Avviso, CATEGORIE_AVVISO, categoriaDi, scadenzaPredefinita,
   ordinaAvvisi, avvisoDaMostrare, giorniAllaScadenza, cosaMancaPerPubblicare,
-  GIORNI_AVVISO_PREDEFINITI,
+  GIORNI_AVVISO_PREDEFINITI, Categoria,
 } from '../../../data/bacheca';
+import { useLingua } from '../../../lib/lingua';
+import { Traduttore } from '../../../data/testi';
+
+// ⚠️ IL NOME DELLA CATEGORIA NON SI LEGGE PIÙ DA `c.nome`, e la ragione
+// e' che `CATEGORIE_AVVISO` vive in `data/bacheca.ts`, un file condiviso
+// con l'app che questa tornata non tocca: li' dentro `nome` resta
+// italiano ed e' giusto cosi'. Quello che viaggia e' la CHIAVE —
+// 'quote', 'chiusure', 'mercatino' — e la chiave e' un codice, non una
+// parola: qui davanti la si trasforma in una frase tradotta.
+// Il ripiego e' `c.nome`: se un giorno l'elenco di la' guadagna una
+// categoria nuova e nessuno aggiunge la riga nel dizionario, a schermo
+// esce il nome italiano invece di una chiave nuda.
+function nomeCategoria(t: Traduttore, c: Categoria): string {
+  const tradotto = t(`adm.bac.cat.${c.chiave}` as any);
+  return tradotto === `adm.bac.cat.${c.chiave}` ? c.nome : tradotto;
+}
 import { pubblicaAvviso, aggiornaAvviso, rimuoviAvviso, ascoltaBachecaAdmin, spostaAvviso } from '../../../data/bachecaRepo';
 import { caricaVolantino, rimuoviVolantino } from '../../../data/storage';
 import { httpsCallable } from 'firebase/functions';
@@ -42,6 +58,7 @@ export default function SezioneBacheca({
   // peggio di un pulsante che non c'e'.
   puoNotificare: boolean;
 }) {
+  const { t } = useLingua();
   const [titolo, setTitolo] = useState('');
   const [testo, setTesto] = useState('');
   const [categoria, setCategoria] = useState(CATEGORIE_AVVISO[0].chiave);
@@ -115,7 +132,7 @@ export default function SezioneBacheca({
       const url = await caricaVolantino(circolo.id, file);
       setVolantino(url);
     } catch (e: any) {
-      setErrore(e?.message ?? 'Non sono riuscito a caricare il volantino.');
+      setErrore(e?.message ?? t('adm.bac.erroreCaricaVolantino'));
     } finally {
       setCaricando(false);
     }
@@ -133,12 +150,29 @@ export default function SezioneBacheca({
     // pubblicazione precedente comparirebbe sotto il modulo di quella
     // dopo — anche di una pubblicata senza notifica.
     setAvvisati(null);
+    // ⚠️ IL GIUDICE RESTA `cosaMancaPerPubblicare`, LA FRASE NO.
+    // Quella funzione decide se si puo' pubblicare — e continua a
+    // deciderlo lei, perche' la stessa regola vale sul sito e
+    // sull'app — ma la frase che restituisce e' italiana e vive in
+    // `data/bacheca.ts`, che questa tornata non tocca. Qui si guarda lo
+    // stesso terzetto di condizioni, nello stesso ordine, solo per
+    // scegliere quale frase tradotta mostrare. Se un giorno le
+    // condizioni cambiano di la', vanno cambiate anche qui: sono tre
+    // righe, e l'alternativa era rifare il controllo dentro la
+    // dashboard e ritrovarsi due regole che divergono.
     const manca = cosaMancaPerPubblicare({ titolo, testo, volantinoUrl: volantino, visibileFinoA: fino });
-    if (manca) { setErrore(manca); return; }
+    if (manca) {
+      setErrore(!titolo.trim()
+        ? t('adm.bac.mancaTitolo')
+        : (!testo.trim() && !volantino)
+          ? t('adm.bac.mancaTestoOVolantino')
+          : t('adm.bac.mancaData'));
+      return;
+    }
     // ⚠️ Una data gia' passata non e' un errore di battitura innocuo:
     // l'avviso verrebbe scritto e non comparirebbe MAI a nessuno, e
     // l'Admin resterebbe convinto di aver comunicato.
-    if (fino < oggiIso()) { setErrore('La data di scadenza è già passata: l’avviso non lo vedrebbe nessuno.'); return; }
+    if (fino < oggiIso()) { setErrore(t('adm.bac.dataPassata')); return; }
     setSalvando(true);
     try {
       const nuovoId = await pubblicaAvviso({
@@ -160,7 +194,7 @@ export default function SezioneBacheca({
         try {
           await mandaNotifica(nuovoId);
         } catch {
-          setErrore('L’avviso è stato pubblicato, ma la notifica non è partita. Puoi rimandarla con la campanella, nell’elenco qui sotto.');
+          setErrore(t('adm.bac.pubblicatoSenzaNotifica'));
         }
       }
 
@@ -169,7 +203,7 @@ export default function SezioneBacheca({
       setConNotifica(false);
       setFino(scadenzaPredefinita());
     } catch (e: any) {
-      setErrore(e?.message ?? 'Non sono riuscito a pubblicare. Riprova.');
+      setErrore(e?.message ?? t('adm.bac.errorePubblica'));
     } finally {
       setSalvando(false);
     }
@@ -187,7 +221,7 @@ export default function SezioneBacheca({
       // Il messaggio vero, quando c'e': «si riordina fra i primi 60» e
       // «qualcuno ha tolto questo avviso» dicono due cose diverse, e si
       // curano in modo diverso da «riprova».
-      setErrore(e?.message ?? 'Non sono riuscito a spostare l’avviso. Riprova.');
+      setErrore(e?.message ?? t('adm.bac.erroreSposta'));
     } finally {
       setSpostando(false);
     }
@@ -195,35 +229,39 @@ export default function SezioneBacheca({
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Bacheca del circolo</div>
+      <div className="admin-card-title">{t('adm.bac.titolo')}</div>
       <p className="admin-card-hint">
-        Quello che pubblichi qui compare nella pagina Bacheca dei tuoi soci, e solo dei tuoi.
-        Un avviso può avere titolo e testo, titolo e volantino, o tutte e tre le cose insieme.
+        {t('adm.bac.sottotitolo')}
       </p>
 
+      {/* ⚠️ SI TRADUCE LA CORNICE, NON IL FOGLIO. Questi due campi
+          restano vuoti e li riempie l'Admin: quello che ci scrive dentro
+          — il titolo dell'avviso, il testo del volantino — e' suo, e non
+          passa mai da `t(...)`. Tradotto e' solo l'invito grigio che
+          sparisce al primo carattere. */}
       <input
         className="admin-input" value={titolo} onChange={(e) => setTitolo(e.target.value)}
-        placeholder="Titolo dell'avviso" style={{ marginTop: '.6rem' }}
+        placeholder={t('adm.bac.phTitolo')} style={{ marginTop: '.6rem' }}
       />
       <textarea
         className="admin-input" value={testo} onChange={(e) => setTesto(e.target.value)}
-        rows={4} placeholder="Testo dell'avviso" style={{ marginTop: '.5rem' }}
+        rows={4} placeholder={t('adm.bac.phTesto')} style={{ marginTop: '.5rem' }}
       />
 
       {/* ---- Il volantino ---- */}
-      <div className="admin-card-hint" style={{ marginTop: '.8rem', fontWeight: 700 }}>Volantino (facoltativo)</div>
+      <div className="admin-card-hint" style={{ marginTop: '.8rem', fontWeight: 700 }}>{t('adm.bac.volantinoFacoltativo')}</div>
       {volantino ? (
         <div className="admin-list-row" style={{ alignItems: 'center' }}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={volantino} alt="Anteprima del volantino"
+            src={volantino} alt={t('adm.bac.altAnteprima')}
             style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 10, border: '1px solid #E4E0D5' }}
           />
           <div style={{ flex: 1 }}>
-            <div className="admin-list-main">Volantino allegato</div>
-            <div className="admin-list-sub">Nella mattonella si vede ritagliato, nel dettaglio per intero.</div>
+            <div className="admin-list-main">{t('adm.bac.volantinoAllegato')}</div>
+            <div className="admin-list-sub">{t('adm.bac.volantinoSpiega')}</div>
           </div>
-          <button className="admin-icon-btn danger" onClick={togliVolantino} aria-label="Togli il volantino">🗑</button>
+          <button className="admin-icon-btn danger" onClick={togliVolantino} aria-label={t('adm.bac.togliVolantino')}>🗑</button>
         </div>
       ) : (
         <div className="admin-list-row" style={{ alignItems: 'center' }}>
@@ -233,14 +271,14 @@ export default function SezioneBacheca({
               onChange={(e) => scegliVolantino(e.target.files?.[0] ?? null)}
             />
             <div className="admin-list-sub">
-              {caricando ? 'Sto caricando…' : 'Una foto o una locandina. Non viene ritagliata: un A4 resta un A4.'}
+              {caricando ? t('adm.bac.stoCaricando') : t('adm.bac.volantinoIstruzioni')}
             </div>
           </div>
         </div>
       )}
 
       {/* ---- Categoria ---- */}
-      <div className="admin-card-hint" style={{ marginTop: '.8rem', fontWeight: 700 }}>Categoria</div>
+      <div className="admin-card-hint" style={{ marginTop: '.8rem', fontWeight: 700 }}>{t('adm.bac.categoria')}</div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '.4rem' }}>
         {CATEGORIE_AVVISO.map((c) => (
           <button
@@ -258,35 +296,33 @@ export default function SezioneBacheca({
             }}
             onClick={() => setCategoria(c.chiave)}
           >
-            {c.nome}
+            {nomeCategoria(t, c)}
           </button>
         ))}
       </div>
 
       <input
         className="admin-input" value={link} onChange={(e) => setLink(e.target.value)}
-        placeholder="Link (facoltativo), es. la pagina per pagare la quota"
+        placeholder={t('adm.bac.phLink')}
         style={{ marginTop: '.8rem' }}
       />
 
       {/* ---- Scadenza e PIN ---- */}
-      <div className="admin-card-hint" style={{ marginTop: '.8rem', fontWeight: 700 }}>Fino a quando si vede</div>
+      <div className="admin-card-hint" style={{ marginTop: '.8rem', fontWeight: 700 }}>{t('adm.bac.finoAQuando')}</div>
       <div className="admin-row" style={{ alignItems: 'center', gap: '.6rem' }}>
         <input className="admin-input" type="date" value={fino} onChange={(e) => setFino(e.target.value)} style={{ maxWidth: 200 }} />
         <button
           className="admin-input" style={{ width: 'auto', padding: '.4rem .8rem', cursor: 'pointer' }}
           onClick={() => setFino(scadenzaPredefinita())}
         >
-          {GIORNI_AVVISO_PREDEFINITI} giorni
+          {t('adm.bac.giorniPulsante', { n: GIORNI_AVVISO_PREDEFINITI })}
         </button>
       </div>
       {/* ⚠️ QUI C'ERA «Tienilo in cima alla bacheca», sparita insieme
           al pin: la posizione non si sceglie piu' scrivendo l'avviso,
           si sistema dopo con le frecce nell'elenco. */}
       <p className="admin-card-hint">
-        L&apos;ordine lo decidi qui sotto con le frecce, la data decide la vita: anche il
-        primo avviso della bacheca scade, e qui sotto vedi quando. È quello che evita di
-        ritrovarsi a dicembre il foglio appeso a marzo.
+        {t('adm.bac.ordineSpiega')}
       </p>
 
       {!!errore && <div className="admin-error-text" style={{ marginTop: '.6rem' }}>{errore}</div>}
@@ -314,13 +350,10 @@ export default function SezioneBacheca({
           />
           <span>
             <span className="admin-card-hint" style={{ fontWeight: 800, display: 'block' }}>
-              Manda anche una notifica
+              {t('adm.bac.mandaNotifica')}
             </span>
             <span className="admin-card-hint">
-              Arriva sul telefono di tutti i soci del circolo. Non la riceve chi ha spento gli
-              avvisi del circolo dalle proprie impostazioni, né — fra le 22 e le 8 — chi ha
-              lasciato acceso il «Non disturbare la notte». Per loro l&apos;avviso resta comunque
-              in bacheca e in Home: salta il suono, non l&apos;avviso.
+              {t('adm.bac.notificaSpiega')}
             </span>
           </span>
         </label>
@@ -332,30 +365,37 @@ export default function SezioneBacheca({
           nessun numero. */}
       {avvisati !== null && (
         <div className="admin-card-hint" style={{ color: '#1C5F06', fontWeight: 800, marginTop: '.6rem' }}>
+          {/* ⚠️ DUE FRASI INTERE ACCOSTATE, e non piu' pezzi cuciti. La
+              prima dice quanti hanno l'avviso in Home, la seconda quanti
+              hanno sentito squillare: restano due periodi separati anche
+              in tedesco, dove il verbo va in fondo e un pezzo di frase
+              staccato non si sarebbe potuto incollare all'altro. */}
           {avvisati.inHome === 0
-            ? 'Nessun altro socio da avvisare: nel circolo, per ora, ci sei solo tu.'
-            : `L’avviso è in Home di ${avvisati.inHome} ${avvisati.inHome === 1 ? 'socio' : 'soci'}.`
-              + (avvisati.sulTelefono === 0
-                ? ' Nessuno di loro ha il telefono pronto a riceverla: o non hanno ancora installato l’app, o hanno negato il permesso alle notifiche, o hanno spento gli avvisi del circolo, o sono le ore del «Non disturbare».'
-                : avvisati.sulTelefono === avvisati.inHome
-                  ? ' La notifica è partita verso tutti.'
-                  : ` La notifica è partita verso ${avvisati.sulTelefono} ${avvisati.sulTelefono === 1 ? 'socio' : 'soci'}: gli altri non hanno l’app installata, hanno negato il permesso alle notifiche, hanno spento gli avvisi del circolo, o sono nelle ore del «Non disturbare».`)}
+            ? t('adm.bac.nessunoDaAvvisare')
+            : `${avvisati.inHome === 1
+              ? t('adm.bac.inHomeUno', { n: avvisati.inHome })
+              : t('adm.bac.inHomeTanti', { n: avvisati.inHome })} ${avvisati.sulTelefono === 0
+              ? t('adm.bac.nessunTelefono')
+              : avvisati.sulTelefono === avvisati.inHome
+                ? t('adm.bac.notificaATutti')
+                : avvisati.sulTelefono === 1
+                  ? t('adm.bac.notificaVersoUno', { n: avvisati.sulTelefono })
+                  : t('adm.bac.notificaVersoTanti', { n: avvisati.sulTelefono })}`}
         </div>
       )}
 
       <button className="admin-btn-full" onClick={pubblica} disabled={salvando || caricando}>
-        {salvando ? 'Attendere…' : '+ Appendi in bacheca'}
+        {salvando ? t('com.attendi') : `+ ${t('adm.bac.appendi')}`}
       </button>
 
       {/* ---- Archivio ---- */}
-      <div className="admin-card-title" style={{ marginTop: '1.4rem' }}>Quello che hai appeso</div>
+      <div className="admin-card-title" style={{ marginTop: '1.4rem' }}>{t('adm.bac.archivioTitolo')}</div>
       {archivioRotto && (
         <div className="admin-error-text">
-          Non riesco a leggere quello che hai appeso. Ricarica la pagina fra poco: se pubblichi
-          adesso rischi di mettere in bacheca due volte lo stesso avviso.
+          {t('adm.bac.archivioRotto')}
         </div>
       )}
-      {!archivioRotto && elenco.length === 0 && <p className="admin-card-hint">La bacheca è ancora vuota.</p>}
+      {!archivioRotto && elenco.length === 0 && <p className="admin-card-hint">{t('adm.bac.bachecaVuota')}</p>}
       {elenco.map((a, indice) => {
         const c = categoriaDi(a.categoria);
         const vivo = avvisoDaMostrare(a);
@@ -367,7 +407,7 @@ export default function SezioneBacheca({
         return (
           <div key={a.id} className="admin-list-row">
             <span
-              title={c.nome}
+              title={nomeCategoria(t, c)}
               style={{
                 width: 10, alignSelf: 'stretch', borderRadius: 5,
                 background: c.colore, flexShrink: 0,
@@ -375,15 +415,15 @@ export default function SezioneBacheca({
             />
             <div style={{ flex: 1 }}>
               <div className="admin-list-main">
-                <span className="admin-list-pos">{vivo ? posizioneViva : '—'}</span> {a.titolo}
+                <span className="admin-list-pos">{vivo ? posizioneViva : t('com.nessunDato')}</span> {a.titolo}
               </div>
               <div className="admin-list-sub">
-                {c.nome}
-                {a.volantinoUrl ? ' · con volantino' : ''}
+                {nomeCategoria(t, c)}
+                {a.volantinoUrl ? ` · ${t('adm.bac.conVolantino')}` : ''}
                 {' · '}
                 {vivo
-                  ? `in bacheca fino al ${dataNumerica(a.visibileFinoA)}${giorni <= 3 ? ` (${giorni <= 0 ? 'ultimo giorno' : giorni === 1 ? 'ancora un giorno' : `ancora ${giorni} giorni`})` : ''}`
-                  : `scaduto il ${dataNumerica(a.visibileFinoA)} — non lo vedono più`}
+                  ? `${t('adm.bac.inBachecaFinoAl', { data: dataNumerica(a.visibileFinoA) })}${giorni <= 3 ? ` (${giorni <= 0 ? t('adm.bac.ultimoGiorno') : giorni === 1 ? t('adm.bac.ancoraUnGiorno') : t('adm.bac.ancoraGiorni', { n: giorni })})` : ''}`
+                  : t('adm.bac.scadutoIl', { data: dataNumerica(a.visibileFinoA) })}
               </div>
             </div>
             {/* Allunga di trenta giorni: e' il gesto piu' frequente su
@@ -391,12 +431,17 @@ export default function SezioneBacheca({
                 per rimetterci una data e' tre tocchi invece di uno. */}
             <button
               className="admin-icon-btn"
-              title="Allunga di 30 giorni"
+              // ⚠️ Il «30» adesso arriva da `GIORNI_AVVISO_PREDEFINITI`,
+              // che e' lo stesso numero che il tasto applica davvero:
+              // era scritto a mano nel suggerimento, e il giorno che
+              // quella costante cambia il tasto avrebbe promesso trenta
+              // giorni e dato altro.
+              title={t('adm.bac.allunga', { n: GIORNI_AVVISO_PREDEFINITI })}
               onClick={() => {
                 setErrore('');
                 aggiornaAvviso(a.id, {
                   visibileFinoA: fraGiorni(vivo ? a.visibileFinoA : oggiIso(), GIORNI_AVVISO_PREDEFINITI),
-                }).catch(() => setErrore('Non sono riuscito ad allungare la scadenza. Riprova.'));
+                }).catch(() => setErrore(t('adm.bac.erroreAllunga')));
               }}
             >
               +30
@@ -411,8 +456,8 @@ export default function SezioneBacheca({
                 <button
                   type="button"
                   className="admin-icon-btn"
-                  title="Sposta più in alto"
-                  aria-label="Sposta questo avviso più in alto"
+                  title={t('adm.bac.spostaSu')}
+                  aria-label={t('adm.bac.spostaSuAria')}
                   disabled={spostando || indice === 0}
                   onClick={() => sposta(indice, -1)}
                 >
@@ -421,8 +466,8 @@ export default function SezioneBacheca({
                 <button
                   type="button"
                   className="admin-icon-btn"
-                  title="Sposta più in basso"
-                  aria-label="Sposta questo avviso più in basso"
+                  title={t('adm.bac.spostaGiu')}
+                  aria-label={t('adm.bac.spostaGiuAria')}
                   disabled={spostando || indice >= elenco.length - 1}
                   onClick={() => sposta(indice, 1)}
                 >
@@ -434,15 +479,15 @@ export default function SezioneBacheca({
               <button
                 type="button"
                 className="admin-icon-btn"
-                title="Manda una notifica per questo avviso"
-                aria-label="Manda una notifica per questo avviso"
+                title={t('adm.bac.notificaQuesto')}
+                aria-label={t('adm.bac.notificaQuesto')}
                 disabled={notificando}
                 onClick={() => { setErroreNotifica(''); setDaNotificare(a); }}
               >
                 🔔
               </button>
             )}
-            <button className="admin-icon-btn danger" onClick={() => setDaRimuovere(a)} aria-label="Rimuovi">🗑</button>
+            <button className="admin-icon-btn danger" onClick={() => setDaRimuovere(a)} aria-label={t('adm.bac.rimuovi')}>🗑</button>
           </div>
         );
       })}
@@ -450,22 +495,23 @@ export default function SezioneBacheca({
       {daNotificare && (
         <div className="admin-modal-backdrop" onClick={() => { if (!notificando) setDaNotificare(null); }}>
           <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-card-title">Mandare la notifica?</div>
+            <div className="admin-card-title">{t('adm.bac.mandareTitolo')}</div>
+            {/* ⚠️ LE VIRGOLETTE STANNO DENTRO LA CHIAVE, non piu' qui
+                come `&laquo;`/`&raquo;`: le caporali sono italiane,
+                l'inglese usa le doppie alte e il tedesco apre in basso.
+                Il titolo dentro resta quello che ha scritto l'Admin. */}
             <p className="admin-card-hint">
-              &laquo;{daNotificare.titolo}&raquo; arriverà sul telefono di tutti i soci del
-              circolo. Non la riceve chi ha spento gli avvisi del circolo dalle proprie
-              impostazioni, né — fra le 22 e le 8 — chi ha lasciato acceso il «Non disturbare la
-              notte». Puoi rimandarla: in bacheca e in Home resta un avviso solo, quello di prima
-              si aggiorna — ma il telefono di tutti squilla di nuovo.
+              {t('adm.bac.mandareSpiega', { titolo: daNotificare.titolo })}
             </p>
             {/* ⚠️ Un avviso scaduto si puo' comunque notificare, ma va
                 detto: manderebbe duecento persone a cercare in bacheca
                 un foglio che dalla bacheca e' gia' sparito. */}
             {!avvisoDaMostrare(daNotificare) && (
               <p className="admin-error-text">
-                Attenzione: questo avviso è scaduto il {dataNumerica(daNotificare.visibileFinoA)} e
-                dalla bacheca dei soci non si vede più. Chi tocca la notifica non lo troverebbe:
-                allungalo con «+30» prima di mandarla.
+                {t('adm.bac.avvisoScadutoNotifica', {
+                  data: dataNumerica(daNotificare.visibileFinoA),
+                  n: GIORNI_AVVISO_PREDEFINITI,
+                })}
               </p>
             )}
             <div className="admin-row" style={{ marginTop: '.8rem' }}>
@@ -474,7 +520,7 @@ export default function SezioneBacheca({
                 disabled={notificando}
                 onClick={() => setDaNotificare(null)}
               >
-                Indietro
+                {t('com.indietro')}
               </button>
               <button
                 className="admin-btn-full"
@@ -490,13 +536,13 @@ export default function SezioneBacheca({
                     // ⚠️ La finestra resta aperta: chiudendosi, l'Admin
                     // non saprebbe se ritentare, e la volta dopo
                     // manderebbe un doppione per sicurezza.
-                    setErroreNotifica(e?.message ?? 'La notifica non è partita. Riprova.');
+                    setErroreNotifica(e?.message ?? t('adm.bac.notificaFallita'));
                   } finally {
                     setNotificando(false);
                   }
                 }}
               >
-                {notificando ? 'Attendere…' : 'Sì, manda'}
+                {notificando ? t('com.attendi') : t('adm.bac.siManda')}
               </button>
             </div>
             {!!erroreNotifica && (
@@ -509,14 +555,12 @@ export default function SezioneBacheca({
       {daRimuovere && (
         <div className="admin-modal-backdrop" onClick={() => setDaRimuovere(null)}>
           <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
-            <div className="admin-card-title">Togliere l&apos;avviso?</div>
+            <div className="admin-card-title">{t('adm.bac.togliereTitolo')}</div>
             <p className="admin-card-hint">
-              &laquo;{daRimuovere.titolo}&raquo; sparirà dalla bacheca dei soci e da questo elenco.
-              Non si può annullare: se ti serve ancora l&apos;anno prossimo, conviene lasciarlo
-              scadere invece di toglierlo.
+              {t('adm.bac.togliereSpiega', { titolo: daRimuovere.titolo })}
             </p>
             <div className="admin-row" style={{ marginTop: '.8rem' }}>
-              <button className="admin-input" style={{ cursor: 'pointer' }} onClick={() => setDaRimuovere(null)}>Indietro</button>
+              <button className="admin-input" style={{ cursor: 'pointer' }} onClick={() => setDaRimuovere(null)}>{t('com.indietro')}</button>
               <button
                 className="admin-btn-full"
                 style={{ background: '#B3261E' }}
@@ -531,11 +575,11 @@ export default function SezioneBacheca({
                     // visto.
                     await rimuoviVolantino(a.volantinoUrl);
                   } catch {
-                    setErrore('Non sono riuscito a togliere l’avviso. Riprova.');
+                    setErrore(t('adm.bac.erroreTogli'));
                   }
                 }}
               >
-                Sì, togli
+                {t('adm.bac.siTogli')}
               </button>
             </div>
           </div>

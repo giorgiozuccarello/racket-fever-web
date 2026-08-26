@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Circolo } from '../../../data/circoli';
 import { aggiornaCircolo } from '../../../data/circoliRepo';
 import { ORE_LIMITE_CANCELLAZIONE_MAX, oreLimiteDi } from '../../../data/cancellazione';
+import { useLingua } from '../../../lib/lingua';
 
 export default function SezioneLimiteCancellazione({ circolo }: { circolo: Circolo }) {
+  const { t } = useLingua();
   // Il valore mostrato mentre si trascina sta QUI, non su Firestore.
   // React manda l'evento di un <input type="range"> a ogni scatto:
   // legandolo direttamente al salvataggio, una trascinata da 0 a 24
@@ -52,7 +54,10 @@ export default function SezioneLimiteCancellazione({ circolo }: { circolo: Circo
     try {
       await aggiornaCircolo(circolo.id, { oreLimiteCancellazione: v });
     } catch (e: any) {
-      setErrore(`Non è stato possibile salvare: ${e?.message ?? 'errore sconosciuto'}`);
+      // ⚠️ `e?.message` arriva da Firebase e resta com'è: è un messaggio
+      // tecnico, non una frase della cornice. Tradotto è solo il giro
+      // di parole che lo introduce.
+      setErrore(t('adm.can.erroreSalvataggio', { motivo: e?.message ?? t('adm.can.erroreSconosciuto') }));
       setValore(oreLimiteDi(circoloRef.current));
     } finally {
       clearTimeout(spegni);
@@ -62,22 +67,15 @@ export default function SezioneLimiteCancellazione({ circolo }: { circolo: Circo
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Entro quando un socio può disdire un campo</div>
-      <p className="admin-card-hint">
-        Quante ore prima dell&apos;inizio dello slot un socio può ancora cancellare la sua
-        prenotazione di un campo. Superato il termine il pulsante di cancellazione si
-        disattiva e il socio vede l&apos;orario entro cui avrebbe dovuto disdire. Vale solo
-        per i soci: il circolo e i maestri possono cancellare sempre.
-      </p>
-      <p className="admin-card-hint">
-        Le lezioni non rientrano qui: il termine per disdire una lezione lo stabilisce il
-        Maestro che la tiene, dalle sue Impostazioni nell&apos;app. Finché non lo cambia, per
-        le sue lezioni vale il numero che imposti tu.
-      </p>
+      <div className="admin-card-title">{t('adm.can.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.can.hint')}</p>
+      <p className="admin-card-hint">{t('adm.can.hintLezioni')}</p>
       <div className="admin-slider-value">
         {valore === 0
-          ? 'Nessun limite — si disdice fino all’orario di gioco'
-          : `${valore} ${valore === 1 ? 'ora' : 'ore'} prima dell’inizio`}
+          ? t('adm.can.nessunLimite')
+          : valore === 1
+            ? t('adm.can.limiteUno', { quante: valore })
+            : t('adm.can.limiteOre', { quante: valore })}
       </div>
       {/* onPointerUp da solo non basta: su touch il browser puo'
           annullare il gesto (pointercancel) quando lo scorrimento della
@@ -95,7 +93,7 @@ export default function SezioneLimiteCancellazione({ circolo }: { circolo: Circo
         onKeyUp={() => salva(valore)}
         onBlur={() => salva(valore)}
       />
-      {salvando && <div className="admin-saving">Salvataggio…</div>}
+      {salvando && <div className="admin-saving">{t('com.salvataggio')}</div>}
       {errore && <div className="admin-error-text">{errore}</div>}
     </div>
   );

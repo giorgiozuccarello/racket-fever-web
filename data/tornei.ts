@@ -202,11 +202,23 @@ export function statoTorneo(t: {
   return oggi <= giornoDi(t.scadenzaIscrizioni).getTime() ? 'iscrizioni' : 'chiuse';
 }
 
-export function etichettaStato(s: StatoTorneo): string {
-  if (s === 'iscrizioni') return 'Iscrizioni aperte';
-  if (s === 'chiuse') return 'Iscrizioni chiuse';
-  if (s === 'in_corso') return 'In corso';
-  return 'Concluso';
+// ⚠️ IL TRADUTTORE È FACOLTATIVO — vedi la ragione per esteso in testa
+// a `data/giorni.ts`: queste funzioni le chiamano anche le Cloud
+// Functions, che un contesto React non ce l'hanno. Senza `t` rispondono
+// in italiano, come hanno sempre fatto.
+type TraduceTorneo = (chiave: string) => string;
+
+export function etichettaStato(s: StatoTorneo, t?: TraduceTorneo): string {
+  if (!t) {
+    if (s === 'iscrizioni') return 'Iscrizioni aperte';
+    if (s === 'chiuse') return 'Iscrizioni chiuse';
+    if (s === 'in_corso') return 'In corso';
+    return 'Concluso';
+  }
+  if (s === 'iscrizioni') return t('adm.tor.statoIscrizioniAperte');
+  if (s === 'chiuse') return t('adm.tor.statoIscrizioniChiuse');
+  if (s === 'in_corso') return t('adm.tor.statoInCorso');
+  return t('adm.tor.statoConcluso');
 }
 
 // Il torneo e' ancora da mostrare? Vero fino a CODA_TORNEO_GIORNI dopo
@@ -273,22 +285,33 @@ export function ordinaTornei<T extends { id: string; dataInizio: string; dataFin
 // dato preciso — un torneo si prenota, ci si organizza il fine
 // settimana, e "30 agosto" senza anno su una bacheca che tiene anche
 // l'edizione dell'anno prima non basta.
-export function dateEstese(t: { dataInizio: string; dataFine?: string }): string {
-  const fine = fineTorneo(t);
-  if (fine === t.dataInizio) return dataNumerica(t.dataInizio);
-  return `Dal ${dataNumerica(t.dataInizio)} al ${dataNumerica(fine)}`;
+export function dateEstese(
+  tor: { dataInizio: string; dataFine?: string }, t?: TraduceTorneo, tedesco = false,
+): string {
+  const fine = fineTorneo(tor);
+  if (fine === tor.dataInizio) return dataNumerica(tor.dataInizio, tedesco);
+  const da = dataNumerica(tor.dataInizio, tedesco);
+  const a = dataNumerica(fine, tedesco);
+  return t ? t('adm.tor.dalAl').replace('{da}', da).replace('{a}', a) : `Dal ${da} al ${a}`;
 }
 
-export function periodoTorneo(t: { dataInizio: string; dataFine?: string }): string {
-  const fine = fineTorneo(t);
-  if (fine === t.dataInizio) return giornoBreve(t.dataInizio);
-  const a = giornoDi(t.dataInizio);
+export function periodoTorneo(
+  tor: { dataInizio: string; dataFine?: string }, t?: TraduceTorneo,
+): string {
+  const fine = fineTorneo(tor);
+  if (fine === tor.dataInizio) return giornoBreve(tor.dataInizio, t);
+  const a = giornoDi(tor.dataInizio);
   const b = giornoDi(fine);
   // Stesso mese: "dal 16 al 30 agosto", non "dal 16 agosto al 30
   // agosto". E' la forma in cui lo direbbe una persona.
   if (a.getMonth() === b.getMonth() && a.getFullYear() === b.getFullYear()) {
-    return `Dal ${a.getDate()} al ${b.getDate()} ${MESI[b.getMonth()]}`;
+    const mese = t ? t(`com.m.${b.getMonth() + 1}`) : MESI[b.getMonth()];
+    return t
+      ? t('adm.tor.dalAlStessoMese').replace('{da}', String(a.getDate())).replace('{a}', String(b.getDate())).replace('{mese}', mese)
+      : `Dal ${a.getDate()} al ${b.getDate()} ${mese}`;
   }
-  return `Dal ${giornoBreve(t.dataInizio)} al ${giornoBreve(fine)}`;
+  const da = giornoBreve(tor.dataInizio, t);
+  const fi = giornoBreve(fine, t);
+  return t ? t('adm.tor.dalAl').replace('{da}', da).replace('{a}', fi) : `Dal ${da} al ${fi}`;
 }
 

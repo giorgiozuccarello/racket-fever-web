@@ -261,13 +261,20 @@ export function istanteDaSegnare<T extends { creatoIlMs?: number }>(avvisi: T[])
 // Le tre forme ammesse: titolo e testo, titolo e volantino, o tutti e
 // tre insieme. Un avviso con il solo titolo e niente altro non e' un
 // avviso: e' una riga che non dice niente e non si puo' approfondire.
+// ⚠️ IL TRADUTTORE SI PASSA ED E' FACOLTATIVO, come in `messaggioErrore`
+// della dashboard: la REGOLA resta qui — e' una sola, e vale per l'app e
+// per il sito — mentre la LINGUA la mette chi disegna. Senza il
+// traduttore si risponde in italiano, che e' come rispondeva prima.
+// La firma e' larga (`(chiave: string) => string`) perche' questo file
+// non importa il dizionario: chi chiama passa `libero(t)` o `t`.
 export function cosaMancaPerPubblicare(a: {
   titolo?: string; testo?: string; volantinoUrl?: string | null; visibileFinoA?: string;
-}): string | null {
-  if (!(a.titolo ?? '').trim()) return 'Manca il titolo dell’avviso.';
+}, t?: (chiave: string) => string): string | null {
+  const frase = (chiave: string, italiano: string) => (t ? t(chiave) : italiano);
+  if (!(a.titolo ?? '').trim()) return frase('adm.bac.mancaTitolo', 'Manca il titolo dell’avviso.');
   if (!(a.testo ?? '').trim() && !a.volantinoUrl) {
-    return 'Serve almeno il testo dell’avviso o un volantino da allegare.';
+    return frase('adm.bac.mancaTestoOVolantino', 'Serve almeno il testo dell’avviso o un volantino da allegare.');
   }
-  if (!a.visibileFinoA) return 'Manca la data fino a cui l’avviso resta in bacheca.';
+  if (!a.visibileFinoA) return frase('adm.bac.mancaData', 'Manca la data fino a cui l’avviso resta in bacheca.');
   return null;
 }

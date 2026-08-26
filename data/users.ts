@@ -26,6 +26,7 @@ import {
 } from 'firebase/firestore';
 import { auth, db, functions } from '../lib/firebase';
 import { httpsCallable } from 'firebase/functions';
+import { SistemaClassifica } from './classifiche';
 
 export interface ProfiloUtente {
   nome: string;
@@ -39,7 +40,12 @@ export interface ProfiloUtente {
   // circolo (`limiteFido`). Il campo può essere rimasto scritto su
   // qualche tessera vecchia — non lo legge più nessuno.
   sosUtilizzato?: number; // quanto del Fido è già stato usato dall'ultimo Ripristino
-  classificaFitp?: string | null; // dichiarata dal socio stesso, es. "3.4" o "NC" — non verificata
+  classificaFitp?: string | null; // dichiarata dal socio stesso, es. "3.4" o "LK 12" — non verificata
+  // ⚠️ A QUALE FEDERAZIONE APPARTIENE IL VALORE QUI SOPRA. Da agosto
+  // 2026 i sistemi sono cinque (FITP, LK, WTN, UTR, NTRP) e il valore
+  // da solo non basta più a saperlo: «12» può essere una LK o una
+  // posizione. Chi non ce l'ha è FITP — vedi `data/classifiche.ts`.
+  classificaSistema?: 'fitp' | 'lk' | 'wtn' | 'utr' | 'ntrp' | null;
   posizioneClassificaSociale?: number | null; // assente = il socio non è (ancora) in classifica
   preferenzeSfide?: { giorni: number[]; oraInizio: string; oraFine: string } | null; // 3 giorni (0=Dom...6=Sab) + fascia di 6h
   sfideCongelateFino?: string | null;
@@ -303,10 +309,16 @@ export async function ripristinaSOS(
 // riordinare la classifica, quindi devono restare sempre coerenti).
 // ============================================================
 
-// Il socio dichiara da sé la propria classifica FITP — nessuna
-// verifica automatica, è un dato "sulla parola".
-export async function impostaClassificaFitp(uid: string, valore: string) {
-  await updateDoc(doc(db, 'utenti', uid), { classificaFitp: valore });
+// Il socio dichiara da sé la propria classifica — nessuna verifica
+// automatica, è un dato "sulla parola".
+//
+// ⚠️ SI SCRIVE ANCHE IL SISTEMA, e non si lascia indovinare: senza, un
+// «12» sul profilo non si sa se è una LK o una posizione. Il gemello
+// dell'app fa esattamente lo stesso.
+export async function impostaClassificaFitp(
+  uid: string, valore: string, sistema: SistemaClassifica = 'fitp',
+) {
+  await updateDoc(doc(db, 'utenti', uid), { classificaFitp: valore, classificaSistema: sistema });
 }
 
 // L'Admin assegna o modifica la posizione di un socio in Classifica

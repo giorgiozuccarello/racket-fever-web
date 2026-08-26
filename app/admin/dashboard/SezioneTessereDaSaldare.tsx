@@ -28,8 +28,14 @@ import {
 } from '../../../data/movimenti';
 import { creaNotifica } from '../../../data/notifiche';
 import { avviso } from '../../../data/linguaDestinatario';
+import { useLingua } from '../../../lib/lingua';
 import { numeroPerWhatsApp } from './SezioneRichiesteTessera';
 import Modal from './Modal';
+
+// Quante righe del registro si mostrano sotto un nome. Il numero e'
+// anche dentro la frase in fondo all'elenco: sta in una costante sola
+// perche' non possano dire due cose diverse.
+const RIGHE_STORIA = 30;
 
 const euro = (v: number) => `€ ${v.toFixed(2)}`;
 
@@ -43,13 +49,14 @@ function giorno(m: Movimento): string {
 // La storia del conto: si monta solo quando la si apre, così la
 // dashboard non tiene aperti tanti ascolti quante sono le posizioni.
 function StoriaDelConto({ uid, circoloId }: { uid: string; circoloId: string }) {
+  const { t } = useLingua();
   const [movimenti, setMovimenti] = useState<Movimento[] | null>(null);
 
-  useEffect(() => ascoltaMovimentiSocio(uid, circoloId, setMovimenti, 30), [uid, circoloId]);
+  useEffect(() => ascoltaMovimentiSocio(uid, circoloId, setMovimenti, RIGHE_STORIA), [uid, circoloId]);
 
-  if (movimenti === null) return <p className="admin-card-hint">Carico le operazioni…</p>;
+  if (movimenti === null) return <p className="admin-card-hint">{t('adm.tes.caricoOperazioni')}</p>;
   if (movimenti.length === 0) {
-    return <p className="admin-card-hint">Nessuna operazione registrata per questa persona.</p>;
+    return <p className="admin-card-hint">{t('adm.tes.nessunaOperazione')}</p>;
   }
 
   return (
@@ -65,7 +72,7 @@ function StoriaDelConto({ uid, circoloId }: { uid: string; circoloId: string }) 
               {!dettaglio && m.descrizione ? ` — ${m.descrizione}` : ''}
             </span>
             <span className={m.importo < 0 ? 'admin-storia-uscita' : 'admin-storia-entrata'}>
-              {importoDaMostrare(m.importo) ? `${m.importo > 0 ? '+' : ''}${euro(m.importo)}` : '—'}
+              {importoDaMostrare(m.importo) ? `${m.importo > 0 ? '+' : ''}${euro(m.importo)}` : t('com.nessunDato')}
             </span>
             {/* Il debito residuo dopo ogni riga: è la colonna che
                 risponde alla domanda «da dove nascono questi nove
@@ -75,14 +82,16 @@ function StoriaDelConto({ uid, circoloId }: { uid: string; circoloId: string }) 
                 serve capire il conto. */}
             <span className="admin-storia-saldo">
               {m.debitoDopo > 0 && m.saldoDopo > 0
-                ? `debito ${euro(m.debitoDopo)} · credito ${euro(m.saldoDopo)}`
-                : m.debitoDopo > 0 ? `debito ${euro(m.debitoDopo)}` : `credito ${euro(m.saldoDopo)}`}
+                ? t('adm.tes.saldoDebitoECredito', { debito: euro(m.debitoDopo), credito: euro(m.saldoDopo) })
+                : m.debitoDopo > 0
+                  ? t('adm.tes.saldoDebito', { importo: euro(m.debitoDopo) })
+                  : t('adm.tes.saldoCredito', { importo: euro(m.saldoDopo) })}
             </span>
           </div>
         );
       })}
-      {movimenti.length >= 30 && (
-        <p className="admin-card-hint">Ultime 30 operazioni. Le precedenti stanno nella pagina Movimenti.</p>
+      {movimenti.length >= RIGHE_STORIA && (
+        <p className="admin-card-hint">{t('adm.tes.ultimeOperazioni', { quante: RIGHE_STORIA })}</p>
       )}
     </div>
   );
@@ -92,6 +101,7 @@ function StoriaDelConto({ uid, circoloId }: { uid: string; circoloId: string }) 
 // da recuperare. La regolazione avviene in segreteria — qui si
 // registra soltanto che e' stata fatta.
 export default function SezioneTessereDaSaldare({ circolo }: { circolo: Circolo }) {
+  const { t } = useLingua();
   const [tessere, setTessere] = useState<Tessera[]>([]);
   const [daSaldare, setDaSaldare] = useState<Tessera | null>(null);
   const [elaborando, setElaborando] = useState(false);
@@ -116,14 +126,17 @@ export default function SezioneTessereDaSaldare({ circolo }: { circolo: Circolo 
       );
       setDaSaldare(null);
     } catch {
-      alert('Non è stato possibile registrare il saldo. Riprova.');
+      alert(t('adm.tes.erroreChiusura'));
     } finally {
       setElaborando(false);
     }
   };
 
-  const debitoDi = (t: Tessera | null) => t?.sosUtilizzato ?? 0;
-  const creditoDi = (t: Tessera | null) => t?.credito ?? 0;
+  // ⚠️ LA TESSERA NON SI CHIAMA PIU' `t`, e non e' un capriccio: `t` e'
+  // il traduttore, e una tessera con quel nome lo copriva proprio dentro
+  // le funzioni che devono tradurre.
+  const debitoDi = (tessera: Tessera | null) => tessera?.sosUtilizzato ?? 0;
+  const creditoDi = (tessera: Tessera | null) => tessera?.credito ?? 0;
   // ⚠️ QUANDO CI SONO TUTTI E DUE, IL PULSANTE NON PUO' NOMINARNE UNO
   // SOLO. La chiusura della posizione azzera credito e debito insieme —
   // lo fa il server, in un colpo — quindi un pulsante che dice «elimina
@@ -131,43 +144,53 @@ export default function SezioneTessereDaSaldare({ circolo }: { circolo: Circolo 
   // riavere fa sparire quei venti euro senza averli mai nominati. E'
   // esattamente il difetto per cui questa sezione e' stata riscritta,
   // su un altro ramo.
-  const etichettaAzione = (t: Tessera | null) => {
-    const d = debitoDi(t);
-    const c = creditoDi(t);
-    if (d > 0 && c > 0) return 'Chiudi la posizione';
-    return d > 0 ? 'Elimina debito' : 'Credito restituito';
+  const etichettaAzione = (tessera: Tessera | null) => {
+    const d = debitoDi(tessera);
+    const c = creditoDi(tessera);
+    if (d > 0 && c > 0) return t('adm.tes.chiudiPosizione');
+    return d > 0 ? t('adm.tes.eliminaDebito') : t('adm.tes.creditoRestituito');
   };
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Tessere da saldare</div>
-      <p className="admin-card-hint">
-        Persone uscite dal circolo con un conto ancora aperto. Restituisci il credito o recupera
-        il debito in segreteria, poi chiudi la posizione qui. Sotto ogni nome trovi le operazioni
-        da cui nasce il saldo.
-      </p>
+      <div className="admin-card-title">{t('adm.tes.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.tes.intro')}</p>
 
-      {tessere.length === 0 && <p className="admin-empty-text">Nessuna posizione da regolare.</p>}
+      {tessere.length === 0 && <p className="admin-empty-text">{t('adm.tes.nessunaPosizione')}</p>}
 
-      {tessere.map((t) => {
-        const credito = t.credito ?? 0;
-        const debito = t.sosUtilizzato ?? 0;
-        const numero = numeroPerWhatsApp(t.telefono);
-        const aperta = storiaAperta === t.id;
+      {tessere.map((tessera) => {
+        const credito = tessera.credito ?? 0;
+        const debito = tessera.sosUtilizzato ?? 0;
+        const numero = numeroPerWhatsApp(tessera.telefono);
+        const aperta = storiaAperta === tessera.id;
+        // ⚠️ QUESTO MESSAGGIO NON PASSA DA `t()`, E NON E' UNA
+        // DIMENTICANZA. Non lo legge l'Admin: lo legge la persona a cui
+        // viene mandato su WhatsApp, e la sua lingua e' scritta nel suo
+        // profilo, non in quello di chi sta in segreteria. Tradurlo con
+        // `t()` vorrebbe dire spedire un messaggio in tedesco a un ex
+        // socio italiano solo perche' quel giorno la dashboard era in
+        // tedesco. La strada giusta e' `avviso('chiave', {...})` di
+        // `data/linguaDestinatario.ts` — che pero' e' asincrona, e
+        // l'indirizzo `wa.me` qui si compone mentre si disegna la riga.
+        // Finche' resta cosi', il ripiego onesto e' l'italiano.
         const messaggio = credito > 0
-          ? `Ciao ${t.nome}, hai € ${credito.toFixed(2)} di credito da ritirare presso ${circolo.nome}.`
-          : `Ciao ${t.nome}, risulta un debito di € ${debito.toFixed(2)} da saldare presso ${circolo.nome}.`;
+          ? `Ciao ${tessera.nome}, hai € ${credito.toFixed(2)} di credito da ritirare presso ${circolo.nome}.`
+          : `Ciao ${tessera.nome}, risulta un debito di € ${debito.toFixed(2)} da saldare presso ${circolo.nome}.`;
         return (
-          <div key={t.id}>
+          <div key={tessera.id}>
             <div className="admin-list-row">
               <div style={{ flex: 1 }}>
-                <div className="admin-list-main">{t.nome} {t.cognome}</div>
-                <div className="admin-list-sub">{t.email}</div>
+                <div className="admin-list-main">{tessera.nome} {tessera.cognome}</div>
+                <div className="admin-list-sub">{tessera.email}</div>
                 {credito > 0 && (
-                  <div className="admin-saldo-credito">Credito da restituire: € {credito.toFixed(2)}</div>
+                  <div className="admin-saldo-credito">
+                    {t('adm.tes.creditoDaRestituire', { importo: credito.toFixed(2) })}
+                  </div>
                 )}
                 {debito > 0 && (
-                  <div className="admin-saldo-debito">Debito da recuperare: € {debito.toFixed(2)}</div>
+                  <div className="admin-saldo-debito">
+                    {t('adm.tes.debitoDaRecuperare', { importo: debito.toFixed(2) })}
+                  </div>
                 )}
                 {!!numero && (
                   <a
@@ -176,23 +199,23 @@ export default function SezioneTessereDaSaldare({ circolo }: { circolo: Circolo 
                     target="_blank"
                     rel="noreferrer"
                   >
-                    {t.telefono} · contatta
+                    {tessera.telefono} · {t('adm.tes.contatta')}
                   </a>
                 )}
                 <button
                   type="button"
                   className="admin-btn-small"
                   style={{ marginTop: '.5rem' }}
-                  onClick={() => setStoriaAperta(aperta ? null : t.id)}
+                  onClick={() => setStoriaAperta(aperta ? null : tessera.id)}
                 >
-                  {aperta ? 'Nascondi le operazioni' : 'Da dove nasce'}
+                  {aperta ? t('adm.tes.nascondiOperazioni') : t('adm.tes.daDoveNasce')}
                 </button>
               </div>
-              <button className="admin-btn-piccolo-verde" onClick={() => setDaSaldare(t)}>
-                {etichettaAzione(t)}
+              <button className="admin-btn-piccolo-verde" onClick={() => setDaSaldare(tessera)}>
+                {etichettaAzione(tessera)}
               </button>
             </div>
-            {aperta && <StoriaDelConto uid={t.uid} circoloId={circolo.id} />}
+            {aperta && <StoriaDelConto uid={tessera.uid} circoloId={circolo.id} />}
           </div>
         );
       })}
@@ -200,23 +223,26 @@ export default function SezioneTessereDaSaldare({ circolo }: { circolo: Circolo 
       <Modal visible={!!daSaldare} onClose={() => setDaSaldare(null)}>
         <div className="admin-modal-title">
           {debitoDi(daSaldare) > 0 && creditoDi(daSaldare) > 0
-            ? 'Chiudere la posizione?'
-            : debitoDi(daSaldare) > 0 ? 'Eliminare il debito?' : 'Credito restituito?'}
+            ? t('adm.tes.chiuderePosizione')
+            : debitoDi(daSaldare) > 0 ? t('adm.tes.eliminareDebito') : t('adm.tes.creditoRestituitoDomanda')}
         </div>
         <p className="admin-modal-sub">{daSaldare?.nome} {daSaldare?.cognome}</p>
         <p className="admin-modal-sub" style={{ marginTop: '.5rem' }}>
           {debitoDi(daSaldare) > 0 && creditoDi(daSaldare) > 0
-            ? `Questa persona ha ${euro(creditoDi(daSaldare))} di credito da riavere E ${euro(debitoDi(daSaldare))} di debito da restituire. Confermando, il conto va a zero da tutte e due le parti: fai prima la compensazione in segreteria.`
+            ? t('adm.tes.spiegaEntrambi', {
+              credito: euro(creditoDi(daSaldare)),
+              debito: euro(debitoDi(daSaldare)),
+            })
             : debitoDi(daSaldare) > 0
-              ? `Confermi di aver recuperato ${euro(debitoDi(daSaldare))}? Il debito sparisce dal conto e la posizione si chiude.`
-              : `Confermi di aver restituito ${euro(creditoDi(daSaldare))}? La posizione si chiude.`}
+              ? t('adm.tes.spiegaDebito', { importo: euro(debitoDi(daSaldare)) })
+              : t('adm.tes.spiegaCredito', { importo: euro(creditoDi(daSaldare)) })}
         </p>
         <div className="admin-modal-btn-row">
           <button className="admin-modal-btn-cancel" onClick={() => setDaSaldare(null)} disabled={elaborando}>
-            Annulla
+            {t('com.annulla')}
           </button>
           <button className="admin-modal-btn-confirm" onClick={conferma} disabled={elaborando}>
-            {elaborando ? 'Attendere…' : etichettaAzione(daSaldare)}
+            {elaborando ? t('com.attendi') : etichettaAzione(daSaldare)}
           </button>
         </div>
       </Modal>

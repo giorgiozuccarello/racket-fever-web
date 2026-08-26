@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { Circolo } from '../../../data/circoli';
 import { aggiornaCircolo } from '../../../data/circoliRepo';
+import { useLingua } from '../../../lib/lingua';
 
 export default function SezionePassword({ circolo }: { circolo: Circolo }) {
+  const { t } = useLingua();
   const [pass, setPass] = useState(circolo.password);
   const [salvando, setSalvando] = useState(false);
   const [ok, setOk] = useState(false);
@@ -20,17 +22,15 @@ export default function SezionePassword({ circolo }: { circolo: Circolo }) {
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Password del circolo</div>
-      <p className="admin-card-hint">
-        È la password che i tuoi soci inseriscono per accedere all&apos;app.
-      </p>
+      <div className="admin-card-title">{t('adm.pwd.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.pwd.hint')}</p>
       <div className="admin-row">
         <input
           className="admin-input" value={pass}
           onChange={(e) => setPass(e.target.value)} autoCapitalize="none"
         />
         <button className="admin-btn-small" onClick={salva} disabled={salvando}>
-          {ok ? 'Salvato ✓' : 'Salva'}
+          {ok ? t('adm.pwd.salvato') : t('com.salva')}
         </button>
       </div>
     </div>

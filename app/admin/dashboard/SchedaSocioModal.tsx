@@ -9,6 +9,7 @@ import {
 } from '../../../data/prenotazioniRepo';
 import { anteprimaRimozione, rimuoviSocioDaCircolo } from '../../../data/tessere';
 import { fidoIllimitato } from '../../../data/circoli';
+import { useLingua } from '../../../lib/lingua';
 import Modal from './Modal';
 
 export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClose, limiteFido }: {
@@ -17,6 +18,7 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
   // accanto al debito del socio.
   limiteFido: number;
 }) {
+  const { t } = useLingua();
   const [ricaricaAperta, setRicaricaAperta] = useState(false);
   const [importo, setImporto] = useState('');
   const [inviando, setInviando] = useState(false);
@@ -48,7 +50,7 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
   const [erroreRimozione, setErroreRimozione] = useState('');
 
   const eOspite = socio?.ruoloTessera === 'ospite';
-  const etichettaRimozione = eOspite ? 'Togli la qualifica di Ospite' : 'Rimuovi dal circolo';
+  const etichettaRimozione = eOspite ? t('adm.soc.togliOspite') : t('adm.soc.rimuoviDalCircolo');
 
   const apriRimozione = async () => {
     if (!socio) return;
@@ -88,6 +90,12 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
           circoloId,
           prenotazioneId: p.id,
           prezzo: importoDaRimborsare(p),
+          // ⚠️ QUESTA RESTA IN ITALIANO E NON E' UNA DIMENTICANZA: non
+          // e' una frase che la pagina disegna, e' la causale che
+          // finisce SCRITTA sul registro movimenti in Firestore.
+          // Tradurla con la lingua di chi preme il tasto vorrebbe dire
+          // un registro con le righe in tre lingue a seconda di chi era
+          // in segreteria quel giorno.
           descrizione: 'Rimborso per rimozione dal circolo',
         }); },
       });
@@ -115,7 +123,7 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
       setRimozioneAperta(false);
       onClose();
     } catch {
-      setErroreRimozione('Non è stato possibile completare la rimozione. Riprova.');
+      setErroreRimozione(t('adm.soc.erroreRimozione'));
     } finally {
       setRimuovendo(false);
     }
@@ -191,8 +199,8 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
                   che fare. */}
               <div className={`admin-badge-ruolo${socio.ruoloTessera === 'ospite' ? ' admin-badge-ruolo-ospite' : ''}`}>
                 {socio.ruoloTessera === 'ospite'
-                  ? 'Ospite · tesserato in un altro circolo'
-                  : 'Socio tesserato'}
+                  ? t('adm.soc.badgeOspite')
+                  : t('adm.soc.badgeSocio')}
               </div>
             </div>
 
@@ -202,41 +210,41 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
             {(etaDaAnno(socio.annoNascita) != null || socio.racchetta) && (
               <div className="socio-scheda-riga">
                 {etaDaAnno(socio.annoNascita) != null && (
-                  <span><b>Età:</b> {etaDaAnno(socio.annoNascita)} anni</span>
+                  <span><b>{t('adm.soc.eta')}</b> {t('adm.soc.anni', { anni: etaDaAnno(socio.annoNascita)! })}</span>
                 )}
-                {socio.racchetta && <span><b>Racchetta:</b> {socio.racchetta}</span>}
+                {socio.racchetta && <span><b>{t('adm.soc.racchetta')}</b> {socio.racchetta}</span>}
               </div>
             )}
 
             <div className="socio-stats-row">
               <div className="socio-stat-box">
                 <div className="socio-stat-val">{numeroPrenotazioni(socio.uid)}</div>
-                <div className="socio-stat-label">Prenotazioni</div>
+                <div className="socio-stat-label">{t('adm.soc.statPrenotazioni')}</div>
               </div>
               <div className="socio-stat-box">
                 <div className="socio-stat-val">{posizioneClassifica(socio)}</div>
-                <div className="socio-stat-label">Classifica</div>
+                <div className="socio-stat-label">{t('adm.soc.statClassifica')}</div>
               </div>
             </div>
 
             <div className="socio-credito-row">
               <div>
-                <div className="socio-credito-label">Credito</div>
+                <div className="socio-credito-label">{t('adm.soc.credito')}</div>
                 <div className="socio-credito-valore">€ {(socio.credito ?? 0).toFixed(2)}</div>
               </div>
               <div className="socio-credito-btns">
                 <button className="admin-btn-small" onClick={() => { setImporto(''); setRicaricaAperta(true); }}>
-                  + Ricarica
+                  {t('adm.soc.ricaricaBtn')}
                 </button>
                 <button className="admin-btn-danger-small" onClick={() => setConfermaAzzeraAperta(true)}>
-                  Azzera Credito
+                  {t('adm.soc.azzeraCredito')}
                 </button>
               </div>
             </div>
 
             <div className="socio-credito-row">
               <div>
-                <div className="socio-credito-label">Fido</div>
+                <div className="socio-credito-label">{t('adm.soc.fido')}</div>
                 <div className="socio-credito-valore">
                   <span style={{ color: (socio.sosUtilizzato ?? 0) > 0 ? '#B3261E' : 'var(--inchiostro)' }}>
                     € {socio.sosUtilizzato ?? 0}
@@ -245,7 +253,9 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
                       arriva come prop dalla dashboard. */}
                   <span>/{fidoIllimitato(limiteFido) ? '∞' : limiteFido}</span>
                 </div>
-                <div className="socio-debito-hint">Debito verso Circolo: € {socio.sosUtilizzato ?? 0}</div>
+                <div className="socio-debito-hint">
+                  {t('adm.soc.debitoVersoCircolo', { importo: socio.sosUtilizzato ?? 0 })}
+                </div>
               </div>
               <button
                 className="admin-btn-small"
@@ -253,19 +263,20 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
                 disabled={!socio.sosUtilizzato || ripristinando}
                 style={!socio.sosUtilizzato ? { opacity: 0.4 } : undefined}
               >
-                Ripristino del Fido
+                {t('adm.soc.ripristinoFido')}
               </button>
             </div>
 
             <div className="socio-sos-box">
-              <label className="admin-label">Fido</label>
+              <label className="admin-label">{t('adm.soc.fido')}</label>
               <p className="admin-card-hint" style={{ marginBottom: '.6rem' }}>
-                Interviene da solo in qualunque prenotazione, anche condivisa (compagno di
-                gioco, Sfida), quando manca credito normale a uno dei due. Usa il bottone
-                &quot;Ripristino del Fido&quot; qui sopra quando il socio paga.
+                {/* Il nome del pulsante e' dentro la frase: si passa
+                    tradotto, cosi' la spiegazione nomina il tasto con
+                    le parole che l'admin vede davvero. */}
+                {t('adm.soc.fidoSpiegazione', { tasto: t('adm.soc.ripristinoFido') })}
               </p>
               <div className="socio-sos-valore">
-                Usato finora: € {(socio.sosUtilizzato ?? 0).toFixed(2)}
+                {t('adm.soc.usatoFinora', { importo: (socio.sosUtilizzato ?? 0).toFixed(2) })}
               </div>
             </div>
             {/* ⚠️ QUI STAVA una seconda riga su «Ripristina», tolta il 25
@@ -284,12 +295,12 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
                 settimanali». */}
 
             <div className="superadmin-subtitolo" style={{ marginTop: '1.4rem' }}>
-              {eOspite ? 'Qualifica di Ospite' : 'Appartenenza al circolo'}
+              {eOspite ? t('adm.soc.qualificaOspite') : t('adm.soc.appartenenzaCircolo')}
             </div>
             <p className="admin-card-hint">
               {eOspite
-                ? 'Chiude la posizione di Ospite. Le prenotazioni future vengono annullate e rimborsate; il credito e il debito restano nel conto e si regolano in segreteria.'
-                : 'Chiude la tessera con questo circolo. Le prenotazioni future vengono annullate e rimborsate, la classifica sociale si ricompatta, e il conto resta aperto finché non lo si regola in segreteria.'}
+                ? t('adm.soc.spiegaChiusuraOspite')
+                : t('adm.soc.spiegaChiusuraSocio')}
             </p>
             <button className="admin-btn-full admin-btn-danger" onClick={apriRimozione}>
               {etichettaRimozione}
@@ -307,38 +318,43 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
             aperto: chiedere «sei sicuro?» senza dire quanto c'è in
             ballo è chiedere una conferma a chi non sa cosa conferma. */}
         {anteprima === null ? (
-          <p className="admin-modal-sub" style={{ marginTop: '.6rem' }}>Controllo la situazione…</p>
+          <p className="admin-modal-sub" style={{ marginTop: '.6rem' }}>{t('adm.soc.controlloSituazione')}</p>
         ) : (
           <div style={{ marginTop: '.8rem', display: 'grid', gap: '.35rem' }}>
             <p className="admin-modal-sub" style={{ margin: 0 }}>
+              {/* Il pallino resta fuori dalle frasi: e' decorazione,
+                  non testo da tradurre. Singolare e plurale sono due
+                  chiavi perche' non tutte le lingue spezzano il plurale
+                  dove lo spezza l'italiano. */}
               • {anteprima.prenotazioniFuture === 0
-                ? 'Nessuna prenotazione futura da annullare.'
-                : `${anteprima.prenotazioniFuture} ${anteprima.prenotazioniFuture === 1 ? 'prenotazione futura verrà annullata e rimborsata' : 'prenotazioni future verranno annullate e rimborsate'}.`}
+                ? t('adm.soc.nessunaPrenotazioneFutura')
+                : anteprima.prenotazioniFuture === 1
+                  ? t('adm.soc.unaPrenotazioneFutura', { n: 1 })
+                  : t('adm.soc.piuPrenotazioniFuture', { n: anteprima.prenotazioniFuture })}
             </p>
             {anteprima.prenotazioniFuture > 0 && (
               <p className="admin-modal-sub" style={{ margin: 0 }}>
-                • Se fra quelle c&apos;è una partita divisa con altri, viene annullata per tutti e
-                ognuno riceve indietro la propria quota.
+                • {t('adm.soc.partitaDivisa')}
               </p>
             )}
             {anteprima.inClassifica && (
               <p className="admin-modal-sub" style={{ margin: 0 }}>
-                • Esce dalla classifica sociale: chi stava sotto risale di una posizione.
+                • {t('adm.soc.esceDallaClassifica')}
               </p>
             )}
             {anteprima.credito > 0 && (
               <p className="admin-modal-sub" style={{ margin: 0 }}>
-                • Resta un credito di € {anteprima.credito.toFixed(2)} da restituire in segreteria.
+                • {t('adm.soc.restaCredito', { importo: anteprima.credito.toFixed(2) })}
               </p>
             )}
             {anteprima.debito > 0 && (
               <p className="admin-modal-sub" style={{ margin: 0, color: '#B3261E' }}>
-                • Resta un debito di € {anteprima.debito.toFixed(2)} da recuperare in segreteria.
+                • {t('adm.soc.restaDebito', { importo: anteprima.debito.toFixed(2) })}
               </p>
             )}
             {(anteprima.credito > 0 || anteprima.debito > 0) && (
               <p className="admin-modal-sub" style={{ margin: 0 }}>
-                La posizione comparirà in «Tessere da saldare» finché non la chiudi.
+                {t('adm.soc.finiraInTessereDaSaldare')}
               </p>
             )}
           </div>
@@ -346,60 +362,63 @@ export default function SchedaSocioModal({ circoloId, socio, prenotazioni, onClo
         {!!erroreRimozione && <div className="admin-error-text">{erroreRimozione}</div>}
         <div className="admin-modal-btn-row">
           <button className="admin-modal-btn-cancel" onClick={() => setRimozioneAperta(false)} disabled={rimuovendo}>
-            Annulla
+            {t('com.annulla')}
           </button>
           <button
             className="admin-modal-btn-confirm danger"
             onClick={confermaRimozione}
             disabled={rimuovendo || anteprima === null}
           >
-            {rimuovendo ? 'Attendere…' : etichettaRimozione}
+            {rimuovendo ? t('com.attendi') : etichettaRimozione}
           </button>
         </div>
       </Modal>
 
       {/* Conferma ripristino — sopra la scheda socio */}
       <Modal visible={confermaRipristinoAperta} onClose={() => setConfermaRipristinoAperta(false)}>
-        <div className="admin-modal-title">Ripristinare il credito?</div>
+        <div className="admin-modal-title">{t('adm.soc.ripristinareCreditoTitolo')}</div>
         <div className="admin-modal-sub">
-          Stai azzerando il debito di {socio?.nome} {socio?.cognome}. Vuoi continuare?
+          {/* Il nome della persona e' un dato: entra nella frase come
+              valore, cosi' ogni lingua lo mette dove le serve. */}
+          {t('adm.soc.confermaRipristinoTesto', { nome: `${socio?.nome ?? ''} ${socio?.cognome ?? ''}`.trim() })}
         </div>
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setConfermaRipristinoAperta(false)}>Annulla</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setConfermaRipristinoAperta(false)}>{t('com.annulla')}</button>
           <button className="admin-modal-btn-confirm danger" onClick={confermaRipristino} disabled={ripristinando}>
-            {ripristinando ? 'Attendere…' : 'Conferma'}
+            {ripristinando ? t('com.attendi') : t('com.conferma')}
           </button>
         </div>
       </Modal>
 
       {/* Azzera Credito — sopra la scheda socio */}
       <Modal visible={confermaAzzeraAperta} onClose={() => setConfermaAzzeraAperta(false)}>
-        <div className="admin-modal-title">Azzera Credito di {socio?.nome} {socio?.cognome}</div>
+        <div className="admin-modal-title">
+          {t('adm.soc.azzeraCreditoTitolo', { nome: `${socio?.nome ?? ''} ${socio?.cognome ?? ''}`.trim() })}
+        </div>
         <div className="admin-modal-sub">
-          Il credito attuale (€ {(socio?.credito ?? 0).toFixed(2)}) verrà portato a zero. Usalo solo se la
-          segreteria ha già restituito i soldi reali fuori dall&apos;app.
+          {t('adm.soc.azzeraCreditoTesto', { importo: (socio?.credito ?? 0).toFixed(2) })}
         </div>
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setConfermaAzzeraAperta(false)}>Annulla</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setConfermaAzzeraAperta(false)}>{t('com.annulla')}</button>
           <button className="admin-modal-btn-confirm danger" onClick={confermaAzzeraCredito} disabled={azzerando}>
-            {azzerando ? 'Attendere…' : 'Azzera Credito'}
+            {azzerando ? t('com.attendi') : t('adm.soc.azzeraCredito')}
           </button>
         </div>
       </Modal>
 
       {/* Ricarica — sopra la scheda socio */}
       <Modal visible={ricaricaAperta} onClose={() => setRicaricaAperta(false)}>
-        <div className="admin-modal-title">Ricarica wallet</div>
+        <div className="admin-modal-title">{t('adm.soc.ricaricaTitolo')}</div>
         <div className="admin-modal-sub">{socio?.nome} {socio?.cognome}</div>
         <input
           className="admin-input" style={{ marginTop: '1rem', textAlign: 'center' }}
           value={importo} onChange={(e) => setImporto(e.target.value)}
-          placeholder="Importo, es. 20.00" inputMode="decimal" autoFocus
+          placeholder={t('adm.soc.importoPlaceholder')} inputMode="decimal" autoFocus
         />
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setRicaricaAperta(false)}>Annulla</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setRicaricaAperta(false)}>{t('com.annulla')}</button>
           <button className="admin-modal-btn-confirm" onClick={confermaRicarica} disabled={inviando}>
-            {inviando ? 'Attendere…' : 'Ricarica'}
+            {inviando ? t('com.attendi') : t('adm.soc.ricarica')}
           </button>
         </div>
       </Modal>

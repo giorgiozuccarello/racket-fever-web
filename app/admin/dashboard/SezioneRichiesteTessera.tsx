@@ -5,6 +5,7 @@ import { Circolo } from '../../../data/circoli';
 import { ascoltaRichiesteInSospeso, approvaTessera, rifiutaTessera, Tessera } from '../../../data/tessere';
 import { creaNotifica } from '../../../data/notifiche';
 import { avviso } from '../../../data/linguaDestinatario';
+import { useLingua } from '../../../lib/lingua';
 
 // Il collegamento wa.me vuole il numero in formato internazionale
 // senza spazi ne' simboli: "393331234567", non "+39 333 123 4567".
@@ -22,6 +23,7 @@ export function numeroPerWhatsApp(grezzo?: string | null): string | null {
 export default function SezioneRichiesteTessera({ circolo, approvatore }: {
   circolo: Circolo; approvatore: string;
 }) {
+  const { t } = useLingua();
   const [richieste, setRichieste] = useState<Tessera[]>([]);
   const [elaborando, setElaborando] = useState<string | null>(null);
 
@@ -30,32 +32,39 @@ export default function SezioneRichiesteTessera({ circolo, approvatore }: {
     return ascoltaRichiesteInSospeso(circolo.id, setRichieste);
   }, [circolo?.id]);
 
-  const approva = async (t: Tessera) => {
-    setElaborando(t.uid);
+  // ⚠️ Il parametro si chiamava `t` come la tessera. Ora `t` è il
+  // traduttore del componente, e un parametro con lo stesso nome glielo
+  // avrebbe coperto proprio qui dentro: rinominato in `richiesta`.
+  const approva = async (richiesta: Tessera) => {
+    setElaborando(richiesta.uid);
     try {
-      await approvaTessera(t.uid, circolo.id, approvatore);
+      await approvaTessera(richiesta.uid, circolo.id, approvatore);
       // Il messaggio cambia in base al RUOLO: un nuovo socio non deve
       // leggere "accettato come Ospite", ne' viceversa.
-      const messaggio = t.ruolo === 'socio_tesserato'
-        ? `Benvenuto in ${circolo.nome}! La tua iscrizione come Socio è stata approvata: ora puoi prenotare i campi.`
-        : `Sei stato accettato come Ospite presso ${circolo.nome}: ora puoi prenotare anche lì.`;
-      await creaNotifica(t.uid, messaggio, undefined, circolo.id, true);
+      // ⚠️ NON passa da `t()` ma da `avviso()`, come gia' faceva il
+      // rifiuto qui sotto: questa frase la legge il richiedente, non
+      // l'Admin, e va composta nella lingua di CHI la riceve. Con `t()`
+      // sarebbe arrivata nella lingua di chi era in segreteria.
+      const messaggio = richiesta.ruolo === 'socio_tesserato'
+        ? avviso('avv.cir.benvenutoSocio', { circolo: circolo.nome })
+        : avviso('avv.cir.benvenutoOspite', { circolo: circolo.nome });
+      await creaNotifica(richiesta.uid, messaggio, undefined, circolo.id, true);
     } catch {
-      alert('Non è stato possibile approvare la richiesta. Riprova.');
+      alert(t('adm.ric.erroreApprova'));
     } finally {
       setElaborando(null);
     }
   };
 
-  const rifiuta = async (t: Tessera) => {
-    setElaborando(t.uid);
+  const rifiuta = async (richiesta: Tessera) => {
+    setElaborando(richiesta.uid);
     try {
-      await rifiutaTessera(t.uid, circolo.id);
+      await rifiutaTessera(richiesta.uid, circolo.id);
       // Senza questo avviso il richiedente resterebbe in attesa senza
       // sapere l'esito.
       await creaNotifica(
-        t.uid,
-        t.ruolo === 'socio_tesserato'
+        richiesta.uid,
+        richiesta.ruolo === 'socio_tesserato'
           ? avviso('avv.cir.rifiutoSocio', { circolo: circolo.nome })
           : avviso('avv.cir.rifiutoOspite', { circolo: circolo.nome }),
         undefined,
@@ -63,7 +72,7 @@ export default function SezioneRichiesteTessera({ circolo, approvatore }: {
         true
       );
     } catch {
-      alert('Non è stato possibile rifiutare la richiesta. Riprova.');
+      alert(t('adm.ric.erroreRifiuta'));
     } finally {
       setElaborando(null);
     }
@@ -71,29 +80,33 @@ export default function SezioneRichiesteTessera({ circolo, approvatore }: {
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Richieste in sospeso</div>
-      <p className="admin-card-hint">
-        Chi ha chiesto di entrare nel circolo, come Socio/Tesserato o come Ospite.
-        Approvandoli potranno prenotare i tuoi campi, con un portafoglio dedicato
-        a questo circolo.
-      </p>
+      <div className="admin-card-title">{t('adm.ric.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.ric.hint')}</p>
 
-      {richieste.length === 0 && <p className="admin-empty-text">Nessuna richiesta in attesa.</p>}
+      {richieste.length === 0 && <p className="admin-empty-text">{t('adm.ric.nessunaRichiesta')}</p>}
 
-      {richieste.map((t) => {
-        const numero = numeroPerWhatsApp(t.telefono);
-        const messaggio = `Ciao ${t.nome}, ti ho approvato su Racket Fever: ora puoi entrare nell'app e prenotare i campi di ${circolo.nome} 🎾`;
+      {/* ⚠️ La riga scorreva su `t`, che ora è il traduttore: qui la
+          tessera si chiama `richiesta`. */}
+      {richieste.map((richiesta) => {
+        const numero = numeroPerWhatsApp(richiesta.telefono);
+        // ⚠️ Questo lo scrive l'Admin di suo pugno su WhatsApp, non lo
+        // scrive il server: è testo che parte dalla sua tastiera e che
+        // può correggere prima di inviarlo. Perciò segue la lingua della
+        // Dashboard, come tutto il resto della schermata.
+        const messaggio = t('adm.ric.messaggioWhatsApp', {
+          nome: richiesta.nome, circolo: circolo.nome,
+        });
         return (
-          <div key={t.id} className="admin-list-row">
+          <div key={richiesta.id} className="admin-list-row">
             <div style={{ flex: 1 }}>
               <div className="admin-list-main">
-                {t.nome} {t.cognome}
+                {richiesta.nome} {richiesta.cognome}
                 <span className="admin-etichetta-ospite">
-                  {t.ruolo === 'socio_tesserato' ? ' (nuovo socio)' : ' (ospite)'}
+                  {' '}{richiesta.ruolo === 'socio_tesserato' ? t('adm.ric.nuovoSocio') : t('adm.ric.ospite')}
                 </span>
               </div>
-              <div className="admin-list-sub">{t.email}</div>
-              {t.telefono ? (
+              <div className="admin-list-sub">{richiesta.email}</div>
+              {richiesta.telefono ? (
                 <a
                   className="admin-link-whatsapp"
                   href={numero
@@ -102,26 +115,26 @@ export default function SezioneRichiesteTessera({ circolo, approvatore }: {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  {t.telefono} · avvisa su WhatsApp
+                  {richiesta.telefono} · {t('adm.ric.avvisaWhatsApp')}
                 </a>
               ) : (
-                <div className="admin-list-sub" style={{ fontStyle: 'italic' }}>Nessun numero fornito</div>
+                <div className="admin-list-sub" style={{ fontStyle: 'italic' }}>{t('adm.ric.nessunNumero')}</div>
               )}
             </div>
             <div style={{ display: 'flex', gap: '.5rem' }}>
               <button
                 className="admin-btn-piccolo-rosso"
-                onClick={() => rifiuta(t)}
+                onClick={() => rifiuta(richiesta)}
                 disabled={!!elaborando}
               >
-                Rifiuta
+                {t('adm.ric.rifiuta')}
               </button>
               <button
                 className="admin-btn-piccolo-verde"
-                onClick={() => approva(t)}
+                onClick={() => approva(richiesta)}
                 disabled={!!elaborando}
               >
-                Approva
+                {t('adm.ric.approva')}
               </button>
             </div>
           </div>

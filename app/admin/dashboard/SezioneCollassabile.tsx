@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, ReactNode } from 'react';
+import { useLingua } from '../../../lib/lingua';
 
 // Sezione collassabile: intestazione + descrizione, si apre al click.
 // Chiusa di default.
@@ -14,6 +15,10 @@ import { useEffect, useState, ReactNode } from 'react';
 export default function SezioneCollassabile({
   id, titolo, descrizione, children, apertaDiPartenza,
 }: {
+  // ⚠️ `titolo` e `descrizione` arrivano GIA' TRADOTTI da chi monta la
+  // sezione (la dashboard li prende da `t('adm.gen.sez.<id>.…')`). Qui
+  // si traducono solo le frasi che nascono dentro questo componente —
+  // i due testi dello spillo — e il titolo si riusa come valore.
   id: string; titolo: string; descrizione: string; children: ReactNode;
   // ⚠️ Aperta al primo avvio, e serve a una sola sezione: la
   // Panoramica. Tutte nascono chiuse — sono venticinque — ma quella e'
@@ -22,6 +27,7 @@ export default function SezioneCollassabile({
   // sembravano sparite e lo spillo sembrava rotto.
   apertaDiPartenza?: boolean;
 }) {
+  const { t } = useLingua();
   const [aperta, setAperta] = useState(!!apertaDiPartenza);
   const [fissata, setFissata] = useState(false);
 
@@ -81,12 +87,12 @@ export default function SezioneCollassabile({
           className={`admin-collassa-pin${fissata ? ' attivo' : ''}`}
           onClick={toggleFissa}
           title={fissata
-            ? 'Alla prossima apertura della Dashboard questa sezione sarà già aperta — clicca per togliere'
-            : 'Clicca per trovarla già aperta alla prossima apertura della Dashboard'}
+            ? t('adm.col.spilloAttivoTitolo')
+            : t('adm.col.spilloSpentoTitolo')}
           aria-pressed={fissata}
           aria-label={fissata
-            ? `${titolo}: alla prossima apertura della Dashboard sarà già aperta`
-            : `${titolo}: alla prossima apertura della Dashboard sarà chiusa`}
+            ? t('adm.col.spilloAttivoEtichetta', { sezione: titolo })
+            : t('adm.col.spilloSpentoEtichetta', { sezione: titolo })}
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5A2.5 2.5 0 1 1 12 6.5a2.5 2.5 0 0 1 0 5z" />

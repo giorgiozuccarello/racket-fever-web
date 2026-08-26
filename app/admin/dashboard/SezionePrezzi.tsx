@@ -3,12 +3,22 @@
 import { useEffect, useState } from 'react';
 import { Campo, ORARI_ESTESI } from '../../../data/circoli';
 import { aggiornaCampo } from '../../../data/circoliRepo';
+import { ChiaveTesto } from '../../../data/testi';
+import { useLingua } from '../../../lib/lingua';
 import Modal from './Modal';
 
-const GIORNI_SETTIMANA = ['Domenica', 'Lunedì', 'Martedì', 'Mercoledì', 'Giovedì', 'Venerdì', 'Sabato'];
+// I giorni con l'indice che usa JavaScript: 0 = domenica. Sono le
+// chiavi comuni in forma CORTA, perche' qui i giorni stanno dentro
+// pastiglie larghe tre lettere e dentro una riga di riepilogo: prima si
+// scriveva il nome intero e poi lo si tagliava con `slice(0, 3)`, che in
+// tedesco dava «Mit» invece di «Mi».
+const GIORNI_SETTIMANA: ChiaveTesto[] = [
+  'com.g.dom', 'com.g.lun', 'com.g.mar', 'com.g.mer', 'com.g.gio', 'com.g.ven', 'com.g.sab',
+];
 const PREZZI_DISPONIBILI = Array.from({ length: 33 }, (_, i) => Math.round(i * 0.5 * 100) / 100);
 
 export default function SezionePrezzi({ circoloId, campi }: { circoloId: string; campi: Campo[] }) {
+  const { t } = useLingua();
   const [selCampoId, setSelCampoId] = useState<string | null>(campi[0]?.id ?? null);
 
   useEffect(() => {
@@ -47,7 +57,12 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
       setOrarioInizio('');
       setOrarioFine('');
       setPrezzoSpeciale('');
-      setEtichetta('Con illuminazione');
+      // ⚠️ QUESTA E' UNA PROPOSTA, NON UN TESTO DI SISTEMA: l'etichetta
+      // finisce in Firestore ed e' un dato scritto dall'Admin, che puo'
+      // cambiarla prima di salvare. Si suggerisce nella sua lingua
+      // perche' un Admin tedesco riscriverebbe comunque a mano un
+      // «Con illuminazione» che non capisce.
+      setEtichetta(t('adm.pri.etichettaEsempio'));
       setGiorniSel([]);
     }
     setErrore('');
@@ -60,9 +75,9 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
 
   const salvaTariffa = async () => {
     if (!campo) return;
-    if (!orarioInizio || !orarioFine) { setErrore("Seleziona l'orario di inizio e di fine."); return; }
-    if (prezzoSpeciale === '') { setErrore('Seleziona un prezzo.'); return; }
-    if (!etichetta.trim()) { setErrore("Inserisci un'etichetta."); return; }
+    if (!orarioInizio || !orarioFine) { setErrore(t('adm.pri.scegliOrari')); return; }
+    if (prezzoSpeciale === '') { setErrore(t('adm.pri.scegliPrezzo')); return; }
+    if (!etichetta.trim()) { setErrore(t('adm.pri.scegliEtichetta')); return; }
 
     await aggiornaCampo(circoloId, campo.id, {
       tariffaSpeciale: {
@@ -82,11 +97,8 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Prezzi delle ore</div>
-      <p className="admin-card-hint">
-        Scegli un campo per impostare il suo prezzo base e, se vuoi, una
-        tariffa speciale per una fascia oraria (es. con illuminazione).
-      </p>
+      <div className="admin-card-title">{t('adm.pri.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.pri.intro')}</p>
 
       <div className="admin-chip-row">
         {campi.map((c) => (
@@ -101,7 +113,7 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
 
       {campo && (
         <>
-          <label className="admin-label">Prezzo base — {campo.nome}</label>
+          <label className="admin-label">{t('adm.pri.prezzoBase', { campo: campo.nome })}</label>
           <select
             className="admin-select"
             value={campo.prezzoOraDefault === null || campo.prezzoOraDefault === undefined ? '' : String(campo.prezzoOraDefault)}
@@ -112,9 +124,9 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
               <option key={p} value={p}>€ {p.toFixed(2)}</option>
             ))}
           </select>
-          {salvandoBase && <div className="admin-saving">Salvataggio…</div>}
+          {salvandoBase && <div className="admin-saving">{t('com.salvataggio')}</div>}
 
-          <label className="admin-label">Tariffa speciale</label>
+          <label className="admin-label">{t('adm.pri.tariffaSpeciale')}</label>
           {esistente ? (
             <div className="admin-list-row">
               <div style={{ flex: 1 }}>
@@ -122,48 +134,51 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
                 <div className="admin-list-sub">
                   {esistente.orarioInizio}–{esistente.orarioFine}
                   {esistente.giorni && esistente.giorni.length > 0
-                    ? `  ·  ${esistente.giorni.map((g) => GIORNI_SETTIMANA[g].slice(0, 3)).join(', ')}`
-                    : '  ·  Tutti i giorni'}
+                    ? `  ·  ${esistente.giorni.map((g) => t(GIORNI_SETTIMANA[g])).join(', ')}`
+                    : `  ·  ${t('adm.pri.tuttiIGiorni')}`}
                 </div>
               </div>
-              <button className="admin-icon-btn" onClick={apriForm} aria-label="Modifica">✎</button>
-              <button className="admin-icon-btn danger" onClick={rimuoviTariffaSpeciale} aria-label="Rimuovi">🗑</button>
+              <button className="admin-icon-btn" onClick={apriForm} aria-label={t('adm.pri.modifica')}>✎</button>
+              <button className="admin-icon-btn danger" onClick={rimuoviTariffaSpeciale} aria-label={t('adm.pri.rimuovi')}>🗑</button>
             </div>
           ) : (
-            <button className="admin-btn-full" onClick={apriForm}>+ Aggiungi tariffa speciale</button>
+            <button className="admin-btn-full" onClick={apriForm}>+ {t('adm.pri.aggiungiTariffa')}</button>
           )}
         </>
       )}
 
       <Modal visible={modificaAperta} onClose={() => setModificaAperta(false)}>
-        <div className="admin-modal-title">Tariffa speciale{campo ? ` — ${campo.nome}` : ''}</div>
+        <div className="admin-modal-title">{t('adm.pri.tariffaSpeciale')}{campo ? ` — ${campo.nome}` : ''}</div>
 
-        <label className="admin-label">Dalle</label>
+        <label className="admin-label">{t('adm.pri.dalle')}</label>
         <select className="admin-select" value={orarioInizio} onChange={(e) => setOrarioInizio(e.target.value)}>
           <option value="">--</option>
           {ORARI_ESTESI.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
 
-        <label className="admin-label">Alle</label>
+        <label className="admin-label">{t('adm.pri.alle')}</label>
         <select className="admin-select" value={orarioFine} onChange={(e) => setOrarioFine(e.target.value)}>
           <option value="">--</option>
           {ORARI_ESTESI.map((o) => <option key={o} value={o}>{o}</option>)}
         </select>
 
-        <label className="admin-label">Prezzo</label>
+        <label className="admin-label">{t('adm.pri.prezzo')}</label>
         <select className="admin-select" value={prezzoSpeciale} onChange={(e) => setPrezzoSpeciale(e.target.value)}>
           <option value="">--</option>
           {PREZZI_DISPONIBILI.map((p) => <option key={p} value={p}>€ {p.toFixed(2)}</option>)}
         </select>
 
-        <label className="admin-label">Etichetta</label>
-        <input className="admin-input" value={etichetta} onChange={(e) => setEtichetta(e.target.value)} placeholder="Con illuminazione" />
+        <label className="admin-label">{t('adm.pri.etichetta')}</label>
+        <input
+          className="admin-input" value={etichetta} onChange={(e) => setEtichetta(e.target.value)}
+          placeholder={t('adm.pri.etichettaEsempio')}
+        />
 
-        <label className="admin-label">Giorni (nessuno selezionato = tutti i giorni)</label>
+        <label className="admin-label">{t('adm.pri.giorni')}</label>
         <div className="admin-chip-row">
-          {GIORNI_SETTIMANA.map((g, i) => (
+          {GIORNI_SETTIMANA.map((chiave, i) => (
             <button key={i} className={`admin-chip ${giorniSel.includes(i) ? 'selected' : ''}`} onClick={() => toggleGiorno(i)}>
-              {g.slice(0, 3)}
+              {t(chiave)}
             </button>
           ))}
         </div>
@@ -171,8 +186,8 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
         {errore && <div className="admin-error-text">{errore}</div>}
 
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setModificaAperta(false)}>Annulla</button>
-          <button className="admin-modal-btn-confirm" onClick={salvaTariffa}>Salva</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setModificaAperta(false)}>{t('com.annulla')}</button>
+          <button className="admin-modal-btn-confirm" onClick={salvaTariffa}>{t('com.salva')}</button>
         </div>
       </Modal>
     </div>

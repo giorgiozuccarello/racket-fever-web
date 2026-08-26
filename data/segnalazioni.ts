@@ -34,25 +34,41 @@ export const COLLEZIONE_SEGNALAZIONI = 'segnalazioni';
 // qui sotto coprono quello che serve per decidere cosa fare; il resto
 // si chiede a voce, che è come si risolvono davvero queste cose in un
 // circolo.
+// ⚠️ QUI C'È LA CHIAVE, NON IL TESTO, e il motivo è che questo elenco
+// si legge in due lingue diverse nello stesso momento: il socio sceglie
+// il motivo nella sua, l'Admin lo rilegge nella sua. Se qui ci fosse la
+// frase italiana, la segnalazione di un tedesco arriverebbe all'Admin
+// in tedesco — o peggio, verrebbe salvata tradotta e poi riletta da chi
+// non capisce quella lingua.
+//
+// ⚠️ IL CODICE È QUELLO CHE SI SALVA su Firestore, e non cambia mai: le
+// segnalazioni già scritte continuano a leggersi anche se un giorno la
+// frase italiana viene riscritta.
+//
+// ⚠️ E `chiave` È UNA STRINGA, non `ChiaveTesto`: questo file è il
+// gemello identico dei due progetti e non importa niente da nessuno.
+// Il controllo che la chiave esista lo fa il dizionario quando la
+// traduce.
 export interface MotivoSegnalazione {
   codice: string;
-  testo: string;
+  chiave: string;
 }
 
 export const MOTIVI_SEGNALAZIONE: MotivoSegnalazione[] = [
-  { codice: 'foto', testo: 'Foto del profilo inappropriata' },
-  { codice: 'nome', testo: 'Nome o testo offensivo nella scheda' },
-  { codice: 'identita', testo: 'Non è chi dice di essere' },
-  { codice: 'comportamento', testo: 'Comportamento scorretto in campo' },
-  { codice: 'molestie', testo: 'Molestie o insistenza' },
-  { codice: 'altro', testo: 'Altro' },
+  { codice: 'foto', chiave: 'seg.foto' },
+  { codice: 'nome', chiave: 'seg.nome' },
+  { codice: 'identita', chiave: 'seg.identita' },
+  { codice: 'comportamento', chiave: 'seg.comportamento' },
+  { codice: 'molestie', chiave: 'seg.molestie' },
+  { codice: 'altro', chiave: 'seg.altro' },
 ];
 
 export const CODICI_MOTIVO: string[] = MOTIVI_SEGNALAZIONE.map((m) => m.codice);
 
-export function testoMotivo(codice: string | null | undefined): string {
-  if (!codice) return 'Motivo non indicato';
-  return MOTIVI_SEGNALAZIONE.find((m) => m.codice === codice)?.testo ?? 'Motivo non indicato';
+// La chiave del motivo, da dare al traduttore di chi sta guardando.
+export function chiaveMotivo(codice: string | null | undefined): string {
+  if (!codice) return 'seg.nonIndicato';
+  return MOTIVI_SEGNALAZIONE.find((m) => m.codice === codice)?.chiave ?? 'seg.nonIndicato';
 }
 
 export type StatoSegnalazione = 'nuova' | 'vista' | 'chiusa';

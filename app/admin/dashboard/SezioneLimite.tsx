@@ -3,8 +3,10 @@
 import { useState } from 'react';
 import { Circolo } from '../../../data/circoli';
 import { aggiornaCircolo } from '../../../data/circoliRepo';
+import { useLingua } from '../../../lib/lingua';
 
 export default function SezioneLimite({ circolo }: { circolo: Circolo }) {
+  const { t } = useLingua();
   const [valore, setValore] = useState(circolo.limiteOreSettimanali);
   const [salvando, setSalvando] = useState(false);
 
@@ -16,12 +18,16 @@ export default function SezioneLimite({ circolo }: { circolo: Circolo }) {
 
   return (
     <div className="admin-card">
-      <div className="admin-card-title">Limite prenotazioni settimanali</div>
-      <p className="admin-card-hint">
-        Numero massimo di ore che ogni socio può prenotare in una settimana.
-      </p>
+      <div className="admin-card-title">{t('adm.lim.titolo')}</div>
+      <p className="admin-card-hint">{t('adm.lim.hint')}</p>
       <div className="admin-slider-value">
-        {valore === 0 ? 'Nessun limite' : `${valore} ${valore === 1 ? 'ora' : 'ore'} / settimana`}
+        {valore === 0
+          ? t('adm.lim.nessunLimite')
+          : valore === 1
+            // Con il passo di 2 ore lo slider non ci arriva, ma un
+            // circolo che aveva 1 sul documento da prima lo legge qui.
+            ? t('adm.lim.oraSettimana', { quante: valore })
+            : t('adm.lim.oreSettimana', { quante: valore })}
       </div>
       {/* ⚠️ Il massimo è 16 ore e non più 48 (decisione di Giorgio del 25
           agosto 2026), identico alla dashboard mobile. Quarantotto ore in
@@ -36,7 +42,7 @@ export default function SezioneLimite({ circolo }: { circolo: Circolo }) {
         onMouseUp={() => salva(valore)}
         onTouchEnd={() => salva(valore)}
       />
-      {salvando && <div className="admin-saving">Salvataggio…</div>}
+      {salvando && <div className="admin-saving">{t('com.salvataggio')}</div>}
     </div>
   );
 }
