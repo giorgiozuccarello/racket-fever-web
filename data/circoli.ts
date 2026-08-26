@@ -409,9 +409,27 @@ export const TEMI_APP: Record<string, TemaApp> = {
   terraBattuta: { nome: 'Clay', scuro: true, sfondoDa: '#8A4420', sfondoA: '#3D1D0D', primario: '#5C2C13', accento: '#D98A2B' },
   campoSintetico: { nome: 'Solid Blue', scuro: true, sfondoDa: '#1B5FA6', sfondoA: '#0B2C4D', primario: '#0B2C4D', accento: '#D98A2B' },
   bianco: { nome: 'White', scuro: false, sfondoDa: '#FFFFFF', sfondoA: '#FAFAF8', primario: '#000000', accento: '#000000' },
-  grigio: { nome: 'Pearl Gray', scuro: false, sfondoDa: '#ECECEA', sfondoA: '#DBDBD8', primario: '#0E3B2E', accento: '#14304D' },
-  violaChiaro: { nome: 'Pinky', scuro: false, sfondoDa: '#ECECEA', sfondoA: '#DBDBD8', primario: '#8A2670', accento: '#8A2670' },
-  azzurroChiaro: { nome: 'Pure Cyan', scuro: false, sfondoDa: '#ECECEA', sfondoA: '#DBDBD8', primario: '#0D6EAB', accento: '#0D6EAB' },
+  // ⚠️ I TRE TEMI CHIARI CONDIVIDONO IL FONDO, e va saputo prima di
+  // ritoccarne uno: «Pearl Gray», «Pinky» e «Pure Cyan» cambiano solo
+  // primario e accento — la sfumatura dietro è la stessa. Cambiarla in
+  // uno solo vorrebbe dire tre grigi leggermente diversi che nessuno
+  // ha deciso.
+  //
+  // ⚠️ PIÙ CHIARO E PIÙ FREDDO del grigio precedente (#ECECEA →
+  // #DBDBD8), che era troppo scuro e virava al caldo: aveva il rosso
+  // sopra il blu, e su uno schermo acceso si leggeva come un beige
+  // sporco. Adesso il blu sta sopra il rosso di quattro punti — è
+  // quello che dà il tono freddo — e tutta la scala è salita di una
+  // decina di punti.
+  //
+  // ⚠️ E VA LETTO INSIEME AL FONDO DELLE CARD, in `theme/forme.ts`:
+  // le due sfumature sono dello stesso colore di famiglia e si
+  // distinguono per quanto corrono, non per che colore sono. Cambiare
+  // questa senza guardare quella vuol dire far sparire le card dentro
+  // la pagina.
+  grigio: { nome: 'Pearl Gray', scuro: false, sfondoDa: '#F5F7FA', sfondoA: '#E7ECF2', primario: '#0E3B2E', accento: '#14304D' },
+  violaChiaro: { nome: 'Pinky', scuro: false, sfondoDa: '#F5F7FA', sfondoA: '#E7ECF2', primario: '#8A2670', accento: '#8A2670' },
+  azzurroChiaro: { nome: 'Pure Cyan', scuro: false, sfondoDa: '#F5F7FA', sfondoA: '#E7ECF2', primario: '#0D6EAB', accento: '#0D6EAB' },
 };
 
 export const TEMA_APP_DEFAULT = 'bianco';
