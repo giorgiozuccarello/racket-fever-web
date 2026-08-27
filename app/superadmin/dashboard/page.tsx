@@ -13,6 +13,7 @@ import SezioneSegnalazioni from './SezioneSegnalazioni';
 import SezioneCircoli from './SezioneCircoli';
 import SezioneBannerRete from './SezioneBannerRete';
 import SezioneFatturazione from './SezioneFatturazione';
+import SezioneRicaviRete from './SezioneRicaviRete';
 
 export default function SuperAdminDashboard() {
   const router = useRouter();
@@ -167,6 +168,10 @@ export default function SuperAdminDashboard() {
         <SezioneCircoli />
         <SezioneBannerRete />
         <SezioneFatturazione />
+        {/* Subito dopo la Fatturazione: sono le due sezioni che
+            guardano la rete dal lato dei soldi, e chi apre l'una
+            cerca quasi sempre anche l'altra. */}
+        <SezioneRicaviRete />
       </main>
     </div>
   );

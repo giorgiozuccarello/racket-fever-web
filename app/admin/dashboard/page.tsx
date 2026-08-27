@@ -33,6 +33,7 @@ import SezioneBlocchi from './SezioneBlocchi';
 import SezioneRichiesteTessera from './SezioneRichiesteTessera';
 import SezioneSegnalazioni from './SezioneSegnalazioni';
 import SezioneTessereDaSaldare from './SezioneTessereDaSaldare';
+import SezioneRicavi from './SezioneRicavi';
 import SchedaSocioModal from './SchedaSocioModal';
 import SezioneMaestri from './SezioneMaestri';
 import SezioneClassificaSociale from './SezioneClassificaSociale';
@@ -447,6 +448,18 @@ function ContenutoDashboard({
           </div>
           <span aria-hidden>›</span>
         </button>
+
+        {/* Subito sotto il registro, e non in fondo: il registro dice
+            che cosa è entrato nelle tasche del circolo, questa dice
+            che cosa ne esce verso Racket Fever. Sono le due facce
+            dello stesso conto e si leggono di seguito. */}
+        <SezioneCollassabile
+          id="ricavi"
+          titolo={t('adm.ric2.sez.titolo')}
+          descrizione={t('adm.ric2.sez.descrizione')}
+        >
+          <SezioneRicavi circolo={circolo} campi={campi} />
+        </SezioneCollassabile>
 
         <SezioneCollassabile id="saldare" titolo={t('adm.gen.sez.saldare.titolo')} descrizione={t('adm.gen.sez.saldare.descrizione')}>
           <SezioneTessereDaSaldare circolo={circolo} />
