@@ -1,238 +1,189 @@
 // ============================================================
-// RICAVI — la commissione sugli slot prenotati.
+// CONTEGGIO DELLE MEZZ'ORE — quante ne sono state giocate e quanto
+// hanno fruttato al circolo.
 //
-// È il modello di ricavi entrato in vigore il 27 agosto 2026: Racket
-// Fever incassa una cifra fissa per ogni mezz'ora di campo prenotata
-// attraverso l'app. Questo file contiene la matematica e le regole di
-// che cosa si conta; le due schermate che lo mostrano — quella
-// dell'Admin di circolo e quella del Super Admin — leggono soltanto
-// i numeri che il server ha già scritto.
+// Cinque numeri, e nient'altro: mezz'ore prenotate, annullate, il
+// netto fra le due, quel netto espresso in ore, e il totale incassato.
 //
 // ============================================================
-// ⚠️ QUI CI SONO GLI EURO, E IN `data/fatturazione.ts` NO. NON È UNA
-// CONTRADDIZIONE, ED È IMPORTANTE CAPIRE PERCHÉ.
+// ⚠️ QUI NON CI SONO COMMISSIONI, E NON CI DEVONO TORNARE.
 //
-// Il 21 agosto 2026 fasce e quote in euro sono state tolte da tutto il
-// progetto, con una motivazione scritta in cima a `fatturazione.ts`
-// che resta valida: **un listino scritto nel codice diventa un listino
-// pubblicato**, cambia di trattativa in trattativa, e ogni versione
-// dell'app in circolazione ne mostrerebbe una diversa.
+// Una prima stesura di questo file calcolava anche quanto Racket Fever
+// incassava dal circolo. È stata tolta il 27 agosto 2026: il conto che
+// riguarda il rapporto fra le due aziende si fa altrove, e questa
+// sezione dice al circolo una cosa sola — quanto campo ha venduto.
 //
-// Questo è un caso diverso, e la differenza sta in una parola: lì il
-// software avrebbe dovuto sapere quanto un circolo *paga*, cioè un
-// prezzo negoziato. Qui il software sa quanti *slot* sono stati
-// prenotati — un conteggio, non un prezzo — e la commissione per slot
-// è una sola per tutta la rete, non una per circolo.
-//
-// ⚠️ E RESTA UNA SOLA. Il giorno che a un circolo si concedesse una
-// commissione diversa, questa costante diventerebbe un listino e
-// andrebbe tolta di qui esattamente come le fasce: il numero
-// finirebbe sul contratto e il software mostrerebbe soltanto il
-// conteggio. Chi si trovasse a scrivere `commissione` come campo di un
-// circolo si fermi e rilegga questo riquadro.
-//
-// ⚠️ NON RIGUARDA L'UTENTE DELL'APP. Il socio non paga niente di
-// questo, non lo vede e non deve vederlo: è un rapporto fra due
-// aziende. Il conto compare solo nella dashboard dell'Admin — che è
-// il circolo, cioè la controparte — e nel pannello del Super Admin.
-// Portarlo dentro l'app del socio aprirebbe davanti a un revisore di
-// App Store la domanda «che cos'è questo pagamento e perché non passa
-// dallo store?», su un pagamento che l'utente non fa.
+// Vale ancora la ragione scritta in cima a `data/fatturazione.ts`: un
+// listino scritto nel codice diventa un listino pubblicato, e cambia
+// di trattativa in trattativa. Qui gli euro ci sono, ma sono i SOLDI
+// DEL CIRCOLO — il prezzo che il circolo stesso ha messo in griglia —
+// non un prezzo che noi gli facciamo.
 // ============================================================
 
-// Quanto vale una mezz'ora prenotata, in centesimi.
+// ============================================================
+// ⚠️ SI CONTA PER ORA DI GIOCO, NON DI PRENOTAZIONE.
 //
-// ⚠️ IN CENTESIMI E NON IN EURO, e non è pedanteria: 0,10 in virgola
-// mobile non è 0,10, e diecimila slat moltiplicati per un numero che
-// vale 0,1000000000000000055 danno un totale che non torna con la
-// somma delle righe. Un revisore che ricontrolla una fattura trova
-// scarti di centesimi e ha ragione lui. Si contano centesimi interi e
-// si divide per cento una volta sola, alla fine, quando si scrive a
-// schermo.
-export const CENTESIMI_PER_SLOT = 10;
+// È la decisione che regge tutto il resto, ed è di Giorgio: una
+// mezz'ora entra nel conto quando è stata GIOCATA, non quando è stata
+// venduta. Una prenotazione fatta oggi per il mese prossimo non conta
+// ancora niente; il totale cresce da solo col passare delle ore, anche
+// in un giorno in cui nessuno prenota.
+//
+// La conseguenza tecnica è che un contatore che sale al momento della
+// prenotazione non basta: le mezz'ore **maturano** col tempo, e il
+// conto di oggi non è quello di ieri anche se non è successo niente.
+// Da qui i mucchietti per giorno e la soglia mobile — vedi il riquadro
+// più sotto.
+// ============================================================
 
 // ============================================================
-// CHE COSA SI CONTA — e che cosa no.
+// ⚠️ IL PREZZO SI CONGELA, E NON SI RILEGGE MAI PIÙ.
 //
-// ⚠️ UNO SLOT È UN DOCUMENTO. Un'ora di campo sono DUE documenti da
-// mezz'ora, e ciascuno vale la sua commissione. È la granularità con
-// cui il progetto è costruito da sempre (`idSlot()` in
-// `prenotazioniRepo`), quindi non c'è nessuna conversione da fare e
-// nessuna interpretazione: si contano i documenti.
+// Il circolo può cambiare il listino quando vuole. Se il conto
+// rileggesse il prezzo di oggi per una mezz'ora giocata a marzo, il
+// totale di marzo cambierebbe da solo il giorno di un ritocco al
+// listino — e nessuno dei due, né il circolo né noi, saprebbe più
+// perché i conti non tornano.
 //
-// ⚠️ GLI ORARI RISERVATI NON SONO PRENOTAZIONI, e quindi non c'è
-// niente da escludere. Vivono in un'altra collezione
-// (`circoli/{id}/blocchi`) e non generano nessun documento in
-// `prenotazioni`: la griglia li disegna sopra. Chi cercasse in questo
-// file il filtro «togli i riservati» non lo trova perché non serve —
-// ma se un giorno i blocchi diventassero prenotazioni vere, quel
-// filtro va aggiunto qui e in `functions/src/ricavi.ts` insieme.
+// La buona notizia è che il prezzo è già congelato dove serve: ogni
+// documento di prenotazione porta il proprio campo `prezzo`, scritto
+// alla creazione, e le regole ne vietano la modifica. Le mezz'ore
+// della stessa partita possono già costare diverso fra loro — la
+// fascia serale — quindi il meccanismo esiste da sempre. Qui lo si
+// copia nel mucchietto del giorno, e da lì non si tocca più.
 //
-// ⚠️ SI CONTANO ANCHE GLI SLOT A COSTO ZERO. Una lezione, o una
-// prenotazione che il circolo regala a un socio, non fa incassare
-// niente al circolo ma occupa un campo ed è passata dall'app: è
-// servizio erogato, e vale la commissione come le altre. Legare la
-// commissione al prezzo dello slot vorrebbe dire che un circolo che
-// mette tutti i campi a zero non paga niente.
-//
-// ⚠️ I SEGNAPOSTO DI SFIDA NO. `sospesaSfida` marca mezz'ore tenute
-// da parte durante una trattativa fra due sfidanti: prezzo zero,
-// nessun giocatore, e oggi non se ne creano più. Nello storico ce ne
-// sono, e non sono campo venduto.
+// ⚠️ Non serve nessun lavoro periodico che «fotografi i prezzi». Il
+// prezzo giusto è quello che c'era nell'istante della prenotazione, e
+// in quell'istante è già stato scritto.
 // ============================================================
-export function slotDaContare(p: {
-  sospesaSfida?: boolean | null;
-}): boolean {
-  return p.sospesaSfida !== true;
+
+// ⚠️ IN CENTESIMI INTERI. 0,10 in virgola mobile non è 0,10, e
+// diecimila mezz'ore sommate in euro danno un totale che non torna con
+// la somma delle righe. Si sommano centesimi e si divide per cento una
+// volta sola, quando si scrive a schermo.
+
+export const MINUTI_PER_SLOT = 30;
+
+// ============================================================
+// LA SOGLIA: l'inizio dell'ora in cui si sta guardando.
+//
+// ⚠️ PER DIFETTO, cioè l'ora in corso non si conta. Guardando alle
+// 18:40 il conto arriva alle 18:00: la mezz'ora delle 17:30 finisce
+// alle 18:00 ed è giocata, quella delle 18:00 è ancora in campo.
+// Contare l'ora in corso vorrebbe dire un numero che si muove mentre
+// lo si guarda, e che due persone affacciate allo stesso schermo
+// leggono diverso.
+// ============================================================
+export function sogliaOraCorrente(adessoMs: number): { giornoIso: string; oraLimite: string } {
+  const d = new Date(adessoMs);
+  const gg = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  return { giornoIso: `${d.getFullYear()}-${mm}-${gg}`, oraLimite: `${hh}:00` };
+}
+
+// Vera se questa mezz'ora è già stata giocata rispetto alla soglia.
+//
+// ⚠️ Il confronto fra orari è fra STRINGHE, e funziona perché sono
+// tutte `HH:MM` a due cifre: '09:30' < '18:00' come testo e come ora.
+// È lo stesso confronto che la griglia fa da sempre.
+export function slotGiocato(
+  giornoIso: string,
+  orario: string,
+  soglia: { giornoIso: string; oraLimite: string },
+): boolean {
+  if (giornoIso < soglia.giornoIso) return true;
+  if (giornoIso > soglia.giornoIso) return false;
+  return orario < soglia.oraLimite;
 }
 
 // ============================================================
-// IL PERIODO.
+// I MUCCHIETTI PER GIORNO.
 //
-// ⚠️ ANCORATO ALL'ANNIVERSARIO DEL CIRCOLO, non al primo gennaio. È
-// la stessa scelta già fatta per il conteggio degli utenti, e la
-// ragione sta scritta lì: con l'anno solare tutti i rinnovi della rete
-// arriverebbero nella stessa settimana di dicembre. Qui in più c'è che
-// un circolo attivato a marzo troverebbe il suo primo «trimestre»
-// lungo tre settimane.
+// ⚠️ UN DOCUMENTO PER GIORNO DI GIOCO, con dentro le ore. È la forma
+// che permette di rispondere a «quanto fino alle 18:00 di oggi» senza
+// rileggere migliaia di prenotazioni: i giorni finiti si sommano
+// interi una volta sola e non si toccano più, e del giorno in corso si
+// prendono solo le ore prima della soglia.
 //
-// ⚠️ LA CADENZA NON È DECISA. Trimestre, semestre o anno è una
-// questione di contratto e cambierà: per questo è un parametro e non
-// un numero scritto dentro. Le tre cadenze si calcolano tutte allo
-// stesso modo — l'anno del circolo diviso in N parti uguali — così
-// cambiando cadenza i confini restano allineati all'anniversario e non
-// nasce un periodo tronco.
+// ⚠️ E LE ORE STANNO DENTRO, non in un documento per ora. Un documento
+// per ogni mezz'ora sarebbe stato quarantotto documenti al giorno per
+// campo: leggerne uno solo e guardarci dentro costa una lettura invece
+// di trentuno.
 // ============================================================
-export type Cadenza = 'trimestre' | 'semestre' | 'anno';
-
-export const PARTI_PER_ANNO: Record<Cadenza, number> = {
-  trimestre: 4,
-  semestre: 2,
-  anno: 1,
-};
-
-const ANNO_MS = 365 * 24 * 60 * 60 * 1000;
-
-export interface PeriodoRicavi {
-  inizioMs: number;
-  fineMs: number;
-  // Progressivo dall'attivazione del circolo: «3» del trimestre vuol
-  // dire il terzo trimestre da quando il circolo è partito.
-  numero: number;
-  cadenza: Cadenza;
-  // Falso quando la data di attivazione non c'è e il periodo è stato
-  // ricavato all'indietro da oggi. Va detto a schermo: un periodo non
-  // ancorato non è sbagliato, ma non è nemmeno l'anniversario di
-  // niente, e chi legge la fattura deve saperlo.
-  ancorato: boolean;
+export interface OraDelGiorno {
+  prenotate: number;
+  annullate: number;
+  // La somma dei prezzi delle mezz'ore NON annullate di quest'ora.
+  centesimi: number;
 }
 
-// ⚠️ LA CHIAVE DEL PERIODO È UNA STRINGA, ed è quella con cui il
-// server nomina il documento dei conteggi. Deve essere stabile:
-// ricalcolandola fra sei mesi per lo stesso periodo deve venire
-// identica, o i conteggi finirebbero in due documenti diversi. Per
-// questo è fatta di cadenza e progressivo — due numeri che non
-// cambiano — e non della data di inizio, che dipende dall'orologio.
-export function chiavePeriodo(p: { cadenza: Cadenza; numero: number }): string {
-  return `${p.cadenza}-${String(p.numero).padStart(4, '0')}`;
+export interface GiornoConteggio {
+  // Chiave `HH:MM` — l'orario di inizio della mezz'ora.
+  perOra: Record<string, OraDelGiorno>;
 }
 
-export function periodoRicavi(
-  attivatoIlMs: number | null | undefined,
-  adessoMs: number,
-  cadenza: Cadenza,
-): PeriodoRicavi {
-  const durata = ANNO_MS / PARTI_PER_ANNO[cadenza];
-  // Senza data di attivazione non si può ancorare niente: si prende il
-  // periodo che finisce adesso. È il ripiego onesto — dice «questi
-  // ultimi tre mesi» invece di inventare un anniversario — ed è a
-  // questo che serve `ancorato`.
-  if (!attivatoIlMs || attivatoIlMs <= 0 || attivatoIlMs > adessoMs) {
-    return {
-      inizioMs: adessoMs - durata,
-      fineMs: adessoMs,
-      numero: 1,
-      cadenza,
-      ancorato: false,
-    };
-  }
-  const trascorsi = Math.floor((adessoMs - attivatoIlMs) / durata);
-  const inizioMs = attivatoIlMs + trascorsi * durata;
+export const ORA_VUOTA: OraDelGiorno = { prenotate: 0, annullate: 0, centesimi: 0 };
+
+// ============================================================
+// IL TOTALE.
+//
+// ⚠️ TRE NUMERI E NON UNO, ed è quello che rende il conto
+// verificabile. «Prenotate meno annullate» è una sottrazione che il
+// circolo può rifare a mano; un netto e basta è un numero da prendere
+// per buono. È anche il modo in cui Giorgio ha chiesto i box.
+// ============================================================
+export interface TotaleConteggio {
+  prenotate: number;
+  annullate: number;
+  centesimi: number;
+}
+
+export const TOTALE_VUOTO: TotaleConteggio = { prenotate: 0, annullate: 0, centesimi: 0 };
+
+export function sommaOra(t: TotaleConteggio, o: OraDelGiorno): TotaleConteggio {
   return {
-    inizioMs,
-    fineMs: inizioMs + durata,
-    numero: trascorsi + 1,
-    cadenza,
-    ancorato: true,
+    prenotate: t.prenotate + o.prenotate,
+    annullate: t.annullate + o.annullate,
+    centesimi: t.centesimi + o.centesimi,
   };
 }
 
-// ============================================================
-// I NUMERI DI UN PERIODO.
-//
-// ⚠️ TRE CONTATORI E NON UNO, e questa è la decisione che rende il
-// conto difendibile davanti a un circolo che lo contesta.
-//
-// La regola commerciale è che uno slot prenotato vale la commissione e
-// uno slot annullato la toglie — cioè si fattura il NETTO. Verrebbe
-// naturale tenere un contatore solo e farlo salire e scendere. Non si
-// fa, per un motivo che si vede solo dopo: un numero che oscilla non è
-// verificabile. Se il circolo chiede «perché 4.812?», con un contatore
-// solo la risposta è «perché adesso dice così». Con tre — prenotati,
-// annullati, netto — la risposta è una sottrazione che chiunque può
-// rifare, e i due addendi sono contatori che salgono soltanto, cioè
-// non possono tornare indietro senza che si veda.
-//
-// ⚠️ ED È ANCHE L'UNICO MODO PER RIFARE LA STESSA FATTURA DUE VOLTE.
-// Una fattura emessa il 31 marzo deve essere ricalcolabile identica il
-// 15 aprile. Con contatori che salgono e basta lo è; con un netto
-// vivo, no.
-// ============================================================
-export interface ConteggioPeriodo {
-  // Quante mezz'ore sono state prenotate nel periodo.
-  slotPrenotati: number;
-  // Quante di quelle prenotate sono poi state annullate. ⚠️ Si conta
-  // l'annullamento nel periodo in cui è AVVENUTO, non in quello in cui
-  // era stata fatta la prenotazione: un annullamento che scavalca la
-  // chiusura di un periodo non può riaprire una fattura già emessa.
-  slotAnnullati: number;
-  // Quando il server ha toccato questi numeri l'ultima volta.
-  aggiornatoIlMs: number;
+export function sommaGiorno(
+  t: TotaleConteggio,
+  g: GiornoConteggio,
+  fermatiPrimaDi?: string,
+): TotaleConteggio {
+  let fuori = t;
+  for (const [ora, dati] of Object.entries(g.perOra ?? {})) {
+    if (fermatiPrimaDi !== undefined && !(ora < fermatiPrimaDi)) continue;
+    fuori = sommaOra(fuori, dati);
+  }
+  return fuori;
 }
 
-export const CONTEGGIO_VUOTO: ConteggioPeriodo = {
-  slotPrenotati: 0,
-  slotAnnullati: 0,
-  aggiornatoIlMs: 0,
-};
-
-export function slotNetti(c: ConteggioPeriodo): number {
-  // ⚠️ Il netto non scende sotto zero. Può succedere davvero, e non è
-  // un errore dei dati: gli annullamenti di gennaio riguardano
-  // prenotazioni fatte a dicembre, quindi in un periodo si può
-  // annullare più di quanto si sia prenotato. Fatturare un numero
-  // negativo vorrebbe dire emettere una nota di credito automatica,
-  // che non è una decisione del software.
-  return Math.max(0, c.slotPrenotati - c.slotAnnullati);
+// ⚠️ Il netto non scende sotto zero. Non dovrebbe mai servire — una
+// mezz'ora annullata è sempre stata prima prenotata — ma un numero
+// negativo in un riquadro che dice «il dato reale» sarebbe la cosa
+// peggiore da mostrare se un giorno i dati si sporcassero.
+export function mezzOreNette(t: TotaleConteggio): number {
+  return Math.max(0, t.prenotate - t.annullate);
 }
 
-export function centesimiDovuti(c: ConteggioPeriodo): number {
-  return slotNetti(c) * CENTESIMI_PER_SLOT;
+// Le stesse mezz'ore dette in ore. Mezze incluse: 7 mezz'ore sono 3,5
+// ore, e arrotondare a 4 vorrebbe dire un riquadro che non torna con
+// quello accanto.
+export function oreNette(t: TotaleConteggio): number {
+  return (mezzOreNette(t) * MINUTI_PER_SLOT) / 60;
 }
 
 // ============================================================
 // COME SI SCRIVONO A SCHERMO.
 //
-// ⚠️ LA DIVISIONE PER CENTO SI FA QUI E IN NESSUN ALTRO POSTO. Ogni
-// schermata che si dividesse i centesimi per conto suo aprirebbe la
-// porta a due totali che non tornano fra loro.
+// ⚠️ La divisione per cento si fa qui e in nessun altro posto: ogni
+// schermata che se la facesse da sé aprirebbe la porta a due totali
+// che non tornano fra loro.
 // ============================================================
-// ⚠️ CON IL PUNTO DELLE MIGLIAIA, e non e' un vezzo tipografico: il
-// resto della dashboard scrive «48.120,00 €» (vedi `euro()` in
-// `data/fatturazione.ts`), e due formati diversi per due cifre in
-// euro nella stessa pagina sono esattamente il dettaglio che fa
-// dubitare del numero. Chi legge una fattura nota prima le
-// incongruenze di forma di quelle di sostanza.
 export function euroDaCentesimi(centesimi: number): string {
   const segno = centesimi < 0 ? '−' : '';
   const assoluti = Math.abs(Math.round(centesimi));
@@ -242,9 +193,9 @@ export function euroDaCentesimi(centesimi: number): string {
 }
 
 // ⚠️ A MANO E NON CON `toLocaleString`: Hermes, il motore JavaScript
-// dell'app, non porta con se' le localizzazioni — `toLocaleString`
-// li' non fa niente e restituisce il numero nudo. E' la stessa
-// ragione per cui le date si compongono a mano in tutto il progetto.
+// dell'app, non porta con sé le localizzazioni — lì `toLocaleString`
+// non fa niente e restituisce il numero nudo. È la stessa ragione per
+// cui in tutto il progetto le date si compongono a mano.
 export function conMigliaia(n: number): string {
   const cifre = String(Math.abs(Math.trunc(n)));
   let fuori = '';
@@ -255,103 +206,10 @@ export function conMigliaia(n: number): string {
   return (n < 0 ? '−' : '') + fuori;
 }
 
-// ============================================================
-// I NUMERI INCROCIATI.
-//
-// ⚠️ SERVONO A RISPONDERE A UNA DOMANDA SOLA: «quanto mi costa?». Un
-// circolo che legge «devi 481,20 €» non ha modo di sapere se è tanto o
-// poco. Lo stesso numero accanto a quello che il circolo ha incassato
-// dai campi in quello stesso periodo si legge da solo, e il rapporto
-// fra i due è la sola cifra che conta davvero nella trattativa.
-//
-// ⚠️ «QUELLO CHE IL CIRCOLO INCASSA» È IL VALORE DEI CAMPI VENDUTI,
-// non il denaro entrato in cassa. Sono due cose diverse e il registro
-// movimenti le tiene separate: le RICARICHE sono denaro vero che entra
-// (contanti in segreteria, bonifico), gli ADDEBITI sono consumo di
-// credito già versato. Ai fini del confronto conta il secondo, perché
-// è quello generato dalle stesse prenotazioni su cui si calcola la
-// commissione. Confrontare la commissione con le ricariche darebbe un
-// rapporto che dipende da quando i soci passano in segreteria.
-// ============================================================
-export interface IncrocioRicavi {
-  // Il valore dei campi venduti nel periodo, in centesimi.
-  centesimiCircolo: number;
-  // La commissione dovuta, in centesimi.
-  centesimiRacketFever: number;
-  // Quanti soci distinti hanno prenotato almeno una volta.
-  sociCheHannoPrenotato: number;
-  // Quante mezz'ore erano disponibili in tutto nel periodo: campi per
-  // slot al giorno per giorni. Serve al riempimento.
-  slotDisponibili: number;
-}
-
-// Quanta parte di quello che incassa il circolo se ne va in
-// commissione, in percentuale. È il numero che risponde alla domanda
-// vera, ed è quello che va detto per primo.
-//
-// ⚠️ Torna `null` e non zero quando il circolo non ha incassato
-// niente: zero vorrebbe dire «non ti costa niente», mentre la verità è
-// «non si può dire». Un circolo che ha regalato tutti i campi ha
-// comunque una commissione da pagare, e mostrargli «0%» sarebbe una
-// bugia comoda.
-export function incidenzaPercento(i: IncrocioRicavi): number | null {
-  if (i.centesimiCircolo <= 0) return null;
-  return (i.centesimiRacketFever / i.centesimiCircolo) * 100;
-}
-
-// Quanto costa la piattaforma per ogni socio che l'ha davvero usata
-// per prenotare. È il numero da mettere accanto ai 4,99 € l'anno che
-// il socio paga: dice in una riga se il conto sta in piedi.
-export function centesimiPerSocioAttivo(i: IncrocioRicavi): number | null {
-  if (i.sociCheHannoPrenotato <= 0) return null;
-  return i.centesimiRacketFever / i.sociCheHannoPrenotato;
-}
-
-// Quanta parte dei campi disponibili è stata venduta. Dice al circolo
-// quanto margine ha ancora, e a noi quanto può crescere quel circolo
-// senza aprire un campo nuovo.
-export function riempimentoPercento(slotNetti: number, slotDisponibili: number): number | null {
-  if (slotDisponibili <= 0) return null;
-  return Math.min(100, (slotNetti / slotDisponibili) * 100);
-}
-
-// Il prezzo medio di una mezz'ora, in centesimi. Serve a noi più che
-// al circolo: dice se una commissione fissa uguale per tutti è equa.
-// Un circolo che vende la mezz'ora a 3 € e uno che la vende a 12
-// pagano gli stessi 10 centesimi, e questo numero è quello che lo
-// rende visibile prima che se ne accorga qualcun altro.
-export function centesimiMediPerSlot(i: IncrocioRicavi, slotNetti: number): number | null {
-  if (slotNetti <= 0) return null;
-  return i.centesimiCircolo / slotNetti;
-}
-
-// ============================================================
-// LA PROIEZIONE A FINE PERIODO.
-//
-// ⚠️ È UNA STIMA E VA DETTO CHE LO È. Serve a sapere in anticipo che
-// fattura aspettarsi, non a emetterla: si ricava dal ritmo tenuto
-// finora e presuppone che il resto del periodo somigli alla parte già
-// passata, cosa che d'estate non è vera per nessun circolo di tennis.
-//
-// ⚠️ Torna `null` nei primi giorni del periodo. Con tre giorni di
-// dati, moltiplicare per trenta produce un numero che sembra preciso
-// e non lo è: meglio non scrivere niente che scrivere una cifra a
-// caso con due decimali.
-// ============================================================
-// ⚠️ Esportata perche' la schermata la scrive nella frase che spiega
-// perche' la proiezione non c'e' ancora. Con il numero scritto due
-// volte, il giorno che cambia qui la frase resta a dirne un altro.
-export const GIORNI_MINIMI_PER_PROIETTARE = 7;
-const GIORNO_MS = 24 * 60 * 60 * 1000;
-
-export function proiezioneSlot(
-  slotFinora: number,
-  periodo: PeriodoRicavi,
-  adessoMs: number,
-): number | null {
-  const trascorsiMs = Math.min(adessoMs, periodo.fineMs) - periodo.inizioMs;
-  if (trascorsiMs < GIORNI_MINIMI_PER_PROIETTARE * GIORNO_MS) return null;
-  const durataMs = periodo.fineMs - periodo.inizioMs;
-  if (trascorsiMs <= 0 || durataMs <= 0) return null;
-  return Math.round(slotFinora * (durataMs / trascorsiMs));
+// Le ore con la mezza, scritte come le direbbe una persona: «3,5» e
+// non «3.5», «12» e non «12,0».
+export function oreScritte(ore: number): string {
+  const intere = Math.trunc(ore);
+  const mezza = Math.abs(ore - intere) >= 0.25;
+  return mezza ? `${conMigliaia(intere)},5` : conMigliaia(intere);
 }

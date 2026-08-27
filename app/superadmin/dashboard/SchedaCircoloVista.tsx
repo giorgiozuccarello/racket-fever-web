@@ -39,6 +39,41 @@ import { riepilogoFatturazione, euro } from '../../../data/fatturazione';
 import { Lingua } from '../../../data/lingue';
 import { Traduttore } from '../../../data/testi';
 import { useLingua } from '../../../lib/lingua';
+import RiquadriConteggio, { TestiConteggio } from '../../admin/dashboard/RiquadriConteggio';
+
+// ============================================================
+// LE PAROLE DEI CINQUE RIQUADRI, IN ITALIANO E BASTA.
+//
+// I riquadri sono lo stesso componente che la Dashboard dell'Admin
+// monta nella sezione «Conteggio delle mezz'ore», e le frasi gliele
+// passa chi lo monta: di là dal dizionario in tre lingue, qui scritte a
+// mano. È la stessa scelta che questo file fa già in cinque punti — i
+// rami `perAdmin ? t(...) : 'italiano'` — e il motivo è che il pannello
+// di rete lo legge solo il team Racket Fever, che un selettore della
+// lingua non ce l'ha.
+//
+// ⚠️ Sta fuori dal componente, non dentro: dentro sarebbe un oggetto
+// nuovo a ogni disegno della scheda.
+// ============================================================
+const TESTI_CONTEGGIO: TestiConteggio = {
+  aggiorna: 'Aggiorna conteggio',
+  attendi: 'Attendere…',
+  etPrenotate: 'Mezz’ore prenotate',
+  etAnnullate: 'Mezz’ore annullate',
+  etNette: 'Mezz’ore nette',
+  etOre: 'Ore nette',
+  etIncasso: 'Totale incasso',
+  etAttivoDal: 'Si conta da',
+  attivoDal: (data) => `Attivo dal ${data}.`,
+  attivoDalIgnoto: 'Data di ingresso in rete non registrata: il conteggio parte dal primo giorno che il server riesce a leggere, non da una data certa.',
+  finoA: (ora, data) => `Il conto arriva alle ${ora} del ${data}.`,
+  oraInCorso: 'L’ora in corso non è compresa: una mezz’ora entra nel conto quando è finita, non quando è ancora in campo.',
+  nonTrovato: 'Per questo circolo il conteggio non è ancora stato fatto. Non vuol dire zero: vuol dire che il totale non è mai stato calcolato. Premi «Aggiorna conteggio».',
+  incompleto: 'Il server si è fermato prima di arrivare a oggi: su un circolo aperto da molto tempo i giorni da sommare sono più di quelli che stanno in una chiamata sola. Premendo di nuovo prosegue da dove si era fermato.',
+  erroreAggiornamento: (motivo) => `Il conteggio non è stato rifatto (${motivo}). I numeri qui sotto restano quelli dell’ultimo aggiornamento riuscito.`,
+  erroreLettura: (motivo) => `Lettura del conteggio respinta (${motivo}). Di solito vuol dire che le regole del database non consentono questa lettura — non che il circolo sia vuoto.`,
+  notaIncasso: 'Il totale incasso è la somma del prezzo che ogni mezz’ora aveva in griglia nell’istante in cui è stata prenotata: sono soldi del circolo, e non si muovono se il circolo ritocca il listino. Le mezz’ore annullate non ci sono dentro.',
+};
 
 // ⚠️ Il denaro resta con il punto e due decimali, come in TUTTO il
 // resto dell'applicazione (registro, dashboard Admin, pop-up di
@@ -531,6 +566,35 @@ export default function SchedaCircoloVista({
             ))}
         </div>
       </div>
+
+      {/* ---------- LE MEZZ'ORE VENDUTE ----------
+          ⚠️ SOLO NEL PANNELLO SUPER ADMIN, e non è una dimenticanza.
+          Sono gli stessi cinque riquadri della sezione «Conteggio delle
+          mezz'ore» della Dashboard dell'Admin: mostrarli anche lì
+          vorrebbe dire gli stessi cinque numeri due volte nella stessa
+          pagina, a mezzo schermo di distanza, con due pulsanti che
+          fanno la stessa chiamata. Il componente è uno solo
+          (`app/admin/dashboard/RiquadriConteggio.tsx`); qui cambia solo
+          chi lo monta.
+
+          ⚠️ Sta subito dopo «Attività» perché è la stessa domanda —
+          quanto si gioca su questi campi — misurata in soldi invece che
+          in prenotazioni, e prima di «Denaro», che parla invece dei
+          conti dei soci in segreteria.
+
+          ⚠️ E il pulsante chiama il server per il circolo APERTO: qui
+          si apre una scheda alla volta, quindi è una chiamata a
+          circolo, non una a ogni circolo della rete. */}
+      {!perAdmin && (
+        <>
+          <div className="superadmin-subtitolo">Mezz’ore vendute e incasso</div>
+          <RiquadriConteggio
+            circoloId={circoloId}
+            attivatoIlMs={attivatoIlMs ?? null}
+            testi={TESTI_CONTEGGIO}
+          />
+        </>
+      )}
 
       {/* ---------- DENARO ---------- */}
       <div className="superadmin-subtitolo">{t('pan.denaro')}</div>

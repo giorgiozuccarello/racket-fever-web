@@ -34,6 +34,12 @@ import SezioneRichiesteTessera from './SezioneRichiesteTessera';
 import SezioneSegnalazioni from './SezioneSegnalazioni';
 import SezioneTessereDaSaldare from './SezioneTessereDaSaldare';
 import SezioneRicavi from './SezioneRicavi';
+// ⚠️ La data della testata si scrive con la stessa funzione dei
+// riquadri del conteggio, e non con una copia: è la STESSA data —
+// «attivo dal» in alto e il punto di partenza del totale più in
+// basso — e due formati per una data sola fanno dubitare che sia la
+// stessa.
+import { giornoLeggibile } from './RiquadriConteggio';
 import SchedaSocioModal from './SchedaSocioModal';
 import SezioneMaestri from './SezioneMaestri';
 import SezioneClassificaSociale from './SezioneClassificaSociale';
@@ -278,6 +284,18 @@ function ContenutoDashboard({
           <div>
             <div className="mono" style={{ opacity: 0.75 }}>{t('adm.gen.ruoloIntestazione')}</div>
             <h1 className="display" style={{ fontSize: '1.7rem', marginTop: '.2rem' }}>{circolo.nome}</h1>
+            {/* ⚠️ DA QUANDO IL CIRCOLO È IN RETE, accanto al nome. È la
+                data da cui parte il conteggio delle mezz'ore più in
+                basso: senza, quel totale è un numero che non si può
+                giudicare — grande o piccolo rispetto a che cosa?
+                Sta sotto il nome e sopra la riga del Collaboratore, che
+                resta l'ultima cosa della testata perché è la più
+                urgente da leggere quando c'è. */}
+            {attivazioneCircoloMs(circolo) !== null && (
+              <div className="mono" style={{ opacity: 0.75, fontSize: '.72rem', marginTop: '.3rem' }}>
+                {t('adm.ric2.attivoDal', { data: giornoLeggibile(attivazioneCircoloMs(circolo)) })}
+              </div>
+            )}
             {/* ⚠️ CHI SEI, scritto. Le due porte d'ingresso — l'account
                 del responsabile e la password condivisa dello staff —
                 aprivano una dashboard identica, e da dentro non c'era
@@ -458,7 +476,10 @@ function ContenutoDashboard({
           titolo={t('adm.ric2.sez.titolo')}
           descrizione={t('adm.ric2.sez.descrizione')}
         >
-          <SezioneRicavi circolo={circolo} campi={campi} />
+          {/* ⚠️ `campi` non serve più: se ne andava nel riempimento dei
+              campi, che era uno dei numeri incrociati buttati via
+              insieme alle commissioni. */}
+          <SezioneRicavi circolo={circolo} />
         </SezioneCollassabile>
 
         <SezioneCollassabile id="saldare" titolo={t('adm.gen.sez.saldare.titolo')} descrizione={t('adm.gen.sez.saldare.descrizione')}>

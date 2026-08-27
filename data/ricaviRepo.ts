@@ -1,159 +1,126 @@
 // ============================================================
-// RICAVI — la lettura dei conteggi.
+// CONTEGGIO DELLE MEZZ'ORE — la lettura.
 //
 // La matematica sta in `data/ricavi.ts`; i numeri li scrive il server
-// (`functions/src/ricavi.ts`). Qui c'è solo il modo di andarseli a
-// prendere.
+// (`functions/src/ricavi.ts`). Qui c'è solo come andarseli a prendere.
 //
-// ⚠️ SI LEGGE, NON SI CONTA. Nessuna funzione di questo file rilegge
-// le prenotazioni per rifare il totale, e non è pigrizia: un circolo
-// da cinque campi produce fra le cinque e le ottomila mezz'ore a
-// trimestre, e le prenotazioni annullate non ci sono più. Contare dal
-// vivo darebbe un numero più piccolo del vero, con l'aria di essere
-// giusto — che è il modo peggiore di sbagliare una fattura.
+// ⚠️ SI LEGGE UN DOCUMENTO E MEZZO, non le prenotazioni. Il totale dei
+// giorni già chiusi è un documento solo; il giorno in corso è un
+// secondo documento di cui si prendono le ore prima della soglia.
+// Rileggere le prenotazioni sarebbe decine di migliaia di letture a
+// ogni apertura della dashboard, e non saprebbe comunque dire quante
+// mezz'ore sono state annullate — quei documenti non esistono più.
 // ============================================================
 
+import { doc, getDoc } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../lib/firebase';
 import {
-  collection, doc, getDoc, getDocs, limit, orderBy, query, where,
-} from 'firebase/firestore';
-import { db } from '../lib/firebase';
-import {
-  Cadenza, CONTEGGIO_VUOTO, ConteggioPeriodo, PeriodoRicavi,
-  chiavePeriodo, periodoRicavi,
+  GiornoConteggio, TOTALE_VUOTO, TotaleConteggio,
+  sogliaOraCorrente, sommaGiorno,
 } from './ricavi';
 
-// Una riga per mezz'ora fatturata: è l'elenco che si mette in mano al
-// circolo che contesta il totale.
-export interface SlotFatturato {
-  id: string;
-  periodo: string;
-  prenotatoIlMs: number;
-  data: string | null;
-  orario: string | null;
-  campoId: string | null;
-  campoNome: string | null;
-  tipo: string;
-  prenotataDa: string;
-  tipoUtente: string | null;
-  centesimiCircolo: number;
-  utenteId: string | null;
-  annullatoIlMs: number | null;
-  annullatoNelPeriodo: string | null;
-}
-
-export interface LetturaRicavi {
-  periodo: PeriodoRicavi;
-  conteggio: ConteggioPeriodo;
-  // Falso quando il documento del periodo non esiste ancora: vuol dire
-  // che in questo periodo non è stata prenotata nemmeno una mezz'ora,
-  // oppure che il circolo è nato prima dei contatori.
+export interface LetturaConteggio {
+  totale: TotaleConteggio;
+  // Quando il server ha rifatto la somma l'ultima volta.
+  aggiornatoIlMs: number;
+  // Fin dove arriva il conto: giorno e ora della soglia.
+  sogliaGiornoIso: string;
+  sogliaOra: string;
+  // Falso quando il documento del totale non esiste ancora, cioè
+  // nessuno ha mai premuto «aggiorna» su questo circolo.
   //
-  // ⚠️ VA DISTINTO DA «zero», e a schermo va detto: «nessuna
-  // prenotazione» e «non stiamo ancora contando» sono due frasi
-  // diverse, e la seconda è quella che spiega un totale sorprendente.
+  // ⚠️ VA DISTINTO DA «zero», e a schermo va detto: «non abbiamo
+  // ancora contato» e «non è stata prenotata nemmeno una mezz'ora»
+  // sono due frasi diverse, e la seconda sarebbe una bugia.
   trovato: boolean;
 }
 
+// ============================================================
+// ⚠️ IL GIORNO IN CORSO SI SOMMA QUI, NON SUL SERVER.
+//
+// Il totale salvato si ferma all'ultimo giorno CHIUSO: assorbire il
+// giorno in corso vorrebbe dire congelarlo a metà, e quel giorno
+// resterebbe sbagliato per sempre. Le ore di oggi già giocate si
+// aggiungono in lettura, dove costano un documento e si rifanno a ogni
+// sguardo — che è esattamente quello che serve, visto che maturano
+// mentre le si guarda.
+// ============================================================
 export async function leggiConteggio(
   circoloId: string,
-  attivatoIlMs: number | null,
   adessoMs: number,
-  cadenza: Cadenza,
-): Promise<LetturaRicavi> {
-  const periodo = periodoRicavi(attivatoIlMs, adessoMs, cadenza);
-  const chiave = chiavePeriodo(periodo);
-  const snap = await getDoc(doc(db, 'circoli', circoloId, 'conteggi', chiave));
-  if (!snap.exists()) {
-    return { periodo, conteggio: { ...CONTEGGIO_VUOTO }, trovato: false };
+): Promise<LetturaConteggio> {
+  const soglia = sogliaOraCorrente(adessoMs);
+
+  const [snapTotale, snapOggi] = await Promise.all([
+    getDoc(doc(db, 'circoli', circoloId, 'conteggi', 'totale')),
+    getDoc(doc(db, 'circoli', circoloId, 'giorni', soglia.giornoIso)),
+  ]);
+
+  if (!snapTotale.exists()) {
+    return {
+      totale: { ...TOTALE_VUOTO },
+      aggiornatoIlMs: 0,
+      sogliaGiornoIso: soglia.giornoIso,
+      sogliaOra: soglia.oraLimite,
+      trovato: false,
+    };
   }
-  const v = snap.data() as Record<string, unknown>;
+
+  const v = snapTotale.data() as Record<string, unknown>;
+  let totale: TotaleConteggio = {
+    prenotate: numero(v.prenotate),
+    annullate: numero(v.annullate),
+    centesimi: numero(v.centesimi),
+  };
+
+  // ⚠️ Si somma il giorno in corso SOLO se il totale non lo comprende
+  // già. Il caso non dovrebbe capitare — il server assorbe solo i
+  // giorni chiusi — ma se un giorno capitasse, sommarlo due volte
+  // sarebbe un errore invisibile e permanente.
+  const finoAl = (v.finoAlGiornoIso as string | null) ?? null;
+  const oggiGiaDentro = finoAl !== null && finoAl >= soglia.giornoIso;
+  if (!oggiGiaDentro && snapOggi.exists()) {
+    totale = sommaGiorno(totale, snapOggi.data() as GiornoConteggio, soglia.oraLimite);
+  }
+
   return {
-    periodo,
-    conteggio: {
-      slotPrenotati: numero(v.slotPrenotati),
-      slotAnnullati: numero(v.slotAnnullati),
-      aggiornatoIlMs: numero(v.aggiornatoIlMs),
-    },
+    totale,
+    aggiornatoIlMs: numero(v.aggiornatoIlMs),
+    sogliaGiornoIso: soglia.giornoIso,
+    sogliaOra: soglia.oraLimite,
     trovato: true,
   };
 }
 
 // ============================================================
-// ⚠️ LE RIGHE SI LEGGONO A RICHIESTA, MAI ALL'APERTURA.
+// RIFARE IL TOTALE.
 //
-// Sono migliaia per periodo. La sezione mostra i totali — che sono un
-// documento solo — e va a prendere le righe quando qualcuno tocca
-// «vedi il dettaglio», che è il gesto di chi sta contestando o
-// controllando, non di chi apre la pagina.
+// ⚠️ La chiama la dashboard all'APERTURA e sul PULSANTE. All'apertura
+// non è uno spreco: di norma ha uno o due mucchietti da sommare —
+// quelli dei giorni chiusi da quando qualcuno ha guardato l'ultima
+// volta — e senza, il conto resterebbe fermo al giorno in cui è stato
+// aperto la prima volta.
 //
-// ⚠️ E SI LEGGONO A PAGINE. Il tetto non è una precauzione: è quello
-// che impedisce a una schermata di provare a disegnare ottomila righe
-// e bloccare il telefono di chi l'ha aperta.
+// `completo: false` vuol dire che il server si è fermato al tetto di
+// giorni per chiamata: succede al primo giro su un circolo aperto da
+// molto. Chiamarla di nuovo prosegue da dove si era fermata.
 // ============================================================
-export const RIGHE_PER_PAGINA = 200;
-
-export async function leggiSlot(
-  circoloId: string,
-  chiave: string,
-  quante: number = RIGHE_PER_PAGINA,
-): Promise<SlotFatturato[]> {
-  const q = query(
-    collection(db, 'circoli', circoloId, 'slot_fatturati'),
-    where('periodo', '==', chiave),
-    orderBy('prenotatoIlMs', 'desc'),
-    limit(quante),
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const v = d.data() as Record<string, unknown>;
-    return {
-      id: d.id,
-      periodo: String(v.periodo ?? ''),
-      prenotatoIlMs: numero(v.prenotatoIlMs),
-      data: (v.data as string) ?? null,
-      orario: (v.orario as string) ?? null,
-      campoId: (v.campoId as string) ?? null,
-      campoNome: (v.campoNome as string) ?? null,
-      tipo: String(v.tipo ?? 'campo'),
-      prenotataDa: String(v.prenotataDa ?? 'socio'),
-      tipoUtente: (v.tipoUtente as string) ?? null,
-      centesimiCircolo: numero(v.centesimiCircolo),
-      utenteId: (v.utenteId as string) ?? null,
-      annullatoIlMs: v.annullatoIlMs == null ? null : numero(v.annullatoIlMs),
-      annullatoNelPeriodo: (v.annullatoNelPeriodo as string) ?? null,
-    };
-  });
+export interface EsitoAggiornamento {
+  completo: boolean;
+  finoAlGiornoIso: string | null;
+  aggiornatoIlMs: number;
 }
 
-// ============================================================
-// I NUMERI INCROCIATI SI RICAVANO DALLE RIGHE.
-//
-// ⚠️ E QUINDI SONO ESATTI SOLO SE LE RIGHE CI SONO TUTTE. Con il tetto
-// di pagina, su un periodo grosso si sta guardando un campione: la
-// schermata deve dirlo invece di far passare una stima per un totale.
-// I due numeri che vanno in fattura — slot prenotati e annullati —
-// vengono dal contatore e non da qui, quindi restano esatti comunque.
-// ============================================================
-export function incrocioDaSlot(righe: SlotFatturato[]): {
-  centesimiCircolo: number;
-  sociCheHannoPrenotato: number;
-  perTipo: Record<string, number>;
-  perOrigine: Record<string, number>;
-} {
-  const soci = new Set<string>();
-  const perTipo: Record<string, number> = {};
-  const perOrigine: Record<string, number> = {};
-  let centesimiCircolo = 0;
-  for (const r of righe) {
-    // ⚠️ Le righe annullate non contano nel valore: quel campo è
-    // tornato libero e il circolo non l'ha incassato.
-    if (r.annullatoIlMs) continue;
-    centesimiCircolo += r.centesimiCircolo;
-    if (r.utenteId) soci.add(r.utenteId);
-    perTipo[r.tipo] = (perTipo[r.tipo] ?? 0) + 1;
-    perOrigine[r.prenotataDa] = (perOrigine[r.prenotataDa] ?? 0) + 1;
-  }
-  return { centesimiCircolo, sociCheHannoPrenotato: soci.size, perTipo, perOrigine };
+export async function aggiornaConteggio(circoloId: string): Promise<EsitoAggiornamento> {
+  const chiama = httpsCallable(functions, 'aggiornaConteggioMezzore');
+  const esito = await chiama({ circoloId });
+  const d = (esito.data ?? {}) as Record<string, unknown>;
+  return {
+    completo: d.completo !== false,
+    finoAlGiornoIso: (d.finoAlGiornoIso as string | null) ?? null,
+    aggiornatoIlMs: numero(d.aggiornatoIlMs),
+  };
 }
 
 function numero(v: unknown): number {
