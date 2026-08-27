@@ -415,21 +415,24 @@ export const TEMI_APP: Record<string, TemaApp> = {
   // uno solo vorrebbe dire tre grigi leggermente diversi che nessuno
   // ha deciso.
   //
-  // ⚠️ PIÙ CHIARO E PIÙ FREDDO del grigio precedente (#ECECEA →
-  // #DBDBD8), che era troppo scuro e virava al caldo: aveva il rosso
-  // sopra il blu, e su uno schermo acceso si leggeva come un beige
-  // sporco. Adesso il blu sta sopra il rosso di quattro punti — è
-  // quello che dà il tono freddo — e tutta la scala è salita di una
-  // decina di punti.
+  // ⚠️ GRIGIO NEUTRO, NON PIÙ FREDDO. Ci si è passati per tre valori,
+  // e vale la pena sapere perché: il primo (#ECECEA → #DBDBD8) era
+  // troppo scuro e virava al caldo; il secondo lo ha corretto tirando
+  // il blu sopra il rosso, e la correzione era giusta ma esagerata —
+  // su uno schermo acceso l'azzurrino si vedeva. Questo è la terza
+  // misura, scelta da Giorgio: rosso, verde e blu allo stesso valore,
+  // cioè nessuna dominante affatto, e più chiaro di tutti e due i
+  // precedenti.
   //
   // ⚠️ E VA LETTO INSIEME AL FONDO DELLE CARD, in `theme/forme.ts`:
-  // le due sfumature sono dello stesso colore di famiglia e si
-  // distinguono per quanto corrono, non per che colore sono. Cambiare
-  // questa senza guardare quella vuol dire far sparire le card dentro
-  // la pagina.
-  grigio: { nome: 'Pearl Gray', scuro: false, sfondoDa: '#F5F7FA', sfondoA: '#E7ECF2', primario: '#0E3B2E', accento: '#14304D' },
-  violaChiaro: { nome: 'Pinky', scuro: false, sfondoDa: '#F5F7FA', sfondoA: '#E7ECF2', primario: '#8A2670', accento: '#8A2670' },
-  azzurroChiaro: { nome: 'Pure Cyan', scuro: false, sfondoDa: '#F5F7FA', sfondoA: '#E7ECF2', primario: '#0D6EAB', accento: '#0D6EAB' },
+  // le due sfumature sono quasi lo stesso grigio e si distinguono per
+  // come sono fatte, non per che colore sono — questa è lineare e
+  // scende, quella è radiale e si spegne ai bordi. Cambiare questa
+  // senza guardare quella vuol dire far sparire le card dentro la
+  // pagina.
+  grigio: { nome: 'Pearl Gray', scuro: false, sfondoDa: '#FCFCFC', sfondoA: '#EDEDED', primario: '#0E3B2E', accento: '#14304D' },
+  violaChiaro: { nome: 'Pinky', scuro: false, sfondoDa: '#FCFCFC', sfondoA: '#EDEDED', primario: '#8A2670', accento: '#8A2670' },
+  azzurroChiaro: { nome: 'Pure Cyan', scuro: false, sfondoDa: '#FCFCFC', sfondoA: '#EDEDED', primario: '#0D6EAB', accento: '#0D6EAB' },
 };
 
 export const TEMA_APP_DEFAULT = 'bianco';
