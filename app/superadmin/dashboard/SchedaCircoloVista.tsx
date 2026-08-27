@@ -39,10 +39,21 @@ import { riepilogoFatturazione, euro } from '../../../data/fatturazione';
 import { Lingua } from '../../../data/lingue';
 import { Traduttore } from '../../../data/testi';
 import { useLingua } from '../../../lib/lingua';
-import RiquadriConteggio, { TestiConteggio } from '../../admin/dashboard/RiquadriConteggio';
+import { Conteggio, euroDaCentesimi, mezzOreNette } from '../../../data/ricavi';
+import { ricostruisciConteggi } from '../../../data/ricaviRepo';
+// ⚠️ QUESTO IMPORT PUÒ STARE SOLO QUI SOTTO `app/superadmin/`. Il
+// motivo è scritto per esteso in testa a `data/commissione.ts`: la
+// dashboard del circolo si apre con credenziali che un revisore di App
+// Store potrebbe avere, e lì non deve comparire nulla di quanto il
+// circolo paga a Racket Fever. Chi si trovasse a importarlo da
+// `app/admin/` o da `data/ricavi.ts` si fermi e rilegga quel file.
+import { commissioneCentesimi } from '../../../data/commissione';
+import RiquadriConteggio, {
+  RigaAttivoDal, TestiAttivoDal, TestiConteggio, TestiMaturato,
+} from '../../admin/dashboard/RiquadriConteggio';
 
 // ============================================================
-// LE PAROLE DEI CINQUE RIQUADRI, IN ITALIANO E BASTA.
+// LE PAROLE DEI RIQUADRI, IN ITALIANO E BASTA.
 //
 // I riquadri sono lo stesso componente che la Dashboard dell'Admin
 // monta nella sezione «Conteggio delle mezz'ore», e le frasi gliele
@@ -52,28 +63,56 @@ import RiquadriConteggio, { TestiConteggio } from '../../admin/dashboard/Riquadr
 // di rete lo legge solo il team Racket Fever, che un selettore della
 // lingua non ce l'ha.
 //
-// ⚠️ Sta fuori dal componente, non dentro: dentro sarebbe un oggetto
-// nuovo a ogni disegno della scheda.
+// ⚠️ DUE OGGETTI PERCHÉ I CONTI SONO DUE, e le frasi non si possono
+// riusare: il pulsante del live rilegge e quello del maturato chiama il
+// server, quindi non si chiamano allo stesso modo; e il maturato ha
+// quattro frasi in più che al live non servirebbero a niente.
+//
+// ⚠️ Stanno fuori dal componente, non dentro: dentro sarebbero oggetti
+// nuovi a ogni disegno della scheda.
 // ============================================================
-const TESTI_CONTEGGIO: TestiConteggio = {
-  aggiorna: 'Aggiorna conteggio',
+const TESTI_MATURATO: TestiMaturato = {
+  aggiorna: 'Aggiorna il maturato',
   attendi: 'Attendere…',
   etPrenotate: 'Mezz’ore prenotate',
   etAnnullate: 'Mezz’ore annullate',
   etNette: 'Mezz’ore nette',
   etOre: 'Ore nette',
   etIncasso: 'Totale incasso',
-  etAttivoDal: 'Si conta da',
-  attivoDal: (data) => `Attivo dal ${data}.`,
-  attivoDalIgnoto: 'Data di ingresso in rete non registrata: il conteggio parte dal primo giorno che il server riesce a leggere, non da una data certa.',
-  finoA: (ora, data) => `Il conto arriva alle ${ora} del ${data}.`,
-  oraInCorso: 'L’ora in corso non è compresa: una mezz’ora entra nel conto quando è finita, non quando è ancora in campo.',
-  nonTrovato: 'Per questo circolo il conteggio non è ancora stato fatto. Non vuol dire zero: vuol dire che il totale non è mai stato calcolato. Premi «Aggiorna conteggio».',
-  incompleto: 'Il server si è fermato prima di arrivare a oggi: su un circolo aperto da molto tempo i giorni da sommare sono più di quelli che stanno in una chiamata sola. Premendo di nuovo prosegue da dove si era fermato.',
-  erroreAggiornamento: (motivo) => `Il conteggio non è stato rifatto (${motivo}). I numeri qui sotto restano quelli dell’ultimo aggiornamento riuscito.`,
-  erroreLettura: (motivo) => `Lettura del conteggio respinta (${motivo}). Di solito vuol dire che le regole del database non consentono questa lettura — non che il circolo sia vuoto.`,
-  notaIncasso: 'Il totale incasso è la somma del prezzo che ogni mezz’ora aveva in griglia nell’istante in cui è stata prenotata: sono soldi del circolo, e non si muovono se il circolo ritocca il listino. Le mezz’ore annullate non ci sono dentro.',
+  nonTrovato: 'Per questo circolo il maturato non è ancora stato calcolato. Non vuol dire zero: vuol dire che il conto non è mai stato fatto. Premi «Aggiorna il maturato».',
+  erroreLettura: (motivo) => `Lettura del maturato respinta (${motivo}). Di solito vuol dire che le regole del database non consentono questa lettura — non che il circolo sia vuoto.`,
+  nota: 'Il giorno in corso non è compreso: una giornata entra nel maturato quando è finita per intero. È voluto — un numero su cui si fattura non deve muoversi mentre lo si guarda.',
+  erroreAggiornamento: (motivo) => `Il maturato non è stato portato avanti (${motivo}). I numeri qui sotto restano quelli dell’ultimo aggiornamento riuscito.`,
+  incompleto: 'Il server si è fermato prima di arrivare a ieri: su un circolo aperto da molto tempo i giorni da sommare sono più di quelli che stanno in una chiamata sola. Premi di nuovo «Aggiorna il maturato» e prosegue da dove si era fermato.',
+  finoAl: (data) => `Il conto comprende i giorni fino al ${data} compreso.`,
+  finoANiente: 'Nessun giorno è ancora entrato nel conto: il maturato esiste ma è fermo al punto di partenza.',
 };
+
+const TESTI_LIVE: TestiConteggio = {
+  // ⚠️ «Rileggi» e non «Aggiorna»: questo tasto non chiama nessuna
+  // funzione del server, rilegge il documento. Chiamarlo come l'altro
+  // insegnerebbe che i due tasti fanno la stessa cosa.
+  aggiorna: 'Rileggi il prenotato',
+  attendi: 'Attendere…',
+  etPrenotate: 'Mezz’ore prenotate',
+  etAnnullate: 'Mezz’ore annullate',
+  etNette: 'Mezz’ore nette',
+  etOre: 'Ore nette',
+  etIncasso: 'Totale incasso',
+  nonTrovato: 'Per questo circolo il conteggio dal vivo non esiste ancora. Non vuol dire zero: il documento nasce con la prima prenotazione, e finché non ne arriva una non c’è niente da leggere.',
+  erroreLettura: (motivo) => `Lettura del prenotato respinta (${motivo}). Di solito vuol dire che le regole del database non consentono questa lettura — non che il circolo sia vuoto.`,
+  nota: 'Dentro ci sono anche le partite ancora da giocare: domani, la settimana prossima, il mese prossimo. Sale a ogni prenotazione e scende a ogni disdetta, senza che nessuno prema niente.',
+};
+
+const TESTI_ATTIVO_DAL: TestiAttivoDal = {
+  etichetta: 'Si conta da',
+  attivoDal: (data) => `Attivo dal ${data}.`,
+  ignoto: 'Data di ingresso in rete non registrata: il conteggio parte dal primo giorno che il server riesce a leggere, non da una data certa.',
+};
+
+// La frase che spiega che cosa sono quegli euro. Vale identica per i due
+// conti, quindi si scrive una volta sola.
+const NOTA_INCASSO = 'Il totale incasso è la somma del prezzo che ogni mezz’ora aveva in griglia nell’istante in cui è stata prenotata: sono soldi del circolo, e non si muovono se il circolo ritocca il listino. Le mezz’ore annullate non ci sono dentro.';
 
 // ⚠️ Il denaro resta con il punto e due decimali, come in TUTTO il
 // resto dell'applicazione (registro, dashboard Admin, pop-up di
@@ -178,6 +217,140 @@ function Dato({ valore, etichetta, allarme }: {
   );
 }
 
+// ============================================================
+// RICOSTRUISCI I CONTEGGI — solo Super Admin, e con una conferma.
+//
+// ⚠️ NON È UN «AGGIORNA PIÙ FORTE». Ricontare vuol dire ripartire dalle
+// prenotazioni che esistono adesso, e una prenotazione disdetta non
+// esiste più da nessuna parte: il documento è stato cancellato. Il
+// risultato è che «mezz'ore annullate» torna a zero e il netto sale, e
+// non c'è modo di rimetterle dentro — quel dato lo teneva soltanto il
+// conteggio che stiamo per riscrivere.
+//
+// Serve dopo un Reset Totale, o quando i numeri sono andati storti in
+// modo evidente. Non come aggiornamento di tutti i giorni: per quello
+// c'è il tasto del maturato, che somma i giorni nuovi e non tocca
+// quello che c'è già.
+//
+// ⚠️ LA CONFERMA È UNA CASELLA DA SPUNTARE, non il nome del circolo
+// riscritto come nel Reset Totale. È la misura giusta della cosa: qui
+// non si perdono prenotazioni, movimenti o soci — si perde un numero
+// che si può ricalcolare da capo ogni volta tranne uno. Chiedere di
+// riscrivere il nome per questo insegnerebbe a riscriverlo in fretta
+// anche là dove il dato non torna più.
+// ============================================================
+function TastoRicostruisci({ circoloId, onFatto }: {
+  circoloId: string;
+  // Rimonta i due gruppi di riquadri: dopo la ricostruzione i numeri a
+  // schermo sono quelli di prima, e lasciarli lì sarebbe la bugia
+  // peggiore proprio nel momento in cui sono appena cambiati.
+  onFatto: () => void;
+}) {
+  const [aperto, setAperto] = useState(false);
+  const [capito, setCapito] = useState(false);
+  const [inCorso, setInCorso] = useState(false);
+  const [esito, setEsito] = useState('');
+  const [errore, setErrore] = useState('');
+
+  const chiudi = () => {
+    if (inCorso) return;
+    setAperto(false);
+    setCapito(false);
+    setErrore('');
+  };
+
+  const esegui = async () => {
+    setInCorso(true);
+    setErrore('');
+    setEsito('');
+    try {
+      const r = await ricostruisciConteggi(circoloId);
+      setEsito(`Conteggi rifatti: ${r.giorniRifatti} giorni ricostruiti, ${r.prenotazioniLette} prenotazioni lette. I riquadri qui sopra sono stati riletti.`);
+      setAperto(false);
+      setCapito(false);
+      onFatto();
+    } catch (e: unknown) {
+      // Il motivo che manda il server si riporta: «riprova» è l'unica
+      // frase che non aiuta nessuno.
+      const motivo = e instanceof Error ? e.message.trim() : String(e);
+      setErrore(`Ricostruzione non riuscita (${motivo}). I conteggi sono rimasti quelli di prima.`);
+    } finally {
+      setInCorso(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        className="admin-btn-piccolo admin-btn-danger"
+        style={{ marginTop: '.8rem' }}
+        onClick={() => setAperto(true)}
+        disabled={inCorso}
+      >
+        Ricostruisci conteggi
+      </button>
+      <p className="admin-card-hint scheda-nota">
+        Riservato al team Racket Fever. Riconta tutto da capo dalle prenotazioni che esistono
+        adesso: serve dopo un Reset Totale o quando i numeri sono andati storti, non come
+        aggiornamento di tutti i giorni.
+      </p>
+      {!!esito && <div className="admin-ok-text">{esito}</div>}
+      {!!errore && <div className="admin-error-text">{errore}</div>}
+
+      {aperto && (
+        <div className="admin-modal-backdrop" onClick={chiudi}>
+          <div className="admin-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="admin-modal-title">Ricostruisci i conteggi</div>
+            <p className="admin-modal-sub">
+              I due conteggi di questo circolo — il prenotato e il maturato — vengono buttati via
+              e rifatti da zero.
+            </p>
+            {/* ⚠️ L'avvertimento sta dentro la conferma e non solo
+                accanto al tasto: chi arriva qui ha già deciso, e la
+                riga che gli fa cambiare idea deve stargli davanti nel
+                momento in cui clicca. */}
+            <div className="reset-archivio-avviso">
+              <strong>Le disdette passate si perdono.</strong> La ricostruzione riconta dalle
+              prenotazioni vive, e una prenotazione annullata non esiste più da nessuna parte:
+              il suo documento è stato cancellato. Dopo questa operazione «mezz’ore annullate»
+              torna a zero e il netto sale di conseguenza. Non è un guasto ed è irreversibile:
+              quel dato lo teneva soltanto il conteggio che stai per riscrivere.
+            </div>
+            <label
+              className="admin-card-hint"
+              style={{ display: 'flex', gap: '.5rem', alignItems: 'flex-start', marginTop: '.8rem' }}
+            >
+              <input
+                type="checkbox"
+                checked={capito}
+                onChange={(e) => setCapito(e.target.checked)}
+                disabled={inCorso}
+              />
+              <span>
+                Ho capito: <strong>«mezz’ore annullate» torna a zero</strong> e lo storico delle
+                disdette di questo circolo non sarà più recuperabile.
+              </span>
+            </label>
+            {!!errore && <div className="admin-error-text">{errore}</div>}
+            <div className="admin-modal-btn-row">
+              <button className="admin-modal-btn-cancel" onClick={chiudi} disabled={inCorso}>
+                Annulla
+              </button>
+              <button
+                className="admin-modal-btn-confirm danger"
+                onClick={esegui}
+                disabled={!capito || inCorso}
+              >
+                {inCorso ? 'In corso…' : 'Ricostruisci'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ⚠️ QUESTA SCHEDA HA DUE PADRONI, da quando il pannello Admin la monta
 // nella sua «Panoramica Circolo». È voluto — i numeri con cui un
 // circolo si giudica devono avere una definizione sola — ma due cose
@@ -244,6 +417,14 @@ export default function SchedaCircoloVista({
   // insieme agli errori veri, si legge come «non ha funzionato» e si
   // ripreme il tasto — l'esatto contrario di quello che dice.
   const [avvisoScatto, setAvvisoScatto] = useState('');
+  // ⚠️ UN CONTATORE USATO COME `key`, e non uno stato dei conteggi
+  // sollevato qui dentro. Dopo una ricostruzione i due documenti sono
+  // stati riscritti dal server e i numeri a schermo sono quelli di
+  // prima: cambiando la `key` i due gruppi si rimontano e rileggono da
+  // capo, che è esattamente quello che fanno all'apertura della scheda.
+  // Sollevare qui la lettura vorrebbe dire riscrivere in questo file la
+  // logica che sta già in `RiquadriConteggio`, e tenerne due copie.
+  const [giroConteggi, setGiroConteggi] = useState(0);
 
   useEffect(() => {
     // ⚠️ Si azzerano anche i DATI, non solo le spie. Tenendo quelli del
@@ -567,31 +748,94 @@ export default function SchedaCircoloVista({
         </div>
       </div>
 
-      {/* ---------- LE MEZZ'ORE VENDUTE ----------
+      {/* ---------- LE MEZZ'ORE ----------
           ⚠️ SOLO NEL PANNELLO SUPER ADMIN, e non è una dimenticanza.
-          Sono gli stessi cinque riquadri della sezione «Conteggio delle
+          Sono gli stessi riquadri della sezione «Conteggio delle
           mezz'ore» della Dashboard dell'Admin: mostrarli anche lì
-          vorrebbe dire gli stessi cinque numeri due volte nella stessa
-          pagina, a mezzo schermo di distanza, con due pulsanti che
-          fanno la stessa chiamata. Il componente è uno solo
-          (`app/admin/dashboard/RiquadriConteggio.tsx`); qui cambia solo
-          chi lo monta.
+          vorrebbe dire gli stessi numeri due volte nella stessa pagina,
+          a mezzo schermo di distanza, con pulsanti gemelli. Il
+          componente è uno solo
+          (`app/admin/dashboard/RiquadriConteggio.tsx`); qui cambia chi
+          lo monta, le parole, e il riquadro della commissione — che di
+          là non c'è e non ci deve essere.
 
           ⚠️ Sta subito dopo «Attività» perché è la stessa domanda —
           quanto si gioca su questi campi — misurata in soldi invece che
           in prenotazioni, e prima di «Denaro», che parla invece dei
           conti dei soci in segreteria.
 
-          ⚠️ E il pulsante chiama il server per il circolo APERTO: qui
-          si apre una scheda alla volta, quindi è una chiamata a
-          circolo, non una a ogni circolo della rete. */}
+          ⚠️ E il pulsante del maturato chiama il server per il circolo
+          APERTO: qui si apre una scheda alla volta, quindi è una
+          chiamata a circolo, non una a ogni circolo della rete.
+
+          ⚠️ DUE SOTTOSEZIONI, e l'ordine è invertito rispetto alla
+          Dashboard dell'Admin: là il prenotato viene prima perché è la
+          domanda di tutti i giorni, qui viene prima il maturato perché
+          è quello su cui si fattura, ed è la ragione per cui un circolo
+          si apre da questo pannello. */}
       {!perAdmin && (
         <>
           <div className="superadmin-subtitolo">Mezz’ore vendute e incasso</div>
+          <p className="admin-card-hint">
+            Quante mezz’ore sono state <strong>davvero giocate</strong>, con il taglio a
+            mezzanotte di ieri: entrano solo i giorni chiusi per intero. È il numero su cui si
+            fattura, e non cambia più una volta scritto.
+          </p>
+          {/* Da quando si conta: una volta sola per tutti e due i conti. */}
+          <RigaAttivoDal attivatoIlMs={attivatoIlMs ?? null} testi={TESTI_ATTIVO_DAL} />
+          {/* ⚠️ LA COMMISSIONE STA ACCANTO AL MATURATO E A NIENT'ALTRO.
+              Si calcola su `mezzOreNette` del maturato, mai sul live: il
+              live comprende le partite di domani e del mese prossimo, e
+              fatturarle vorrebbe dire farsi pagare campo che non è
+              ancora stato giocato e che potrebbe non esserlo mai — una
+              disdetta lo toglie dal conto e il denaro andrebbe reso.
+              La costante e la funzione stanno in `data/commissione.ts`,
+              che vive solo in questo progetto: il riquadro arriva da
+              qui e non da dentro `RiquadriConteggio`, così quel numero
+              non passa nemmeno per un file sotto `app/admin/`. */}
           <RiquadriConteggio
+            key={`maturato-${giroConteggi}`}
+            modo="maturato"
             circoloId={circoloId}
-            attivatoIlMs={attivatoIlMs ?? null}
-            testi={TESTI_CONTEGGIO}
+            testi={TESTI_MATURATO}
+            riquadroInPiu={(c: Conteggio | null) => (
+              <div className="scheda-conto scheda-conto-allarme">
+                <span className="scheda-conto-n">
+                  {/* ⚠️ `euroDaCentesimi` e non `euro`: la commissione
+                      nasce in centesimi interi e va scritta come
+                      l'incasso che le sta accanto. Passarla per un
+                      numero in virgola darebbe due totali che non
+                      tornano nella stessa fila di riquadri. */}
+                  {c ? `${euroDaCentesimi(commissioneCentesimi(mezzOreNette(c)))} €` : '—'}
+                </span>
+                <span className="scheda-conto-et">Commissione dovuta</span>
+              </div>
+            )}
+          />
+          <p className="admin-card-hint scheda-nota">{NOTA_INCASSO}</p>
+          <p className="admin-card-hint scheda-nota">
+            La commissione è calcolata sulle <strong>mezz’ore nette maturate</strong> — prenotate
+            meno annullate, sui soli giorni chiusi. Non sul prenotato: quelle mezz’ore non sono
+            ancora state giocate, e una disdetta le toglie dal conto.
+          </p>
+
+          <div className="superadmin-subtitolo">Prenotato adesso</div>
+          <p className="admin-card-hint">
+            Quante mezz’ore risultano prenotate <strong>in questo momento</strong>, comprese
+            quelle di domani e del mese prossimo. È la fotografia del presente e serve a vedere
+            come gira il circolo, non a fare i conti: qui accanto non c’è nessuna commissione
+            perché sarebbe campo non ancora giocato.
+          </p>
+          <RiquadriConteggio
+            key={`live-${giroConteggi}`}
+            modo="live"
+            circoloId={circoloId}
+            testi={TESTI_LIVE}
+          />
+
+          <TastoRicostruisci
+            circoloId={circoloId}
+            onFatto={() => setGiroConteggi((n) => n + 1)}
           />
         </>
       )}

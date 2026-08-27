@@ -918,9 +918,6 @@ const it = {
   // fatto.
   'adm.ric2.sez.titolo': 'Conteggio delle mezz’ore',
   'adm.ric2.sez.descrizione': 'Quante mezz’ore di campo il tuo Circolo ha venduto da quando è attivo, e quanto valgono',
-  'adm.ric2.titolo': 'Le mezz’ore vendute',
-  'adm.ric2.intro': 'Cinque numeri, tutti del tuo Circolo: quante mezz’ore di campo sono state prenotate, quante annullate, la differenza fra le due, quella differenza detta in ore, e quanto valgono in tutto. Si conta dal giorno in cui il Circolo è entrato in rete a oggi, e il totale cresce da solo con il passare delle ore.',
-  'adm.ric2.aggiorna': 'Aggiorna conteggio',
   'adm.ric2.et.prenotate': 'Mezz’ore prenotate',
   'adm.ric2.et.annullate': 'Mezz’ore annullate',
   'adm.ric2.et.nette': 'Mezz’ore nette',
@@ -929,13 +926,26 @@ const it = {
   'adm.ric2.et.attivoDal': 'Si conta da',
   'adm.ric2.attivoDal': 'Attivo dal {data}.',
   'adm.ric2.attivoDalIgnoto': 'Non risulta una data di ingresso in rete per il tuo Circolo: il conteggio parte dal primo giorno che il server riesce a leggere, non da una data certa.',
-  'adm.ric2.finoA': 'Il conto arriva alle {ora} del {data}.',
-  'adm.ric2.oraInCorso': 'L’ora in corso non è compresa: una mezz’ora entra nel conto quando è finita, non quando è ancora in campo.',
-  'adm.ric2.nonTrovato': 'Il conteggio non è ancora stato fatto. Non è la stessa cosa di zero: vuol dire che il totale non è mai stato calcolato per il tuo Circolo. Premi «Aggiorna conteggio».',
   'adm.ric2.incompleto': 'Il server si è fermato prima di arrivare a oggi: i giorni da sommare erano più di quelli che stanno in una chiamata sola. Premendo di nuovo prosegue da dove si era fermato.',
   'adm.ric2.errAggiorna': 'Il conteggio non è stato rifatto ({motivo}). I numeri qui sotto restano quelli dell’ultimo aggiornamento riuscito.',
   'adm.ric2.errLettura': 'Non è stato possibile leggere il conteggio ({motivo}).',
   'adm.ric2.notaIncasso': 'Il totale incasso è la somma del prezzo che ogni mezz’ora aveva in griglia nell’istante in cui è stata prenotata: sono soldi del tuo Circolo, e non si muovono se ritocchi il listino. Le mezz’ore annullate non ci sono dentro.',
+
+  // ---------- i due conti: prenotato adesso e maturato ----------
+  'adm.ric2.d.titolo': 'Le mezz’ore del tuo Circolo',
+  'adm.ric2.d.intro': 'Due conti diversi, e non sono lo stesso numero letto in due momenti. «Prenotato adesso» dice quante mezz’ore risultano prenotate in questo istante, comprese quelle di domani e del mese prossimo. «Maturato» dice quante ne sono state davvero giocate, e si ferma a mezzanotte di ieri. Una prenotazione per il mese prossimo è dentro il primo e fuori dal secondo, e ci resterà fuori fino al giorno dopo la partita. Ogni conto ha i suoi cinque numeri e il suo pulsante.',
+  'adm.ric2.d.live.titolo': 'Prenotato adesso',
+  'adm.ric2.d.live.spiega': 'Quante mezz’ore risultano prenotate in questo momento, comprese quelle dei giorni che devono ancora arrivare. È la fotografia del presente: sale quando un socio prenota e scende quando disdice, senza che tu debba premere niente.',
+  'adm.ric2.d.live.aggiorna': 'Rileggi il prenotato',
+  'adm.ric2.d.live.nonTrovato': 'Il conteggio dal vivo non esiste ancora per il tuo Circolo. Non è la stessa cosa di zero: il documento nasce con la prima prenotazione, e finché non ne arriva una non c’è niente da leggere.',
+  'adm.ric2.d.live.nota': 'Dentro ci sono anche le partite ancora da giocare: domani, la settimana prossima, il mese prossimo. Il pulsante rilegge il numero, non lo ricalcola: è già giusto nell’istante in cui lo guardi.',
+  'adm.ric2.d.mat.titolo': 'Maturato',
+  'adm.ric2.d.mat.spiega': 'Quante mezz’ore sono state davvero giocate. Il conto si ferma a mezzanotte di ieri: entrano solo i giorni chiusi per intero, così il numero non cambia mentre lo guardi e resta lo stesso a qualunque ora tu apra questa pagina.',
+  'adm.ric2.d.mat.aggiorna': 'Aggiorna il maturato',
+  'adm.ric2.d.mat.nonTrovato': 'Il maturato non è ancora stato calcolato per il tuo Circolo. Non è la stessa cosa di zero: vuol dire che il conto non è mai stato fatto. Premi «Aggiorna il maturato».',
+  'adm.ric2.d.mat.finoAl': 'Il conto comprende i giorni fino al {data} compreso.',
+  'adm.ric2.d.mat.finoANiente': 'Nessun giorno è ancora entrato nel conto: il maturato esiste ma è fermo al punto di partenza.',
+  'adm.ric2.d.mat.nota': 'Il giorno in corso non è compreso: una giornata entra nel maturato quando è finita per intero. È voluto — un numero che si muove mentre lo si guarda non serve a farci i conti.',
 };
 
 const en: Record<keyof typeof it, string> = {
@@ -1825,9 +1835,6 @@ const en: Record<keyof typeof it, string> = {
   // fatto.
   'adm.ric2.sez.titolo': 'Half-hour count',
   'adm.ric2.sez.descrizione': 'How many half hours of court your Club has sold since it went live, and what they are worth',
-  'adm.ric2.titolo': 'Half hours sold',
-  'adm.ric2.intro': 'Five numbers, all of them your Club’s: how many half hours of court were booked, how many cancelled, the difference between the two, that difference expressed in hours, and what it all comes to. The count runs from the day the Club joined the network to today, and the total grows on its own as the hours go by.',
-  'adm.ric2.aggiorna': 'Update the count',
   'adm.ric2.et.prenotate': 'Half hours booked',
   'adm.ric2.et.annullate': 'Half hours cancelled',
   'adm.ric2.et.nette': 'Net half hours',
@@ -1836,13 +1843,26 @@ const en: Record<keyof typeof it, string> = {
   'adm.ric2.et.attivoDal': 'Counting from',
   'adm.ric2.attivoDal': 'Active since {data}.',
   'adm.ric2.attivoDalIgnoto': 'There is no network join date on record for your Club: the count starts from the first day the server can read, not from a date we are sure of.',
-  'adm.ric2.finoA': 'The count runs up to {ora} on {data}.',
-  'adm.ric2.oraInCorso': 'The current hour is not included: a half hour enters the count once it is over, not while it is still being played.',
-  'adm.ric2.nonTrovato': 'The count has not been made yet. That is not the same as zero: it means the total has never been computed for your Club. Press “Update the count”.',
   'adm.ric2.incompleto': 'The server stopped before reaching today: there were more days to add up than fit into a single call. Press again and it carries on from where it stopped.',
   'adm.ric2.errAggiorna': 'The count was not recomputed ({motivo}). The numbers below are still those of the last successful update.',
   'adm.ric2.errLettura': 'The count could not be read ({motivo}).',
   'adm.ric2.notaIncasso': 'The total takings are the sum of the price each half hour carried on the grid at the moment it was booked: it is your Club’s money, and it does not move if you adjust your rates. Cancelled half hours are not in there.',
+
+  // ---------- i due conti: prenotato adesso e maturato ----------
+  'adm.ric2.d.titolo': 'Your Club’s half hours',
+  'adm.ric2.d.intro': 'Two different counts, and they are not the same number read at two moments. “Booked right now” tells you how many half hours are booked at this instant, including tomorrow’s and next month’s. “Matured” tells you how many were actually played, and it stops at midnight last night. A booking for next month is inside the first and outside the second, and it stays outside until the day after the match. Each count has its own five numbers and its own button.',
+  'adm.ric2.d.live.titolo': 'Booked right now',
+  'adm.ric2.d.live.spiega': 'How many half hours are booked at this moment, including those on days still to come. It is a snapshot of the present: it goes up when a member books and down when they cancel, without you having to press anything.',
+  'adm.ric2.d.live.aggiorna': 'Re-read what is booked',
+  'adm.ric2.d.live.nonTrovato': 'The live count does not exist yet for your Club. That is not the same as zero: the document is created with the first booking, and until one arrives there is nothing to read.',
+  'adm.ric2.d.live.nota': 'It also contains matches still to be played: tomorrow, next week, next month. The button re-reads the number, it does not recompute it: it is already correct the instant you look at it.',
+  'adm.ric2.d.mat.titolo': 'Matured',
+  'adm.ric2.d.mat.spiega': 'How many half hours were actually played. The count stops at midnight last night: only days that are closed in full go in, so the number does not change while you look at it and stays the same whatever time you open this page.',
+  'adm.ric2.d.mat.aggiorna': 'Update the matured count',
+  'adm.ric2.d.mat.nonTrovato': 'The matured count has not been computed yet for your Club. That is not the same as zero: it means the count has never been made. Press “Update the matured count”.',
+  'adm.ric2.d.mat.finoAl': 'The count covers the days up to and including {data}.',
+  'adm.ric2.d.mat.finoANiente': 'No day has entered the count yet: the matured total exists but is still at its starting point.',
+  'adm.ric2.d.mat.nota': 'Today is not included: a day enters the matured count once it is over in full. That is deliberate — a number that moves while you watch it is no use for doing the books.',
 };
 
 const de: Record<keyof typeof it, string> = {
@@ -2732,9 +2752,6 @@ const de: Record<keyof typeof it, string> = {
   // fatto.
   'adm.ric2.sez.titolo': 'Halbstunden-Zählung',
   'adm.ric2.sez.descrizione': 'Wie viele Halbstunden Platzzeit Ihr Club seit dem Start verkauft hat und was sie wert sind',
-  'adm.ric2.titolo': 'Verkaufte Halbstunden',
-  'adm.ric2.intro': 'Fünf Zahlen, alle von Ihrem Club: wie viele Halbstunden Platzzeit gebucht wurden, wie viele storniert, die Differenz zwischen beiden, diese Differenz in Stunden ausgedrückt und was das Ganze wert ist. Gezählt wird vom Tag des Netzbeitritts bis heute, und die Summe wächst mit den vergehenden Stunden von selbst.',
-  'adm.ric2.aggiorna': 'Zählung aktualisieren',
   'adm.ric2.et.prenotate': 'Gebuchte Halbstunden',
   'adm.ric2.et.annullate': 'Stornierte Halbstunden',
   'adm.ric2.et.nette': 'Halbstunden netto',
@@ -2743,13 +2760,26 @@ const de: Record<keyof typeof it, string> = {
   'adm.ric2.et.attivoDal': 'Gezählt ab',
   'adm.ric2.attivoDal': 'Aktiv seit {data}.',
   'adm.ric2.attivoDalIgnoto': 'Für Ihren Club ist kein Beitrittsdatum hinterlegt: Die Zählung beginnt mit dem ersten Tag, den der Server lesen kann, nicht mit einem gesicherten Datum.',
-  'adm.ric2.finoA': 'Die Zählung reicht bis {ora} am {data}.',
-  'adm.ric2.oraInCorso': 'Die laufende Stunde ist nicht enthalten: Eine Halbstunde zählt erst, wenn sie vorbei ist, nicht während noch gespielt wird.',
-  'adm.ric2.nonTrovato': 'Die Zählung wurde noch nicht durchgeführt. Das ist nicht dasselbe wie null: Die Summe wurde für Ihren Club noch nie berechnet. Drücken Sie „Zählung aktualisieren“.',
   'adm.ric2.incompleto': 'Der Server hat vor dem heutigen Tag angehalten: Es waren mehr Tage zu addieren, als in einen einzigen Aufruf passen. Bei erneutem Drücken macht er dort weiter, wo er aufgehört hat.',
   'adm.ric2.errAggiorna': 'Die Zählung wurde nicht neu berechnet ({motivo}). Die Zahlen unten stammen weiterhin aus der letzten erfolgreichen Aktualisierung.',
   'adm.ric2.errLettura': 'Die Zählung konnte nicht gelesen werden ({motivo}).',
   'adm.ric2.notaIncasso': 'Die Gesamteinnahmen sind die Summe der Preise, die jede Halbstunde im Moment der Buchung im Raster hatte: Es ist das Geld Ihres Clubs, und es ändert sich nicht, wenn Sie die Preisliste anpassen. Stornierte Halbstunden sind nicht enthalten.',
+
+  // ---------- i due conti: prenotato adesso e maturato ----------
+  'adm.ric2.d.titolo': 'Die Halbstunden Ihres Clubs',
+  'adm.ric2.d.intro': 'Zwei verschiedene Zählungen, und sie sind nicht dieselbe Zahl zu zwei Zeitpunkten. „Jetzt gebucht“ sagt, wie viele Halbstunden in diesem Augenblick gebucht sind, auch die von morgen und vom nächsten Monat. „Aufgelaufen“ sagt, wie viele tatsächlich gespielt wurden, und endet um Mitternacht des gestrigen Tages. Eine Buchung für den nächsten Monat steckt in der ersten und nicht in der zweiten, und bleibt bis zum Tag nach dem Spiel draußen. Jede Zählung hat ihre eigenen fünf Zahlen und ihre eigene Schaltfläche.',
+  'adm.ric2.d.live.titolo': 'Jetzt gebucht',
+  'adm.ric2.d.live.spiega': 'Wie viele Halbstunden in diesem Moment gebucht sind, auch die an Tagen, die noch bevorstehen. Es ist die Momentaufnahme der Gegenwart: Sie steigt, wenn ein Mitglied bucht, und sinkt bei einer Stornierung, ohne dass Sie etwas drücken müssen.',
+  'adm.ric2.d.live.aggiorna': 'Gebuchtes neu laden',
+  'adm.ric2.d.live.nonTrovato': 'Die Live-Zählung gibt es für Ihren Club noch nicht. Das ist nicht dasselbe wie null: Das Dokument entsteht mit der ersten Buchung, und bis dahin gibt es nichts zu lesen.',
+  'adm.ric2.d.live.nota': 'Darin stecken auch die noch zu spielenden Partien: morgen, nächste Woche, nächsten Monat. Die Schaltfläche lädt die Zahl nur neu, sie berechnet sie nicht: Sie stimmt schon in dem Augenblick, in dem Sie hinsehen.',
+  'adm.ric2.d.mat.titolo': 'Aufgelaufen',
+  'adm.ric2.d.mat.spiega': 'Wie viele Halbstunden tatsächlich gespielt wurden. Die Zählung endet um Mitternacht des gestrigen Tages: Es zählen nur vollständig abgeschlossene Tage, damit sich die Zahl beim Hinsehen nicht bewegt und zu jeder Uhrzeit gleich bleibt.',
+  'adm.ric2.d.mat.aggiorna': 'Aufgelaufenes aktualisieren',
+  'adm.ric2.d.mat.nonTrovato': 'Das Aufgelaufene wurde für Ihren Club noch nicht berechnet. Das ist nicht dasselbe wie null: Die Zählung wurde noch nie durchgeführt. Drücken Sie „Aufgelaufenes aktualisieren“.',
+  'adm.ric2.d.mat.finoAl': 'Die Zählung umfasst die Tage bis einschließlich {data}.',
+  'adm.ric2.d.mat.finoANiente': 'Bisher ist kein Tag in die Zählung eingegangen: Das Aufgelaufene existiert, steht aber noch am Ausgangspunkt.',
+  'adm.ric2.d.mat.nota': 'Der laufende Tag ist nicht enthalten: Ein Tag geht ins Aufgelaufene ein, wenn er ganz vorbei ist. Das ist Absicht — eine Zahl, die sich beim Hinsehen bewegt, taugt nicht zum Abrechnen.',
 };
 
 export const admin = blocco(it, en, de);
