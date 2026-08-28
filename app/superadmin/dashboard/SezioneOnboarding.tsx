@@ -17,7 +17,6 @@ interface Credenziali {
 
 export default function SezioneOnboarding() {
   const [nomeCircolo, setNomeCircolo] = useState('');
-  const [citta, setCitta] = useState('');
   const [sigla, setSigla] = useState('');
   const [regione, setRegione] = useState('');
   const [provincia, setProvincia] = useState('');
@@ -28,6 +27,57 @@ export default function SezioneOnboarding() {
   const [emailAdmin, setEmailAdmin] = useState('');
   const [passwordAdmin, setPasswordAdmin] = useState('');
   const [errore, setErrore] = useState('');
+
+  // ============================================================
+  // I COMUNI — elenco chiuso, e caricato solo quando serve.
+  //
+  // ⚠️ IL COMUNE HA SOSTITUITO IL CAMPO «CITTÀ», che era testo libero
+  // con esempio «Milazzo (ME)». Due campi che dicono la stessa cosa
+  // sono due campi che prima o poi si contraddicono, e quello libero
+  // era anche quello che sporcava il dato: «Milazzo», «milazzo»,
+  // «Milazzo (ME)» sono tre città diverse per chiunque debba
+  // raggrupparle. È lo stesso ragionamento già scritto in
+  // `data/tornei.ts` per le province.
+  //
+  // ⚠️ `citta` NON È SPARITA DAL DATABASE: la si continua a scrivere,
+  // riempita con il comune scelto. Togliere il campo dal modulo è una
+  // decisione di questa schermata; toglierlo dai documenti dei circoli
+  // rompirebbe tutto quello che già lo legge — la scheda del circolo,
+  // l'elenco della rete, la riga della fatturazione.
+  //
+  // ⚠️ L'ELENCO ARRIVA CON UN `import` DIFFERITO. Sono più di cento
+  // kilobyte: caricati in cima al file peserebbero su OGNI apertura del
+  // pannello Super Admin, comprese le mille volte in cui non si crea
+  // nessun circolo. Così li scarica solo chi apre davvero questa
+  // sezione, una volta per sessione.
+  // ============================================================
+  const [comuniProvincia, setComuniProvincia] = useState<string[]>([]);
+  const [comuniInArrivo, setComuniInArrivo] = useState(false);
+
+  useEffect(() => {
+    if (!provincia) { setComuniProvincia([]); return undefined; }
+    let vivo = true;
+    setComuniInArrivo(true);
+    import('../../../data/comuni')
+      .then((m) => { if (vivo) setComuniProvincia(m.comuniDi(provincia)); })
+      // ⚠️ Il guasto si dice, e non si finge un elenco vuoto: una
+      // tendina vuota si legge come «in questa provincia non ci sono
+      // comuni», che è assurdo, e manda a cercare l'errore dove non è.
+      .catch(() => { if (vivo) setErrore("Non sono riuscito a caricare l'elenco dei comuni. Ricarica la pagina."); })
+      .finally(() => { if (vivo) setComuniInArrivo(false); });
+    return () => { vivo = false; };
+  }, [provincia]);
+
+  // ⚠️ Il comune cade quando cambia la provincia, come già la provincia
+  // cade quando cambia la regione. Senza, si creerebbe un circolo con
+  // un comune che nella provincia scelta non esiste — e nessuno se ne
+  // accorgerebbe, perché a schermo resta scritto un nome che sembra
+  // giusto.
+  useEffect(() => {
+    if (!comune) return;
+    if (comuniInArrivo || comuniProvincia.length === 0) return;
+    if (!comuniProvincia.includes(comune)) setComune('');
+  }, [comuniProvincia, comuniInArrivo, comune]);
   const [creando, setCreando] = useState(false);
   const [successo, setSuccesso] = useState<Credenziali | null>(null);
 
@@ -59,7 +109,20 @@ export default function SezioneOnboarding() {
     setNomeCircolo(r.nomeCircolo ?? '');
     if (r.regione) setRegione(r.regione);
     if (r.provincia) setProvincia(r.provincia);
-    if (r.citta) setCitta(r.citta);
+    // ⚠️ La città arrivata dalla richiesta è testo libero — l'ha scritta
+    // il circolo nel modulo del sito — quindi non si può infilare
+    // nella tendina così com'è. Si prova a farla combaciare con un
+    // comune vero, e se non combacia si lascia la scelta al Super
+    // Admin invece di scrivere un valore che nessun elenco conosce.
+    if (r.citta && r.provincia) {
+      const cercata = r.citta.trim().toLowerCase();
+      import('../../../data/comuni')
+        .then((m) => {
+          const trovato = m.comuniDi(r.provincia).find((c) => c.toLowerCase() === cercata);
+          if (trovato) setComune(trovato);
+        })
+        .catch(() => { /* si sceglie a mano dalla tendina */ });
+    }
     setRichiedenteNome(r.referente ?? '');
     setRichiedenteRuolo(r.ruolo ?? '');
     setRichiedenteEmail(r.email ?? '');
@@ -83,7 +146,7 @@ export default function SezioneOnboarding() {
   const [noteInterne, setNoteInterne] = useState('');
 
   const reset = () => {
-    setNomeCircolo(''); setCitta(''); setSigla(''); setRegione(''); setPasswordCircolo('');
+    setNomeCircolo(''); setSigla(''); setRegione(''); setPasswordCircolo('');
     // ⚠️ Anche provincia e comune, che restavano indietro: creato un
     // circolo, il successivo partiva con la provincia del precedente
     // gia' selezionata — e l'anagrafica di rete decide dove arrivano i
@@ -97,7 +160,7 @@ export default function SezioneOnboarding() {
 
   const crea = async () => {
     setErrore('');
-    if (!nomeCircolo.trim() || !citta.trim() || !sigla.trim() || !passwordCircolo.trim()) {
+    if (!nomeCircolo.trim() || !sigla.trim() || !passwordCircolo.trim()) {
       setErrore('Compila tutti i campi del circolo.');
       return;
     }
@@ -117,6 +180,13 @@ export default function SezioneOnboarding() {
       setErrore('Scegli la regione: serve ai Tornei per far trovare il circolo.');
       return;
     }
+    // ⚠️ Obbligatorio, e non era nemmeno un campo controllato: prima si
+    // scriveva a mano e si poteva lasciare vuoto. È il dato con cui il
+    // circolo si trova sulla mappa e si raggruppa con i vicini.
+    if (!comune) {
+      setErrore('Scegli il comune: è quello che dice dove sta davvero il circolo.');
+      return;
+    }
     if (!nomeAdmin.trim() || !cognomeAdmin.trim() || !emailAdmin.trim() || !passwordAdmin) {
       setErrore("Compila tutti i campi dell'Admin Circolo.");
       return;
@@ -128,7 +198,9 @@ export default function SezioneOnboarding() {
     setCreando(true);
     try {
       await creaCircoloConAdmin({
-        nomeCircolo, citta, sigla, regione, provincia, comune, passwordCircolo,
+        // `citta` continua a esistere sul documento del circolo, e la
+        // riempie il comune scelto: vedi il riquadro in cima.
+        nomeCircolo, citta: comune, sigla, regione, provincia, comune, passwordCircolo,
         nomeAdmin, cognomeAdmin, emailAdmin, passwordAdmin,
         richiedenteNome, richiedenteRuolo, richiedenteEmail, richiedenteTelefono,
         firmatarioNome, firmatarioRuolo, firmaIl, noteInterne,
@@ -220,16 +292,12 @@ export default function SezioneOnboarding() {
         <label className="admin-label">Nome del circolo</label>
         <input className="admin-input" value={nomeCircolo} onChange={(e) => setNomeCircolo(e.target.value)} placeholder="ASD Tennis Esempio" />
 
-        <div className="admin-row">
-          <div style={{ flex: 2 }}>
-            <label className="admin-label">Città</label>
-            <input className="admin-input" value={citta} onChange={(e) => setCitta(e.target.value)} placeholder="Milazzo (ME)" />
-          </div>
-          <div style={{ flex: 1 }}>
-            <label className="admin-label">Sigla</label>
-            <input className="admin-input" value={sigla} onChange={(e) => setSigla(e.target.value)} placeholder="TM" maxLength={4} />
-          </div>
-        </div>
+        {/* ⚠️ IL CAMPO «CITTÀ» NON C'È PIÙ: lo dice il Comune, scelto
+            dalla tendina qui sotto. Vedi il riquadro in cima al file —
+            sul documento del circolo `citta` continua a esserci, e la
+            riempie il comune. */}
+        <label className="admin-label">Sigla</label>
+        <input className="admin-input" value={sigla} onChange={(e) => setSigla(e.target.value)} placeholder="TM" maxLength={4} />
 
         <label className="admin-label">Regione</label>
         <select
@@ -258,7 +326,27 @@ export default function SezioneOnboarding() {
         </select>
 
         <label className="admin-label">Comune</label>
-        <input className="admin-input" value={comune} onChange={(e) => setComune(e.target.value)} maxLength={80} />
+        <select
+          className="admin-select"
+          value={comune}
+          onChange={(e) => setComune(e.target.value)}
+          disabled={!provincia || comuniInArrivo}
+        >
+          {/* ⚠️ TRE MESSAGGI DIVERSI, e servono tutti e tre. «Scegli
+              prima la provincia» dice cosa fare; «carico…» dice che
+              sta arrivando e non che è vuoto; e solo quando l'elenco
+              c'è davvero compare l'invito a scegliere. Un'unica riga
+              vuota li confonderebbe, e chi guarda penserebbe a un
+              guasto proprio nei due casi in cui non c'è nessun guasto. */}
+          {!provincia ? (
+            <option value="">— scegli prima la provincia —</option>
+          ) : comuniInArrivo ? (
+            <option value="">— carico i comuni… —</option>
+          ) : (
+            <option value="">— scegli il comune —</option>
+          )}
+          {comuniProvincia.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
 
         <label className="admin-label">Password d&apos;accesso soci</label>
         <input className="admin-input" value={passwordCircolo} onChange={(e) => setPasswordCircolo(e.target.value)} placeholder="es. esempio2026" />

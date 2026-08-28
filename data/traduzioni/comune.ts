@@ -18,6 +18,11 @@ const it = {
   'com.okHoCapito': 'Ok, ho capito',
   'com.annulla': 'Annulla',
   'com.chiudi': 'Chiudi',
+  // ⚠️ Non e' «chiudi la finestra»: abbassa SOLO la tastiera e lascia
+  // aperto quello che si stava scrivendo. Il tasto compare accanto
+  // alla × mentre la tastiera e' su, e serve quando un campo apre una
+  // tendina che la tastiera copre.
+  'com.abbassaTastiera': 'Abbassa la tastiera',
   'com.conferma': 'Conferma',
   'com.continua': 'Continua',
   'com.indietro': 'Indietro',
@@ -199,6 +204,7 @@ const en: Record<keyof typeof it, string> = {
   'com.okHoCapito': 'OK, got it',
   'com.annulla': 'Cancel',
   'com.chiudi': 'Close',
+  'com.abbassaTastiera': 'Hide the keyboard',
   'com.conferma': 'Confirm',
   'com.continua': 'Continue',
   'com.indietro': 'Back',
@@ -383,6 +389,7 @@ const de: Record<keyof typeof it, string> = {
   'com.okHoCapito': 'OK, verstanden',
   'com.annulla': 'Abbrechen',
   'com.chiudi': 'Schließen',
+  'com.abbassaTastiera': 'Tastatur ausblenden',
   'com.conferma': 'Bestätigen',
   'com.continua': 'Weiter',
   'com.indietro': 'Zurück',
