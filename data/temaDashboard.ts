@@ -30,12 +30,22 @@ export interface TemaDashboard {
   sfondo: Tinta;
 }
 
-// ⚠️ Sono i colori storici, tradotti in HSL una volta per tutte: il
-// verde pino `#0E3B2E` della testata e l'avorio `#FBFAF6` del fondo.
-// Chi non tocca niente non deve accorgersi che questa sezione esiste.
+// I colori storici: il verde pino `#0E3B2E` della testata e l'avorio
+// `#FBFAF6` del fondo. Chi non tocca niente non deve accorgersi che
+// questa sezione esiste.
+//
+// ⚠️ NON SONO ESATTI, E NON POSSONO ESSERLO. Con tinta, saturazione e
+// luminosita' espresse in numeri interi — che e' quello che i cursori
+// sanno produrre — nessuna combinazione dà esattamente quei due
+// esadecimali: si cade sempre a un'unita' di distanza su un canale.
+// Questi due sono i piu' vicini che esistano, verificati provando
+// tutte le 3.6 milioni di combinazioni: `#0D3B2E` invece di `#0E3B2E`,
+// `#FCFAF7` invece di `#FBFAF6`. È uno scarto che non si vede, ma va
+// scritto: chi un giorno confrontasse i due valori con quelli di
+// `BRAND` li troverebbe diversi e penserebbe a un errore.
 export const TEMA_ADMIN_DI_PARTENZA: TemaDashboard = {
-  testata: { h: 163, s: 62, l: 14 },
-  sfondo: { h: 48, s: 38, l: 97 },
+  testata: { h: 163, s: 64, l: 14 },
+  sfondo: { h: 26, s: 48, l: 98 },
 };
 
 // ⚠️ Il pannello nostro nasce diverso da quello dei circoli, ed è
