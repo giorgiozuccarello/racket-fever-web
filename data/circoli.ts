@@ -437,11 +437,28 @@ export const TEMI_APP: Record<string, TemaApp> = {
 
 export const TEMA_APP_DEFAULT = 'bianco';
 
-// Al massimo UNA tariffa speciale per campo: una fascia oraria con
-// un prezzo diverso dal prezzo base (es. "Con illuminazione").
+// Una fascia oraria con un prezzo diverso dal prezzo base — «Con
+// illuminazione», «Torneo del sabato», «Mattina ridotta».
+//
+// ⚠️ NON PIU' UNA SOLA PER CAMPO, dal 28 agosto 2026. Erano una, e la
+// riga qui sopra diceva «al massimo UNA». Adesso stanno in un elenco,
+// e la conseguenza che conta e' che DUE TARIFFE NON DEVONO POTERSI
+// SOVRAPPORRE: se due fasce si accavallano sullo stesso giorno, quale
+// delle due vale per quell'ora e' una domanda senza risposta, e la
+// risposta la darebbe l'ordine in cui sono state salvate — cioe' il
+// caso. Il controllo sta in `data/prezzi.ts` e si applica in due
+// momenti: la tendina delle ore nasconde quelle gia' prese, e il
+// salvataggio rifiuta comunque quello che passa lo stesso.
+//
+// ⚠️ L'`id` SERVE, e non e' un vezzo. Con una tariffa sola bastava
+// sovrascriverla; con un elenco bisogna sapere QUALE riga si sta
+// modificando o cancellando, e senza un identificativo l'unica strada
+// sarebbe la posizione nell'array — che cambia sotto i piedi appena
+// qualcuno ne cancella una piu' in alto.
 export interface TariffaSpeciale {
+  id: string;
   orarioInizio: string; // 'HH:MM'
-  orarioFine: string;   // 'HH:MM'
+  orarioFine: string;   // 'HH:MM' — esclusa: 08:00-10:00 e 10:00-12:00 non si toccano
   prezzo: number;
   etichetta: string;
   giorni: number[];     // 0=Domenica...6=Sabato; vuoto = tutti i giorni
@@ -465,7 +482,15 @@ export interface Campo {
   superficie?: string;
   ordine: number;
   prezzoOraDefault: number | null; // null = non ancora impostato dall'admin
+  // ⚠️ IL CAMPO VECCHIO RESTA LEGGIBILE E NON SI SCRIVE PIU'. I campi
+  // configurati prima del 28 agosto 2026 hanno la loro tariffa qui, e
+  // toglierla di mezzo vorrebbe dire che il giorno della pubblicazione
+  // ogni circolo si ritrova i prezzi serali spariti senza un avviso.
+  // Chi legge non guarda mai questi due campi direttamente: chiama
+  // `tariffeDelCampo()` in `data/prezzi.ts`, che le mette in fila
+  // qualunque sia la forma in cui sono scritte.
   tariffaSpeciale?: TariffaSpeciale | null;
+  tariffeSpeciali?: TariffaSpeciale[] | null;
 }
 
 // La riga sotto il nome del campo, comunque sia scritta sul documento.

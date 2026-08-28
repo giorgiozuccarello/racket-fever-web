@@ -309,7 +309,7 @@ const it = {
 
   // ---------- Prezzi ----------
   'adm.pri.titolo': 'Prezzi delle ore',
-  'adm.pri.intro': 'Scegli un campo per impostare il suo prezzo base e, se vuoi, una tariffa speciale per una fascia oraria (es. con illuminazione).',
+  'adm.pri.intro': 'Scegli un campo per impostare il suo prezzo base e, se vuoi, quante tariffe speciali servono: una per ogni fascia oraria con un prezzo diverso. Due tariffe non possono coprire le stesse ore negli stessi giorni.',
   'adm.pri.prezzoBase': 'Prezzo base — {campo}',
   'adm.pri.tariffaSpeciale': 'Tariffa speciale',
   'adm.pri.tuttiIGiorni': 'Tutti i giorni',
@@ -325,6 +325,17 @@ const it = {
   'adm.pri.scegliOrari': 'Seleziona l’orario di inizio e di fine.',
   'adm.pri.scegliPrezzo': 'Seleziona un prezzo.',
   'adm.pri.scegliEtichetta': 'Inserisci un’etichetta.',
+  // ---------- piu' tariffe per campo (28 agosto 2026) ----------
+  'adm.pri.tariffeSpeciali': 'Tariffe speciali',
+  'adm.pri.aggiungiAltra': 'Aggiungi un’altra tariffa',
+  'adm.pri.nessunaTariffa': 'Nessuna tariffa speciale: tutte le ore costano il prezzo base.',
+  // ⚠️ Compare al posto delle due tendine finche' non si sceglie un
+  // giorno, e spiega perche' non ci sono: le ore ancora libere
+  // dipendono dai giorni, quindi la domanda va fatta in quest'ordine.
+  'adm.pri.giorniPrima': 'Scegli prima i giorni: le ore ancora libere dipendono da quelli.',
+  'adm.pri.nessunaOraLibera': 'In questi giorni non restano ore libere. Cancella una tariffa esistente, o restringine la fascia.',
+  'adm.pri.fineDopoInizio': 'L’ora di fine deve venire dopo quella di inizio.',
+  'adm.pri.sovrapposta': 'Queste ore sono già di «{tariffa}» ({fascia}). Cambia orario o giorni.',
 
   // ---------- Orari Riservati ----------
   'adm.blo.erroreRimozione': 'Non è stato possibile rimuovere l’orario riservato. Riprova.',
@@ -1250,7 +1261,7 @@ const en: Record<keyof typeof it, string> = {
 
   // ---------- Prezzi ----------
   'adm.pri.titolo': 'Hourly prices',
-  'adm.pri.intro': 'Pick a court to set its base price and, if you like, a special rate for a time band (with floodlights, for instance).',
+  'adm.pri.intro': 'Pick a court to set its base price and, if you like, as many special rates as you need: one for each time band with a different price. Two rates cannot cover the same hours on the same days.',
   'adm.pri.prezzoBase': 'Base price — {campo}',
   'adm.pri.tariffaSpeciale': 'Special rate',
   'adm.pri.tuttiIGiorni': 'Every day',
@@ -1266,6 +1277,13 @@ const en: Record<keyof typeof it, string> = {
   'adm.pri.scegliOrari': 'Choose a start and an end time.',
   'adm.pri.scegliPrezzo': 'Choose a price.',
   'adm.pri.scegliEtichetta': 'Enter a label.',
+  'adm.pri.tariffeSpeciali': 'Special rates',
+  'adm.pri.aggiungiAltra': 'Add another rate',
+  'adm.pri.nessunaTariffa': 'No special rates: every hour costs the base price.',
+  'adm.pri.giorniPrima': 'Pick the days first: which hours are still free depends on them.',
+  'adm.pri.nessunaOraLibera': 'No hours left free on those days. Delete an existing rate, or narrow its band.',
+  'adm.pri.fineDopoInizio': 'The end time must come after the start time.',
+  'adm.pri.sovrapposta': 'Those hours already belong to “{tariffa}” ({fascia}). Change the time or the days.',
 
   // ---------- Orari Riservati ----------
   'adm.blo.erroreRimozione': 'Couldn’t remove the reserved slot. Please try again.',
@@ -2187,7 +2205,7 @@ const de: Record<keyof typeof it, string> = {
 
   // ---------- Prezzi ----------
   'adm.pri.titolo': 'Preise pro Stunde',
-  'adm.pri.intro': 'Wähle einen Platz, um seinen Grundpreis festzulegen und, wenn du willst, einen Sondertarif für ein Zeitfenster (zum Beispiel mit Flutlicht).',
+  'adm.pri.intro': 'Wähle einen Platz, um seinen Grundpreis festzulegen und, wenn du magst, so viele Sondertarife wie nötig: einen für jeden Zeitraum mit einem anderen Preis. Zwei Tarife dürfen nicht dieselben Stunden an denselben Tagen abdecken.',
   'adm.pri.prezzoBase': 'Grundpreis — {campo}',
   'adm.pri.tariffaSpeciale': 'Sondertarif',
   'adm.pri.tuttiIGiorni': 'Täglich',
@@ -2203,6 +2221,13 @@ const de: Record<keyof typeof it, string> = {
   'adm.pri.scegliOrari': 'Wähle Anfangs- und Endzeit.',
   'adm.pri.scegliPrezzo': 'Wähle einen Preis.',
   'adm.pri.scegliEtichetta': 'Gib eine Bezeichnung ein.',
+  'adm.pri.tariffeSpeciali': 'Sondertarife',
+  'adm.pri.aggiungiAltra': 'Weiteren Tarif hinzufügen',
+  'adm.pri.nessunaTariffa': 'Keine Sondertarife: jede Stunde kostet den Grundpreis.',
+  'adm.pri.giorniPrima': 'Wähle zuerst die Tage: welche Stunden noch frei sind, hängt davon ab.',
+  'adm.pri.nessunaOraLibera': 'An diesen Tagen sind keine Stunden mehr frei. Lösche einen bestehenden Tarif oder verkleinere seinen Zeitraum.',
+  'adm.pri.fineDopoInizio': 'Die Endzeit muss nach der Anfangszeit liegen.',
+  'adm.pri.sovrapposta': 'Diese Stunden gehören bereits zu „{tariffa}“ ({fascia}). Ändere die Zeit oder die Tage.',
 
   // ---------- Orari Riservati ----------
   'adm.blo.erroreRimozione': 'Der reservierte Slot konnte nicht entfernt werden. Bitte erneut versuchen.',

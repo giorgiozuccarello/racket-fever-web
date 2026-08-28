@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Campo, ORARI_ESTESI } from '../../../data/circoli';
+import { Campo, TariffaSpeciale } from '../../../data/circoli';
+import {
+  tariffeDelCampo, tariffaInConflitto, iniziDisponibili, finiDisponibili, nuovoIdTariffa,
+} from '../../../data/prezzi';
 import { aggiornaCampo } from '../../../data/circoliRepo';
 import { ChiaveTesto } from '../../../data/testi';
 import { useLingua } from '../../../lib/lingua';
@@ -28,6 +31,7 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
   }, [campi]);
 
   const campo = campi.find((c) => c.id === selCampoId);
+  const tariffe = tariffeDelCampo(campo);
 
   const [salvandoBase, setSalvandoBase] = useState(false);
   const salvaPrezzoBase = async (v: string) => {
@@ -37,7 +41,13 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
     setSalvandoBase(false);
   };
 
-  const [modificaAperta, setModificaAperta] = useState(false);
+  // ⚠️ SI MODIFICA UNA RIGA, NON «LA» TARIFFA. Con una tariffa sola
+  // bastava un interruttore aperto/chiuso; con un elenco bisogna sapere
+  // QUALE riga si sta toccando, e la si tiene per `id` e non per
+  // posizione: la posizione cambia sotto i piedi appena qualcuno
+  // cancella una riga più in alto.
+  // `''` vuol dire «form aperto su una tariffa NUOVA», `null` chiuso.
+  const [idInModifica, setIdInModifica] = useState<string | null>(null);
   const [orarioInizio, setOrarioInizio] = useState('');
   const [orarioFine, setOrarioFine] = useState('');
   const [prezzoSpeciale, setPrezzoSpeciale] = useState('');
@@ -45,15 +55,43 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
   const [giorniSel, setGiorniSel] = useState<number[]>([]);
   const [errore, setErrore] = useState('');
 
-  const apriForm = () => {
-    const esistente = campo?.tariffaSpeciale;
-    if (esistente) {
-      setOrarioInizio(esistente.orarioInizio);
-      setOrarioFine(esistente.orarioFine);
-      setPrezzoSpeciale(String(esistente.prezzo));
-      setEtichetta(esistente.etichetta);
-      setGiorniSel(esistente.giorni ?? []);
+  // ============================================================
+  // LE ORE CHE SI POSSONO ANCORA SCEGLIERE.
+  //
+  // ⚠️ DIPENDONO DAI GIORNI, ed è il motivo per cui nel modulo i giorni
+  // stanno SOPRA le ore. Una tariffa 18-20 del lunedì non occupa il
+  // sabato: chiedere le ore prima di sapere i giorni vorrebbe dire o
+  // nascondere ore che sono libere, o mostrarne di già prese.
+  //
+  // ⚠️ `idInModifica` esce dal conto: una tariffa non si sovrappone a sé
+  // stessa, e senza questa esclusione non si potrebbe riaprire una riga
+  // nemmeno per cambiarle il prezzo.
+  // ============================================================
+  const escludi = idInModifica || undefined;
+  const inizi = iniziDisponibili(tariffe, giorniSel, escludi);
+  const fini = finiDisponibili(orarioInizio, tariffe, giorniSel, escludi);
+
+  // ⚠️ Cambiando i giorni, un'ora scelta prima può diventare occupata.
+  // Lasciarla scritta nel modulo vorrebbe dire un salvataggio respinto
+  // con un messaggio che parla di ore che l'Admin non ricorda di aver
+  // scelto. Cade da sola, e la si risceglie fra quelle rimaste.
+  useEffect(() => {
+    if (idInModifica === null) return;
+    if (orarioInizio && !inizi.includes(orarioInizio)) { setOrarioInizio(''); setOrarioFine(''); return; }
+    if (orarioFine && !fini.includes(orarioFine)) setOrarioFine('');
+  }, [giorniSel, idInModifica]);
+
+  const apriForm = (tar?: TariffaSpeciale) => {
+    if (tar) {
+      setIdInModifica(tar.id);
+      setGiorniSel(tar.giorni ?? []);
+      setOrarioInizio(tar.orarioInizio);
+      setOrarioFine(tar.orarioFine);
+      setPrezzoSpeciale(String(tar.prezzo));
+      setEtichetta(tar.etichetta);
     } else {
+      setIdInModifica('');
+      setGiorniSel([]);
       setOrarioInizio('');
       setOrarioFine('');
       setPrezzoSpeciale('');
@@ -63,37 +101,70 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
       // perche' un Admin tedesco riscriverebbe comunque a mano un
       // «Con illuminazione» che non capisce.
       setEtichetta(t('adm.pri.etichettaEsempio'));
-      setGiorniSel([]);
     }
     setErrore('');
-    setModificaAperta(true);
   };
 
   const toggleGiorno = (i: number) => {
     setGiorniSel((prev) => (prev.includes(i) ? prev.filter((x) => x !== i) : [...prev, i]));
   };
 
-  const salvaTariffa = async () => {
+  // Come si legge una fascia in un messaggio d'errore.
+  const scrittaFascia = (tar: TariffaSpeciale) => `${tar.orarioInizio}–${tar.orarioFine}`;
+
+  // ⚠️ TUTTE LE TARIFFE SI RISCRIVONO INSIEME, ed è voluto. Sono un
+  // campo solo del documento del campo, non una sottocollezione: si
+  // legge l'elenco, si sostituisce la riga e si riscrive tutto.
+  // ⚠️ E `tariffaSpeciale` VA A NULL nello stesso colpo: è il campo
+  // vecchio, e lasciarlo pieno vorrebbe dire due fonti di verità —
+  // `tariffeDelCampo` preferisce l'elenco, quindi quella vecchia
+  // sparirebbe dai conti restando scritta sul documento, pronta a
+  // riaffiorare il giorno che qualcuno svuota l'elenco.
+  const scriviTariffe = async (nuove: TariffaSpeciale[]) => {
     if (!campo) return;
+    await aggiornaCampo(circoloId, campo.id, {
+      tariffeSpeciali: nuove, tariffaSpeciale: null,
+    } as any);
+  };
+
+  const salvaTariffa = async () => {
+    if (!campo || idInModifica === null) return;
     if (!orarioInizio || !orarioFine) { setErrore(t('adm.pri.scegliOrari')); return; }
+    if (orarioFine <= orarioInizio) { setErrore(t('adm.pri.fineDopoInizio')); return; }
     if (prezzoSpeciale === '') { setErrore(t('adm.pri.scegliPrezzo')); return; }
     if (!etichetta.trim()) { setErrore(t('adm.pri.scegliEtichetta')); return; }
 
-    await aggiornaCampo(circoloId, campo.id, {
-      tariffaSpeciale: {
-        orarioInizio, orarioFine, prezzo: parseFloat(prezzoSpeciale), etichetta: etichetta.trim(), giorni: giorniSel,
-      },
-    } as any);
-    setModificaAperta(false);
+    const proposta: TariffaSpeciale = {
+      id: idInModifica || nuovoIdTariffa(),
+      orarioInizio, orarioFine, prezzo: parseFloat(prezzoSpeciale),
+      etichetta: etichetta.trim(), giorni: giorniSel,
+    };
+
+    // ⚠️ IL CONTROLLO C'È ANCHE SE LE TENDINE GIÀ NASCONDONO LE ORE
+    // PRESE, e non è una ripetizione inutile: i giorni si possono
+    // cambiare DOPO aver scelto le ore, e in quell'istante una fascia
+    // che era libera può diventare occupata. La tendina è la difesa che
+    // si vede; questa è quella che tiene.
+    const conflitto = tariffaInConflitto(tariffe, proposta, escludi);
+    if (conflitto) {
+      setErrore(t('adm.pri.sovrapposta', {
+        tariffa: conflitto.etichetta, fascia: scrittaFascia(conflitto),
+      }));
+      return;
+    }
+
+    const nuove = idInModifica
+      ? tariffe.map((x) => (x.id === idInModifica ? proposta : x))
+      : [...tariffe, proposta];
+    // In ordine di orario: l'elenco si legge come si legge una giornata.
+    nuove.sort((a, b) => a.orarioInizio.localeCompare(b.orarioInizio));
+    await scriviTariffe(nuove);
+    setIdInModifica(null);
   };
 
-  const rimuoviTariffaSpeciale = async () => {
-    if (!campo) return;
-    await aggiornaCampo(circoloId, campo.id, { tariffaSpeciale: null } as any);
-    setModificaAperta(false);
+  const rimuoviTariffa = async (id: string) => {
+    await scriviTariffe(tariffe.filter((x) => x.id !== id));
   };
-
-  const esistente = campo?.tariffaSpeciale;
 
   return (
     <div className="admin-card">
@@ -126,41 +197,62 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
           </select>
           {salvandoBase && <div className="admin-saving">{t('com.salvataggio')}</div>}
 
-          <label className="admin-label">{t('adm.pri.tariffaSpeciale')}</label>
-          {esistente ? (
-            <div className="admin-list-row">
+          <label className="admin-label">{t('adm.pri.tariffeSpeciali')}</label>
+          {tariffe.length === 0 && <p className="admin-card-hint">{t('adm.pri.nessunaTariffa')}</p>}
+          {tariffe.map((tar) => (
+            <div className="admin-list-row" key={tar.id}>
               <div style={{ flex: 1 }}>
-                <div className="admin-list-main">{esistente.etichetta} · € {esistente.prezzo.toFixed(2)}</div>
+                <div className="admin-list-main">{tar.etichetta} · € {tar.prezzo.toFixed(2)}</div>
                 <div className="admin-list-sub">
-                  {esistente.orarioInizio}–{esistente.orarioFine}
-                  {esistente.giorni && esistente.giorni.length > 0
-                    ? `  ·  ${esistente.giorni.map((g) => t(GIORNI_SETTIMANA[g])).join(', ')}`
+                  {scrittaFascia(tar)}
+                  {tar.giorni && tar.giorni.length > 0
+                    ? `  ·  ${tar.giorni.map((g) => t(GIORNI_SETTIMANA[g])).join(', ')}`
                     : `  ·  ${t('adm.pri.tuttiIGiorni')}`}
                 </div>
               </div>
-              <button className="admin-icon-btn" onClick={apriForm} aria-label={t('adm.pri.modifica')}>✎</button>
-              <button className="admin-icon-btn danger" onClick={rimuoviTariffaSpeciale} aria-label={t('adm.pri.rimuovi')}>🗑</button>
+              <button className="admin-icon-btn" onClick={() => apriForm(tar)} aria-label={t('adm.pri.modifica')}>✎</button>
+              <button className="admin-icon-btn danger" onClick={() => rimuoviTariffa(tar.id)} aria-label={t('adm.pri.rimuovi')}>🗑</button>
             </div>
-          ) : (
-            <button className="admin-btn-full" onClick={apriForm}>+ {t('adm.pri.aggiungiTariffa')}</button>
-          )}
+          ))}
+          <button className="admin-btn-full" onClick={() => apriForm()}>
+            + {t(tariffe.length === 0 ? 'adm.pri.aggiungiTariffa' : 'adm.pri.aggiungiAltra')}
+          </button>
         </>
       )}
 
-      <Modal visible={modificaAperta} onClose={() => setModificaAperta(false)}>
+      <Modal visible={idInModifica !== null} onClose={() => setIdInModifica(null)}>
         <div className="admin-modal-title">{t('adm.pri.tariffaSpeciale')}{campo ? ` — ${campo.nome}` : ''}</div>
 
-        <label className="admin-label">{t('adm.pri.dalle')}</label>
-        <select className="admin-select" value={orarioInizio} onChange={(e) => setOrarioInizio(e.target.value)}>
-          <option value="">--</option>
-          {ORARI_ESTESI.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+        {/* ⚠️ I GIORNI STANNO SOPRA LE ORE, e prima stavano sotto. Non è
+            un riordino estetico: le ore che restano libere dipendono dai
+            giorni scelti, quindi chiedere prima le ore vorrebbe dire
+            chiederle senza sapere quali mostrare. */}
+        <label className="admin-label">{t('adm.pri.giorni')}</label>
+        <div className="admin-chip-row">
+          {GIORNI_SETTIMANA.map((chiave, i) => (
+            <button key={i} className={`admin-chip ${giorniSel.includes(i) ? 'selected' : ''}`} onClick={() => toggleGiorno(i)}>
+              {t(chiave)}
+            </button>
+          ))}
+        </div>
 
-        <label className="admin-label">{t('adm.pri.alle')}</label>
-        <select className="admin-select" value={orarioFine} onChange={(e) => setOrarioFine(e.target.value)}>
-          <option value="">--</option>
-          {ORARI_ESTESI.map((o) => <option key={o} value={o}>{o}</option>)}
-        </select>
+        {inizi.length === 0 ? (
+          <div className="admin-error-text">{t('adm.pri.nessunaOraLibera')}</div>
+        ) : (
+          <>
+            <label className="admin-label">{t('adm.pri.dalle')}</label>
+            <select className="admin-select" value={orarioInizio} onChange={(e) => setOrarioInizio(e.target.value)}>
+              <option value="">--</option>
+              {inizi.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+
+            <label className="admin-label">{t('adm.pri.alle')}</label>
+            <select className="admin-select" value={orarioFine} onChange={(e) => setOrarioFine(e.target.value)}>
+              <option value="">--</option>
+              {fini.map((o) => <option key={o} value={o}>{o}</option>)}
+            </select>
+          </>
+        )}
 
         <label className="admin-label">{t('adm.pri.prezzo')}</label>
         <select className="admin-select" value={prezzoSpeciale} onChange={(e) => setPrezzoSpeciale(e.target.value)}>
@@ -174,19 +266,10 @@ export default function SezionePrezzi({ circoloId, campi }: { circoloId: string;
           placeholder={t('adm.pri.etichettaEsempio')}
         />
 
-        <label className="admin-label">{t('adm.pri.giorni')}</label>
-        <div className="admin-chip-row">
-          {GIORNI_SETTIMANA.map((chiave, i) => (
-            <button key={i} className={`admin-chip ${giorniSel.includes(i) ? 'selected' : ''}`} onClick={() => toggleGiorno(i)}>
-              {t(chiave)}
-            </button>
-          ))}
-        </div>
-
         {errore && <div className="admin-error-text">{errore}</div>}
 
         <div className="admin-modal-btn-row">
-          <button className="admin-modal-btn-cancel" onClick={() => setModificaAperta(false)}>{t('com.annulla')}</button>
+          <button className="admin-modal-btn-cancel" onClick={() => setIdInModifica(null)}>{t('com.annulla')}</button>
           <button className="admin-modal-btn-confirm" onClick={salvaTariffa}>{t('com.salva')}</button>
         </div>
       </Modal>
