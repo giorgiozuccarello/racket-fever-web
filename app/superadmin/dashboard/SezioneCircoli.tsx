@@ -22,6 +22,7 @@ import {
   sospendiCircolo, riattivaCircolo, chiudiCircolo,
   eliminaCircoloDefinitivo, impostaApprovazioneAutomatica,
 } from '../../../data/circoliRepo';
+import SezioneCollassabile from '../../admin/dashboard/SezioneCollassabile';
 import SchedaCircoloVista from './SchedaCircoloVista';
 import SezioneResetCircolo from './SezioneResetCircolo';
 
@@ -562,56 +563,65 @@ export default function SezioneCircoli() {
   const chiusi = circoli.filter((c) => statoCircolo(c) === 'chiuso').length;
 
   return (
-    <div className="admin-card">
-      <div className="admin-card-title">Circoli della rete ({circoli.length})</div>
-      <p className="admin-card-hint">
-        {attivi} attivi{sospesi > 0 ? `, ${sospesi} sospesi` : ''}{chiusi > 0 ? `, ${chiusi} chiusi` : ''}.
-        Apri un circolo per correggerne i dati o cambiarne lo stato nella rete.
-      </p>
+    <SezioneCollassabile
+      id="saCircoli"
+      titolo={`Circoli della rete (${circoli.length})`}
+      descrizione={`${attivi} attivi${sospesi > 0 ? `, ${sospesi} sospesi` : ''}${chiusi > 0 ? `, ${chiusi} chiusi` : ''}`}
+    >
+      <div className="admin-card">
+        {/* ⚠️ RIMESSA QUI DENTRO, e non persa nel passaggio a sezione
+            espandibile. Nell'intestazione c'è la ripartizione della
+            rete, che serve a sezione chiusa; questa invece dice cosa si
+            può FARE una volta aperta, e senza, l'elenco sembra di sola
+            lettura — nessuno prova a toccare una riga per scoprire che
+            si apre. */}
+        <p className="admin-card-hint">
+          Apri un circolo per correggerne i dati o cambiarne lo stato nella rete.
+        </p>
+        {(circoli.length > 6 || ricerca.length > 0) && (
+          <input
+            className="admin-input" value={ricerca} onChange={(e) => setRicerca(e.target.value)}
+            placeholder="Cerca per nome, città o sigla" style={{ marginBottom: '.8rem' }}
+          />
+        )}
 
-      {(circoli.length > 6 || ricerca.length > 0) && (
-        <input
-          className="admin-input" value={ricerca} onChange={(e) => setRicerca(e.target.value)}
-          placeholder="Cerca per nome, città o sigla" style={{ marginBottom: '.8rem' }}
-        />
-      )}
+        {circoli.length === 0 && <p className="admin-empty-text">Nessun circolo ancora creato.</p>}
+        {circoli.length > 0 && ordinati.length === 0 && (
+          <p className="admin-empty-text">Nessun circolo corrisponde alla ricerca.</p>
+        )}
 
-      {circoli.length === 0 && <p className="admin-empty-text">Nessun circolo ancora creato.</p>}
-      {circoli.length > 0 && ordinati.length === 0 && (
-        <p className="admin-empty-text">Nessun circolo corrisponde alla ricerca.</p>
-      )}
-
-      {ordinati.map((c) => {
-        const stato = statoCircolo(c);
-        return (
-          <div
-            key={c.id} className="admin-list-row admin-list-row-clickable"
-            onClick={() => apri(c)} role="button" tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); apri(c); }
-            }}
-          >
-            {c.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={c.logoUrl} alt="" className="admin-list-avatar" />
-            ) : (
-              // Segnaposto per il circolo senza logo: il vecchio campo
-              // "tema" non esiste piu' (sostituito dagli 8 TEMI_APP), si
-              // usa il colore istituzionale.
-              <div className="superadmin-swatch" style={{ background: '#0E3B2E' }} />
-            )}
-            <div style={{ flex: 1 }}>
-              <div className="admin-list-main">{c.nome}</div>
-              <div className="admin-list-sub">
-                {c.citta} · {c.sigla}{c.provincia ? ` (${c.provincia})` : ''}{c.regione ? ` · ${c.regione}` : ''}
+        {ordinati.map((c) => {
+          const stato = statoCircolo(c);
+          return (
+            <div
+              key={c.id} className="admin-list-row admin-list-row-clickable"
+              onClick={() => apri(c)} role="button" tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); apri(c); }
+              }}
+            >
+              {c.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={c.logoUrl} alt="" className="admin-list-avatar" />
+              ) : (
+                // Segnaposto per il circolo senza logo: il vecchio campo
+                // "tema" non esiste piu' (sostituito dagli 8 TEMI_APP), si
+                // usa il colore istituzionale.
+                <div className="superadmin-swatch" style={{ background: '#0E3B2E' }} />
+              )}
+              <div style={{ flex: 1 }}>
+                <div className="admin-list-main">{c.nome}</div>
+                <div className="admin-list-sub">
+                  {c.citta} · {c.sigla}{c.provincia ? ` (${c.provincia})` : ''}{c.regione ? ` · ${c.regione}` : ''}
+                </div>
               </div>
+              {stato !== 'attivo' && (
+                <span className={`superadmin-stato superadmin-stato-${stato}`}>{etichettaStatoCircolo(stato)}</span>
+              )}
             </div>
-            {stato !== 'attivo' && (
-              <span className={`superadmin-stato superadmin-stato-${stato}`}>{etichettaStatoCircolo(stato)}</span>
-            )}
-          </div>
-        );
-      })}
-    </div>
+          );
+        })}
+      </div>
+    </SezioneCollassabile>
   );
 }

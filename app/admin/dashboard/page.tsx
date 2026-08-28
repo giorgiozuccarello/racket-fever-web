@@ -45,6 +45,9 @@ import SezioneMaestri from './SezioneMaestri';
 import SezioneClassificaSociale from './SezioneClassificaSociale';
 import SezioneSfideInCorso from './SezioneSfideInCorso';
 import SezioneCollassabile from './SezioneCollassabile';
+import SezionePersonalizzaDashboard from './SezionePersonalizzaDashboard';
+import { TemaDashboard, TEMA_ADMIN_DI_PARTENZA, variabiliCss } from '../../../data/temaDashboard';
+import { leggiTemaCircolo, leggiTemaLocale } from '../../../data/temaDashboardRepo';
 import SezionePrenotazioni from './SezionePrenotazioni';
 import SezioneNotePrenotazioni from './SezioneNotePrenotazioni';
 import SezioneLezioniPrenotate from './SezioneLezioniPrenotate';
@@ -269,8 +272,29 @@ function ContenutoDashboard({
   const { t } = useLingua();
   const router = useRouter();
 
+  // ⚠️ I COLORI DEL PANNELLO ARRIVANO IN DUE TEMPI, e l'ordine conta.
+  // Prima quelli conservati in questo browser — che ci sono subito, senza
+  // aspettare la rete — poi quelli del circolo, che sono la verità e
+  // valgono per tutti. Al contrario, chi ha scelto un fondo scuro
+  // vedrebbe mezzo secondo di pagina chiara a ogni apertura: un lampo
+  // bianco che sembra un difetto.
+  const [tema, setTema] = useState<TemaDashboard>(TEMA_ADMIN_DI_PARTENZA);
+
+  useEffect(() => {
+    const locale = leggiTemaLocale(`circolo.${circolo.id}`);
+    if (locale) setTema(locale);
+    let vivo = true;
+    leggiTemaCircolo(circolo.id).then((salvato) => {
+      // ⚠️ `vivo`: la lettura può tornare dopo che si è già usciti dalla
+      // dashboard, e scrivere in uno stato che non esiste più è un
+      // avviso in console a ogni uscita.
+      if (vivo && salvato) setTema(salvato);
+    });
+    return () => { vivo = false; };
+  }, [circolo.id]);
+
   return (
-    <div className="admin-shell">
+    <div className="admin-shell" style={variabiliCss(tema) as React.CSSProperties}>
       <InstallPrompt />
 
       <header className="admin-header">
@@ -389,6 +413,15 @@ function ContenutoDashboard({
         >
           <SezioneBannerMarketing circolo={circolo} />
         </SezioneCollassabile>
+        {/* Subito dopo le due personalizzazioni dell'app: chi cerca
+            «dove si cambiano i colori» le apre tutte e tre nello stesso
+            momento, e tenerle lontane vorrebbe dire farle cercare. */}
+        <SezionePersonalizzaDashboard
+          circoloId={circolo.id}
+          tema={tema}
+          setTema={setTema}
+          puoSalvare={scadenzaSessione == null}
+        />
         {/* ⚠️ LE DUE SERRATURE NON SI MOSTRANO A CHI È ENTRATO CON UNA
             CHIAVE A SCADENZA. Erano montate per tutti, e il Collaboratore
             si trovava davanti il proprio campo password già compilato:

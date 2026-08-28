@@ -16,6 +16,7 @@
 // ============================================================
 
 import { useEffect, useState } from 'react';
+import SezioneCollassabile from '../../admin/dashboard/SezioneCollassabile';
 import { Segnalazione, chiaveMotivo } from '../../../data/segnalazioni';
 import { ChiaveTesto, traduci } from '../../../data/testi';
 
@@ -62,72 +63,68 @@ export default function SezioneSegnalazioni() {
   };
 
   return (
-    <div className="admin-card">
-      <div className="admin-card-title">
-        Segnalazioni {nuove.length > 0 ? `(${nuove.length} da guardare)` : ''}
-      </div>
-      <p className="admin-card-hint">
-        Arrivano dall&apos;app: un socio segnala la scheda di un altro socio. Le vede anche
-        l&apos;Admin del circolo, che può prenderle in carico — ma non cancellarle. Qui c&apos;è
-        la rete intera, perché quando il problema riguarda il circolo stesso non c&apos;è nessun
-        altro a cui possa arrivare.
-      </p>
-
-      <button
-        type="button"
-        className="admin-input"
-        style={{ width: 'auto', cursor: 'pointer', marginBottom: '.6rem' }}
-        onClick={() => setSoloNuove((v) => !v)}
-      >
-        {soloNuove ? 'Mostra anche quelle già guardate' : 'Mostra solo le nuove'}
-      </button>
-
-      {!!errore && <div className="admin-error-text">{errore}</div>}
-      {mostrate.length === 0 && <p className="admin-empty-text">Niente da guardare.</p>}
-
-      {mostrate.map((s) => (
-        <div
-          key={s.id}
-          className="admin-list-row"
-          style={s.stato === 'nuova' ? undefined : { opacity: 0.55 }}
+    <SezioneCollassabile
+      id="saSegnalazioni"
+      titolo={`Segnalazioni${nuove.length > 0 ? ` (${nuove.length} da guardare)` : ''}`}
+      descrizione={"Un socio segnala la scheda di un altro socio: qui c'è la rete intera"}
+    >
+      <div className="admin-card">
+        <button
+          type="button"
+          className="admin-input"
+          style={{ width: 'auto', cursor: 'pointer', marginBottom: '.6rem' }}
+          onClick={() => setSoloNuove((v) => !v)}
         >
-          {s.copiaFotoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={s.copiaFotoUrl}
-              alt=""
-              style={{ width: 46, height: 46, borderRadius: 23, objectFit: 'cover', flexShrink: 0 }}
-            />
-          ) : (
-            <div style={{
-              width: 46, height: 46, borderRadius: 23, flexShrink: 0,
-              background: 'rgba(14,59,46,.10)',
-            }} />
-          )}
-          <div style={{ flex: 1 }}>
-            <div className="admin-list-main">
-              {s.segnalatoNome} · <span style={{ fontWeight: 400 }}>{nomeCircolo(s.circoloId)}</span>
-            </div>
-            <div className="admin-list-sub"><strong>{motivoInItaliano(s.motivo)}</strong></div>
-            <div className="admin-list-sub">
-              Segnalato da {s.daNome || '—'} · {quando(s.creatoIlMs)}
-            </div>
-            {(s.copiaRacchetta || s.copiaClassifica) && (
-              <div className="admin-list-sub">
-                Nella scheda: {[s.copiaRacchetta, s.copiaClassifica].filter(Boolean).join(' · ')}
+          {soloNuove ? 'Mostra anche quelle già guardate' : 'Mostra solo le nuove'}
+        </button>
+
+        {!!errore && <div className="admin-error-text">{errore}</div>}
+        {mostrate.length === 0 && <p className="admin-empty-text">Niente da guardare.</p>}
+
+        {mostrate.map((s) => (
+          <div
+            key={s.id}
+            className="admin-list-row"
+            style={s.stato === 'nuova' ? undefined : { opacity: 0.55 }}
+          >
+            {s.copiaFotoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={s.copiaFotoUrl}
+                alt=""
+                style={{ width: 46, height: 46, borderRadius: 23, objectFit: 'cover', flexShrink: 0 }}
+              />
+            ) : (
+              <div style={{
+                width: 46, height: 46, borderRadius: 23, flexShrink: 0,
+                background: 'rgba(14,59,46,.10)',
+              }} />
+            )}
+            <div style={{ flex: 1 }}>
+              <div className="admin-list-main">
+                {s.segnalatoNome} · <span style={{ fontWeight: 400 }}>{nomeCircolo(s.circoloId)}</span>
               </div>
+              <div className="admin-list-sub"><strong>{motivoInItaliano(s.motivo)}</strong></div>
+              <div className="admin-list-sub">
+                Segnalato da {s.daNome || '—'} · {quando(s.creatoIlMs)}
+              </div>
+              {(s.copiaRacchetta || s.copiaClassifica) && (
+                <div className="admin-list-sub">
+                  Nella scheda: {[s.copiaRacchetta, s.copiaClassifica].filter(Boolean).join(' · ')}
+                </div>
+              )}
+            </div>
+            {s.stato === 'nuova' ? (
+              <>
+                <button className="admin-btn-small" onClick={() => segna(s, 'vista')}>Presa in carico</button>
+                <button className="admin-btn-small" onClick={() => segna(s, 'chiusa')}>Chiudi</button>
+              </>
+            ) : (
+              <span className="admin-list-sub">{s.stato === 'vista' ? 'In carico' : 'Chiusa'}</span>
             )}
           </div>
-          {s.stato === 'nuova' ? (
-            <>
-              <button className="admin-btn-small" onClick={() => segna(s, 'vista')}>Presa in carico</button>
-              <button className="admin-btn-small" onClick={() => segna(s, 'chiusa')}>Chiudi</button>
-            </>
-          ) : (
-            <span className="admin-list-sub">{s.stato === 'vista' ? 'In carico' : 'Chiusa'}</span>
-          )}
-        </div>
-      ))}
-    </div>
+        ))}
+      </div>
+    </SezioneCollassabile>
   );
 }

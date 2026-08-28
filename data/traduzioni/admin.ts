@@ -946,6 +946,30 @@ const it = {
   'adm.ric2.d.mat.finoAl': 'Il conto comprende i giorni fino al {data} compreso.',
   'adm.ric2.d.mat.finoANiente': 'Nessun giorno è ancora entrato nel conto: il maturato esiste ma è fermo al punto di partenza.',
   'adm.ric2.d.mat.nota': 'Il giorno in corso non è compreso: una giornata entra nel maturato quando è finita per intero. È voluto — un numero che si muove mentre lo si guarda non serve a farci i conti.',
+
+  // ---------- i colori della dashboard (adm.temaDash) ----------
+  // ⚠️ Le stesse parole servono anche al pannello Super Admin, che però
+  // non è tradotto: là i testi si scrivono in italiano dentro la
+  // sezione, e il componente dei cursori li riceve da fuori. Non c'è un
+  // secondo elenco di chiavi per la rete.
+  'adm.gen.sez.temaDash.titolo': 'Personalizza dashboard',
+  'adm.gen.sez.temaDash.descrizione': 'I colori della testata e dello sfondo di questo pannello',
+  'adm.temaDash.titolo': 'Colori della dashboard',
+  'adm.temaDash.intro': 'Il colore della testata e quello del fondo pagina. Si vedono subito, mentre muovi i cursori, ma restano solo su questo schermo finché non premi «Salva».',
+  'adm.temaDash.testata': 'Testata',
+  'adm.temaDash.testataNota': 'La fascia in alto, con il nome del Circolo e il tasto per uscire',
+  'adm.temaDash.sfondo': 'Sfondo',
+  'adm.temaDash.sfondoNota': 'Il fondo della pagina, dietro le sezioni',
+  'adm.temaDash.colore': 'Colore',
+  'adm.temaDash.saturazione': 'Saturazione',
+  'adm.temaDash.luminosita': 'Luminosità',
+  'adm.temaDash.notaLeggibilita': 'Le scritte della testata passano da sole da chiaro a scuro quando il colore che scegli è troppo luminoso, così restano sempre leggibili.',
+  'adm.temaDash.salva': 'Salva',
+  'adm.temaDash.salvando': 'Salvo…',
+  'adm.temaDash.ripristina': 'Rimetti i colori di partenza',
+  'adm.temaDash.soloResponsabile': 'Puoi provare i colori, ma il salvataggio è riservato al responsabile del Circolo: questa scelta vale per tutti quelli che entrano in questa Dashboard.',
+  'adm.temaDash.salvato': 'Colori salvati: li vedrà chiunque entri in questa Dashboard.',
+  'adm.temaDash.erroreSalvataggio': 'Non sono riuscito a salvare: per ora i colori restano solo su questo computer. Riprova fra poco, e se il problema resta va guardato.',
 };
 
 const en: Record<keyof typeof it, string> = {
@@ -1863,6 +1887,26 @@ const en: Record<keyof typeof it, string> = {
   'adm.ric2.d.mat.finoAl': 'The count covers the days up to and including {data}.',
   'adm.ric2.d.mat.finoANiente': 'No day has entered the count yet: the matured total exists but is still at its starting point.',
   'adm.ric2.d.mat.nota': 'Today is not included: a day enters the matured count once it is over in full. That is deliberate — a number that moves while you watch it is no use for doing the books.',
+
+  // ---------- i colori della dashboard (adm.temaDash) ----------
+  'adm.gen.sez.temaDash.titolo': 'Customise the dashboard',
+  'adm.gen.sez.temaDash.descrizione': 'The colours of the header and the background of this panel',
+  'adm.temaDash.titolo': 'Dashboard colours',
+  'adm.temaDash.intro': 'The colour of the header and the colour of the page background. You see them straight away as you move the sliders, but they stay on this screen only until you press “Save”.',
+  'adm.temaDash.testata': 'Header',
+  'adm.temaDash.testataNota': 'The band at the top, with the club name and the log-out button',
+  'adm.temaDash.sfondo': 'Background',
+  'adm.temaDash.sfondoNota': 'The page background, behind the sections',
+  'adm.temaDash.colore': 'Colour',
+  'adm.temaDash.saturazione': 'Saturation',
+  'adm.temaDash.luminosita': 'Brightness',
+  'adm.temaDash.notaLeggibilita': 'The writing in the header switches from light to dark on its own when the colour you pick is too bright, so it always stays readable.',
+  'adm.temaDash.salva': 'Save',
+  'adm.temaDash.salvando': 'Saving…',
+  'adm.temaDash.ripristina': 'Put the original colours back',
+  'adm.temaDash.soloResponsabile': 'You can try the colours out, but only the club manager can save them: this choice applies to everyone who opens this Dashboard.',
+  'adm.temaDash.salvato': 'Colours saved: everyone who opens this Dashboard will see them.',
+  'adm.temaDash.erroreSalvataggio': 'I could not save them: for now the colours stay on this computer only. Try again shortly, and if it keeps happening it needs looking at.',
 };
 
 const de: Record<keyof typeof it, string> = {
@@ -2780,6 +2824,26 @@ const de: Record<keyof typeof it, string> = {
   'adm.ric2.d.mat.finoAl': 'Die Zählung umfasst die Tage bis einschließlich {data}.',
   'adm.ric2.d.mat.finoANiente': 'Bisher ist kein Tag in die Zählung eingegangen: Das Aufgelaufene existiert, steht aber noch am Ausgangspunkt.',
   'adm.ric2.d.mat.nota': 'Der laufende Tag ist nicht enthalten: Ein Tag geht ins Aufgelaufene ein, wenn er ganz vorbei ist. Das ist Absicht — eine Zahl, die sich beim Hinsehen bewegt, taugt nicht zum Abrechnen.',
+
+  // ---------- i colori della dashboard (adm.temaDash) ----------
+  'adm.gen.sez.temaDash.titolo': 'Dashboard anpassen',
+  'adm.gen.sez.temaDash.descrizione': 'Die Farben der Kopfzeile und des Hintergrunds dieses Bereichs',
+  'adm.temaDash.titolo': 'Farben des Dashboards',
+  'adm.temaDash.intro': 'Die Farbe der Kopfzeile und die des Seitenhintergrunds. Du siehst sie sofort, während du die Regler bewegst, aber sie bleiben nur auf diesem Bildschirm, bis du auf „Speichern“ drückst.',
+  'adm.temaDash.testata': 'Kopfzeile',
+  'adm.temaDash.testataNota': 'Das Band ganz oben, mit dem Namen des Clubs und der Abmelde-Schaltfläche',
+  'adm.temaDash.sfondo': 'Hintergrund',
+  'adm.temaDash.sfondoNota': 'Der Seitenhintergrund, hinter den Bereichen',
+  'adm.temaDash.colore': 'Farbe',
+  'adm.temaDash.saturazione': 'Sättigung',
+  'adm.temaDash.luminosita': 'Helligkeit',
+  'adm.temaDash.notaLeggibilita': 'Die Schrift in der Kopfzeile wechselt von selbst von hell zu dunkel, wenn die gewählte Farbe zu hell ist — so bleibt sie immer lesbar.',
+  'adm.temaDash.salva': 'Speichern',
+  'adm.temaDash.salvando': 'Speichere…',
+  'adm.temaDash.ripristina': 'Ursprüngliche Farben wiederherstellen',
+  'adm.temaDash.soloResponsabile': 'Du kannst die Farben ausprobieren, aber speichern darf sie nur die Leitung des Clubs: diese Wahl gilt für alle, die dieses Dashboard öffnen.',
+  'adm.temaDash.salvato': 'Farben gespeichert: alle, die dieses Dashboard öffnen, sehen sie.',
+  'adm.temaDash.erroreSalvataggio': 'Ich konnte nicht speichern: vorerst bleiben die Farben nur auf diesem Computer. Versuche es gleich noch einmal, und wenn es weiter passiert, muss man es sich ansehen.',
 };
 
 export const admin = blocco(it, en, de);

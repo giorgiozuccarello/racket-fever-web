@@ -6,6 +6,7 @@ import {
 } from '../../../data/onboarding';
 import { REGIONI_ITALIA, provinceDi } from '../../../data/tornei';
 import { ascoltaRichieste, RichiestaAttivazione } from '../../../data/richiesteAttivazione';
+import SezioneCollassabile from '../../admin/dashboard/SezioneCollassabile';
 
 interface Credenziali {
   nomeCircolo: string;
@@ -162,181 +163,186 @@ export default function SezioneOnboarding() {
 
   if (successo) {
     return (
-      <div className="admin-card">
-        <div className="admin-card-title">Circolo creato ✓</div>
-        <p className="admin-card-hint">
-          Comunica queste credenziali al presidente/segreteria di <b>{successo.nomeCircolo}</b>.
-          I colori dell&apos;app sono impostati sullo standard: potrà personalizzarli quando vuole
-          dalla propria Dashboard, sezione &quot;Personalizza App&quot;.
-        </p>
-        <div className="superadmin-credenziali">
-          <div><span>Password circolo (per i soci)</span><code>{successo.passwordCircolo}</code></div>
-          <div><span>Email Admin</span><code>{successo.emailAdmin}</code></div>
-          <div><span>Password Admin</span><code>{successo.passwordAdmin}</code></div>
+      <SezioneCollassabile
+        id="saOnboarding"
+        titolo="Nuovo circolo"
+        descrizione="Crea il circolo e il suo primo account Admin, con i colori standard"
+      >
+        <div className="admin-card">
+          <div className="admin-card-title">Circolo creato ✓</div>
+          <p className="admin-card-hint">
+            Comunica queste credenziali al presidente/segreteria di <b>{successo.nomeCircolo}</b>.
+            I colori dell&apos;app sono impostati sullo standard: potrà personalizzarli quando vuole
+            dalla propria Dashboard, sezione &quot;Personalizza App&quot;.
+          </p>
+          <div className="superadmin-credenziali">
+            <div><span>Password circolo (per i soci)</span><code>{successo.passwordCircolo}</code></div>
+            <div><span>Email Admin</span><code>{successo.emailAdmin}</code></div>
+            <div><span>Password Admin</span><code>{successo.passwordAdmin}</code></div>
+          </div>
+          <button className="admin-btn-full" onClick={() => setSuccesso(null)}>+ Crea un altro circolo</button>
         </div>
-        <button className="admin-btn-full" onClick={() => setSuccesso(null)}>+ Crea un altro circolo</button>
-      </div>
+      </SezioneCollassabile>
     );
   }
 
   return (
-    <div className="admin-card">
-      <div className="admin-card-title">Nuovo circolo</div>
-      <p className="admin-card-hint">
-        Crea il circolo e il suo primo account Admin, con i colori standard.
-        Il presidente potrà poi personalizzare tema, logo, campi e prezzi
-        dalla propria Dashboard.
-      </p>
+    <SezioneCollassabile
+      id="saOnboarding"
+      titolo="Nuovo circolo"
+      descrizione="Crea il circolo e il suo primo account Admin, con i colori standard"
+    >
+      <div className="admin-card">
+        {/* ⚠️ Il collegamento con la richiesta arrivata dal sito. Sceglierla
+            qui fa tre cose: riempie il modulo con quello che il circolo ha
+            già scritto, chiude da sola la richiesta quando il circolo
+            nasce, e lascia il filo che permetterà — il giorno che quel
+            circolo venisse eliminato — di portarsi via anche la richiesta.
+            Senza, restavano tutte «nuova» per sempre. */}
+        {daContattare.length > 0 && (
+          <>
+            <label className="admin-label" htmlFor="ob-richiesta">Nasce da una richiesta ricevuta</label>
+            <select
+              id="ob-richiesta" className="admin-input" value={richiestaId}
+              onChange={(e) => prendiDallaRichiesta(e.target.value)}
+            >
+              <option value="">Nessuna — lo creo io da zero</option>
+              {daContattare.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.nomeCircolo}{r.provincia ? ` · ${r.provincia}` : (r.citta ? ` · ${r.citta}` : '')}
+                  {r.referente ? ` — ${r.referente}` : ''}
+                </option>
+              ))}
+            </select>
+          </>
+        )}
 
-      {/* ⚠️ Il collegamento con la richiesta arrivata dal sito. Sceglierla
-          qui fa tre cose: riempie il modulo con quello che il circolo ha
-          già scritto, chiude da sola la richiesta quando il circolo
-          nasce, e lascia il filo che permetterà — il giorno che quel
-          circolo venisse eliminato — di portarsi via anche la richiesta.
-          Senza, restavano tutte «nuova» per sempre. */}
-      {daContattare.length > 0 && (
-        <>
-          <label className="admin-label" htmlFor="ob-richiesta">Nasce da una richiesta ricevuta</label>
-          <select
-            id="ob-richiesta" className="admin-input" value={richiestaId}
-            onChange={(e) => prendiDallaRichiesta(e.target.value)}
-          >
-            <option value="">Nessuna — lo creo io da zero</option>
-            {daContattare.map((r) => (
-              <option key={r.id} value={r.id}>
-                {r.nomeCircolo}{r.provincia ? ` · ${r.provincia}` : (r.citta ? ` · ${r.citta}` : '')}
-                {r.referente ? ` — ${r.referente}` : ''}
-              </option>
-            ))}
-          </select>
-        </>
-      )}
+        <label className="admin-label">Nome del circolo</label>
+        <input className="admin-input" value={nomeCircolo} onChange={(e) => setNomeCircolo(e.target.value)} placeholder="ASD Tennis Esempio" />
 
-      <label className="admin-label">Nome del circolo</label>
-      <input className="admin-input" value={nomeCircolo} onChange={(e) => setNomeCircolo(e.target.value)} placeholder="ASD Tennis Esempio" />
-
-      <div className="admin-row">
-        <div style={{ flex: 2 }}>
-          <label className="admin-label">Città</label>
-          <input className="admin-input" value={citta} onChange={(e) => setCitta(e.target.value)} placeholder="Milazzo (ME)" />
+        <div className="admin-row">
+          <div style={{ flex: 2 }}>
+            <label className="admin-label">Città</label>
+            <input className="admin-input" value={citta} onChange={(e) => setCitta(e.target.value)} placeholder="Milazzo (ME)" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <label className="admin-label">Sigla</label>
+            <input className="admin-input" value={sigla} onChange={(e) => setSigla(e.target.value)} placeholder="TM" maxLength={4} />
+          </div>
         </div>
-        <div style={{ flex: 1 }}>
-          <label className="admin-label">Sigla</label>
-          <input className="admin-input" value={sigla} onChange={(e) => setSigla(e.target.value)} placeholder="TM" maxLength={4} />
+
+        <label className="admin-label">Regione</label>
+        <select
+          className="admin-select"
+          value={regione}
+          onChange={(e) => {
+            const nuova = e.target.value;
+            setRegione(nuova);
+            // La provincia cade se non appartiene alla regione nuova.
+            setProvincia((p) => (nuova && provinceDi(nuova).includes(p) ? p : ''));
+          }}
+        >
+          <option value="">— scegli la regione —</option>
+          {REGIONI_ITALIA.map((r) => <option key={r} value={r}>{r}</option>)}
+        </select>
+
+        {/* ⚠️ Provincia e comune si chiedono QUI, che e' l'unico momento
+            in cui costano zero: dopo, l'Admin non puo' piu' aggiungerle —
+            la geografia e' di rete — e un circolo entrato senza provincia
+            resta fuori da ogni vendita provinciale finche' non ci
+            accorgiamo di riaprirne la scheda. */}
+        <label className="admin-label">Provincia</label>
+        <select className="admin-select" value={provincia} onChange={(e) => setProvincia(e.target.value)}>
+          <option value="">— scegli la provincia —</option>
+          {provinceDi(regione || null).map((pr) => <option key={pr} value={pr}>{pr}</option>)}
+        </select>
+
+        <label className="admin-label">Comune</label>
+        <input className="admin-input" value={comune} onChange={(e) => setComune(e.target.value)} maxLength={80} />
+
+        <label className="admin-label">Password d&apos;accesso soci</label>
+        <input className="admin-input" value={passwordCircolo} onChange={(e) => setPasswordCircolo(e.target.value)} placeholder="es. esempio2026" />
+
+        <div className="superadmin-subtitolo">Primo Admin Circolo</div>
+
+        <div className="admin-row">
+          <div>
+            <label className="admin-label">Nome</label>
+            <input className="admin-input" value={nomeAdmin} onChange={(e) => setNomeAdmin(e.target.value)} placeholder="Mario" />
+          </div>
+          <div>
+            <label className="admin-label">Cognome</label>
+            <input className="admin-input" value={cognomeAdmin} onChange={(e) => setCognomeAdmin(e.target.value)} placeholder="Rossi" />
+          </div>
         </div>
+
+        <label className="admin-label">Email</label>
+        <input className="admin-input" type="email" value={emailAdmin} onChange={(e) => setEmailAdmin(e.target.value)} placeholder="presidente@circolo.it" />
+
+        <label className="admin-label">Password</label>
+        <input className="admin-input" type="password" value={passwordAdmin} onChange={(e) => setPasswordAdmin(e.target.value)} placeholder="Almeno 6 caratteri" />
+
+        <div className="superadmin-subtitolo">Contratto di adesione</div>
+        <p className="admin-card-hint">
+          Chi ha chiesto di entrare in rete e chi ha firmato: spesso sono due persone diverse, e
+          sapere quale delle due chiamare quando qualcosa non va è metà del lavoro di
+          assistenza. Si può compilare anche dopo, dalla scheda del circolo.
+        </p>
+        <button
+          className="admin-input" type="button" style={{ cursor: 'pointer', width: 'auto' }}
+          onClick={() => setAnagraficaAperta(!anagraficaAperta)}
+        >
+          {anagraficaAperta ? 'Nascondi i dati del contratto' : '+ Aggiungi i dati del contratto'}
+        </button>
+
+        {anagraficaAperta && (
+          <>
+            <label className="admin-label">Chi ha chiesto l&apos;adesione</label>
+            <div className="admin-row">
+              <div>
+                <input className="admin-input" value={richiedenteNome} onChange={(e) => setRichiedenteNome(e.target.value)} placeholder="Nome e cognome" />
+              </div>
+              <div>
+                <input className="admin-input" value={richiedenteRuolo} onChange={(e) => setRichiedenteRuolo(e.target.value)} placeholder="Ruolo (es. Segretario)" />
+              </div>
+            </div>
+            <div className="admin-row">
+              <div>
+                <input className="admin-input" type="email" value={richiedenteEmail} onChange={(e) => setRichiedenteEmail(e.target.value)} placeholder="Email" />
+              </div>
+              <div>
+                <input className="admin-input" value={richiedenteTelefono} onChange={(e) => setRichiedenteTelefono(e.target.value)} placeholder="Telefono" />
+              </div>
+            </div>
+
+            <label className="admin-label">Chi ha firmato il contratto</label>
+            <div className="admin-row">
+              <div>
+                <input className="admin-input" value={firmatarioNome} onChange={(e) => setFirmatarioNome(e.target.value)} placeholder="Nome e cognome" />
+              </div>
+              <div>
+                <input className="admin-input" value={firmatarioRuolo} onChange={(e) => setFirmatarioRuolo(e.target.value)} placeholder="Ruolo (es. Presidente)" />
+              </div>
+            </div>
+
+            <label className="admin-label">Data della firma</label>
+            <input className="admin-input" type="date" value={firmaIl} onChange={(e) => setFirmaIl(e.target.value)} />
+
+            <label className="admin-label">Note interne</label>
+            <textarea
+              className="admin-input" rows={3} value={noteInterne} onChange={(e) => setNoteInterne(e.target.value)}
+              style={{ resize: 'vertical', fontFamily: 'inherit' }}
+              placeholder="Visibili solo al team Racket Fever"
+            />
+          </>
+        )}
+
+        {errore && <div className="admin-error-text">{errore}</div>}
+
+        <button className="admin-btn-full" onClick={crea} disabled={creando}>
+          {creando ? 'Creazione in corso…' : '+ Crea circolo'}
+        </button>
       </div>
-
-      <label className="admin-label">Regione</label>
-      <select
-        className="admin-select"
-        value={regione}
-        onChange={(e) => {
-          const nuova = e.target.value;
-          setRegione(nuova);
-          // La provincia cade se non appartiene alla regione nuova.
-          setProvincia((p) => (nuova && provinceDi(nuova).includes(p) ? p : ''));
-        }}
-      >
-        <option value="">— scegli la regione —</option>
-        {REGIONI_ITALIA.map((r) => <option key={r} value={r}>{r}</option>)}
-      </select>
-
-      {/* ⚠️ Provincia e comune si chiedono QUI, che e' l'unico momento
-          in cui costano zero: dopo, l'Admin non puo' piu' aggiungerle —
-          la geografia e' di rete — e un circolo entrato senza provincia
-          resta fuori da ogni vendita provinciale finche' non ci
-          accorgiamo di riaprirne la scheda. */}
-      <label className="admin-label">Provincia</label>
-      <select className="admin-select" value={provincia} onChange={(e) => setProvincia(e.target.value)}>
-        <option value="">— scegli la provincia —</option>
-        {provinceDi(regione || null).map((pr) => <option key={pr} value={pr}>{pr}</option>)}
-      </select>
-
-      <label className="admin-label">Comune</label>
-      <input className="admin-input" value={comune} onChange={(e) => setComune(e.target.value)} maxLength={80} />
-
-      <label className="admin-label">Password d&apos;accesso soci</label>
-      <input className="admin-input" value={passwordCircolo} onChange={(e) => setPasswordCircolo(e.target.value)} placeholder="es. esempio2026" />
-
-      <div className="superadmin-subtitolo">Primo Admin Circolo</div>
-
-      <div className="admin-row">
-        <div>
-          <label className="admin-label">Nome</label>
-          <input className="admin-input" value={nomeAdmin} onChange={(e) => setNomeAdmin(e.target.value)} placeholder="Mario" />
-        </div>
-        <div>
-          <label className="admin-label">Cognome</label>
-          <input className="admin-input" value={cognomeAdmin} onChange={(e) => setCognomeAdmin(e.target.value)} placeholder="Rossi" />
-        </div>
-      </div>
-
-      <label className="admin-label">Email</label>
-      <input className="admin-input" type="email" value={emailAdmin} onChange={(e) => setEmailAdmin(e.target.value)} placeholder="presidente@circolo.it" />
-
-      <label className="admin-label">Password</label>
-      <input className="admin-input" type="password" value={passwordAdmin} onChange={(e) => setPasswordAdmin(e.target.value)} placeholder="Almeno 6 caratteri" />
-
-      <div className="superadmin-subtitolo">Contratto di adesione</div>
-      <p className="admin-card-hint">
-        Chi ha chiesto di entrare in rete e chi ha firmato: spesso sono due persone diverse, e
-        sapere quale delle due chiamare quando qualcosa non va è metà del lavoro di
-        assistenza. Si può compilare anche dopo, dalla scheda del circolo.
-      </p>
-      <button
-        className="admin-input" type="button" style={{ cursor: 'pointer', width: 'auto' }}
-        onClick={() => setAnagraficaAperta(!anagraficaAperta)}
-      >
-        {anagraficaAperta ? 'Nascondi i dati del contratto' : '+ Aggiungi i dati del contratto'}
-      </button>
-
-      {anagraficaAperta && (
-        <>
-          <label className="admin-label">Chi ha chiesto l&apos;adesione</label>
-          <div className="admin-row">
-            <div>
-              <input className="admin-input" value={richiedenteNome} onChange={(e) => setRichiedenteNome(e.target.value)} placeholder="Nome e cognome" />
-            </div>
-            <div>
-              <input className="admin-input" value={richiedenteRuolo} onChange={(e) => setRichiedenteRuolo(e.target.value)} placeholder="Ruolo (es. Segretario)" />
-            </div>
-          </div>
-          <div className="admin-row">
-            <div>
-              <input className="admin-input" type="email" value={richiedenteEmail} onChange={(e) => setRichiedenteEmail(e.target.value)} placeholder="Email" />
-            </div>
-            <div>
-              <input className="admin-input" value={richiedenteTelefono} onChange={(e) => setRichiedenteTelefono(e.target.value)} placeholder="Telefono" />
-            </div>
-          </div>
-
-          <label className="admin-label">Chi ha firmato il contratto</label>
-          <div className="admin-row">
-            <div>
-              <input className="admin-input" value={firmatarioNome} onChange={(e) => setFirmatarioNome(e.target.value)} placeholder="Nome e cognome" />
-            </div>
-            <div>
-              <input className="admin-input" value={firmatarioRuolo} onChange={(e) => setFirmatarioRuolo(e.target.value)} placeholder="Ruolo (es. Presidente)" />
-            </div>
-          </div>
-
-          <label className="admin-label">Data della firma</label>
-          <input className="admin-input" type="date" value={firmaIl} onChange={(e) => setFirmaIl(e.target.value)} />
-
-          <label className="admin-label">Note interne</label>
-          <textarea
-            className="admin-input" rows={3} value={noteInterne} onChange={(e) => setNoteInterne(e.target.value)}
-            style={{ resize: 'vertical', fontFamily: 'inherit' }}
-            placeholder="Visibili solo al team Racket Fever"
-          />
-        </>
-      )}
-
-      {errore && <div className="admin-error-text">{errore}</div>}
-
-      <button className="admin-btn-full" onClick={crea} disabled={creando}>
-        {creando ? 'Creazione in corso…' : '+ Crea circolo'}
-      </button>
-    </div>
+    </SezioneCollassabile>
   );
 }

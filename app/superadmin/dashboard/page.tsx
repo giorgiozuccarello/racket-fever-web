@@ -14,6 +14,9 @@ import SezioneCircoli from './SezioneCircoli';
 import SezioneBannerRete from './SezioneBannerRete';
 import SezioneFatturazione from './SezioneFatturazione';
 import SezioneModelliRevenue from './SezioneModelliRevenue';
+import SezionePersonalizzaDashboardSuperAdmin from './SezionePersonalizzaDashboard';
+import { TemaDashboard, TEMA_SUPERADMIN_DI_PARTENZA, variabiliCss } from '../../../data/temaDashboard';
+import { leggiTemaSuperAdmin, leggiTemaLocale } from '../../../data/temaDashboardRepo';
 
 export default function SuperAdminDashboard() {
   const router = useRouter();
@@ -27,6 +30,13 @@ export default function SuperAdminDashboard() {
   const [utente, setUtente] = useState<User | null>(null);
   const [caricando, setCaricando] = useState(true);
   const [erroreAvvio, setErroreAvvio] = useState('');
+  // ⚠️ I COLORI ARRIVANO IN DUE TEMPI, e l'ordine conta. Prima quelli
+  // conservati in questo browser — che ci sono subito, senza aspettare
+  // la rete — poi quelli dell'account, che valgono da qualunque
+  // computer. Al contrario, il pannello si aprirebbe mezzo secondo con
+  // il fondo di partenza e poi cambierebbe sotto gli occhi: un lampo
+  // che sembra un difetto.
+  const [tema, setTema] = useState<TemaDashboard>(TEMA_SUPERADMIN_DI_PARTENZA);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, async (user: User | null) => {
@@ -72,6 +82,16 @@ export default function SuperAdminDashboard() {
       setProfilo(p);
       setUtente(user);
       setCaricando(false);
+
+      // ⚠️ DOPO `setCaricando(false)`, come l'allineamento dell'email
+      // qui sotto e per lo stesso motivo: nessuna lettura deve poter
+      // trattenere l'apertura del pannello. Se i colori non arrivano,
+      // restano quelli di partenza — che sono giusti — e non se ne
+      // accorge nessuno.
+      const locale = leggiTemaLocale(`superadmin.${user.uid}`);
+      if (locale) setTema(locale);
+      const salvato = await leggiTemaSuperAdmin(user.uid);
+      if (salvato) setTema(salvato);
 
       // ⚠️ DOPO `setCaricando(false)`, e questo è il punto. L'`await`
       // qui sotto c'è, ma non trattiene più niente: la pagina è già
@@ -143,7 +163,7 @@ export default function SuperAdminDashboard() {
   }
 
   return (
-    <div className="admin-shell">
+    <div className="admin-shell" style={variabiliCss(tema) as React.CSSProperties}>
       <header className="admin-header">
         <div className="admin-header-brand">
           <div className="logo-mark admin-header-logo-mark" aria-hidden="true" />
@@ -154,6 +174,18 @@ export default function SuperAdminDashboard() {
         </div>
         <button className="btn btn-outline admin-logout-btn" onClick={logout}>Esci</button>
       </header>
+
+      {/* ============================================================
+          MODELLI DI REVENUE — prima di tutto e a tutta riga.
+          ⚠️ FUORI DA `main.admin-main`, che è a due colonne: in mezza
+          pagina il simulatore starebbe stretto, e questa è la sezione
+          da cui si parte quando si ragiona sui numeri della rete. Stesso
+          contenitore che la Dashboard Admin usa per la Panoramica, così
+          i due pannelli si allineano al pixel.
+          ============================================================ */}
+      <div className="admin-larga">
+        <SezioneModelliRevenue />
+      </div>
 
       <main className="admin-main">
         {/* ⚠️ PRIMA DI TUTTO IL RESTO. Non perché sia la cosa che si usa
@@ -168,10 +200,7 @@ export default function SuperAdminDashboard() {
         <SezioneCircoli />
         <SezioneBannerRete />
         <SezioneFatturazione />
-        {/* Subito dopo la Fatturazione: sono le due sezioni che
-            guardano la rete dal lato dei soldi, e chi apre l'una
-            cerca quasi sempre anche l'altra. */}
-        <SezioneModelliRevenue />
+        <SezionePersonalizzaDashboardSuperAdmin uid={utente.uid} tema={tema} setTema={setTema} />
       </main>
     </div>
   );
