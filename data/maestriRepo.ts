@@ -3,33 +3,27 @@
 // Provisionati dall'Admin Circolo del proprio club (non dal Super
 // Admin: è personale del singolo circolo, non della piattaforma).
 //
-// Stessa nota tecnica già vista per l'onboarding Super Admin: creare
-// un nuovo account Firebase Auth sull'istanza "principale" (quella
-// con cui l'Admin Circolo ha fatto login) sostituirebbe la sua
-// sessione con quella del Maestro appena creato. Lo evitiamo con
-// un'istanza Firebase secondaria e "usa e getta".
+// ⚠️ L'ACCOUNT NON SI CREA PIU' DA QUI, dal 29 agosto 2026. Prima si
+// creava dal browser su un'istanza Firebase secondaria "usa e getta",
+// per non far saltare la sessione dell'Admin che stava aggiungendo il
+// Maestro. Funzionava, ma dal browser non si puo' CERCARE un utente
+// per email: un Maestro che fosse gia' socio del circolo — che e' il
+// caso normale, non l'eccezione — sbatteva contro «esiste gia' un
+// account con questa email» e non si poteva aggiungere.
+//
+// Adesso ci pensa la funzione server `assegnaQualifica`: se
+// l'indirizzo ha gia' un account lo COLLEGA, altrimenti lo crea. La
+// sessione dell'Admin non si muove perche' dal browser non si tocca
+// piu' nessun account: si chiama una funzione e basta. Vedi
+// functions/src/index.ts.
 // ============================================================
 
-import { initializeApp, deleteApp } from 'firebase/app';
-import {
-  getAuth, createUserWithEmailAndPassword, signInWithEmailAndPassword,
-  signOut as signOutSecondaria, User,
-} from 'firebase/auth';
+import { signInWithEmailAndPassword, User } from 'firebase/auth';
 import {
   doc, setDoc, getDoc, updateDoc, deleteDoc, collection, onSnapshot, query, where,
 } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
-
-// Stessa configurazione di lib/firebase.ts — duplicata qui solo per
-// poter inizializzare l'istanza Firebase separata descritta sopra.
-const firebaseConfig = {
-  apiKey: 'AIzaSyBWoZ7tkJyMDQqYgPMNEdkgDY5RD1Y2ta0',
-  authDomain: 'racquet-fever.firebaseapp.com',
-  projectId: 'racquet-fever',
-  storageBucket: 'racquet-fever.firebasestorage.app',
-  messagingSenderId: '855486484632',
-  appId: '1:855486484632:web:dd84b4e27e2a5525f980ed',
-};
+import { httpsCallable } from 'firebase/functions';
+import { auth, db, functions } from '../lib/firebase';
 
 export interface ProfiloMaestro {
   nome: string;
@@ -186,35 +180,40 @@ export function ascoltaMaestriCircolo(
   );
 }
 
+// ============================================================
+// ⚠️ NON CREA PIU' UN ACCOUNT: NE COLLEGA UNO, SE C'E' GIA'.
+//
+// Fino al 29 agosto 2026 questa funzione creava sempre un account
+// nuovo, e il caso piu' normale che ci sia — il maestro del circolo
+// che di quel circolo e' anche socio — sbatteva contro «esiste gia' un
+// account con questa email». Era un muro costruito per sbaglio:
+// l'architettura del progetto e' sempre stata che la qualifica non e'
+// l'account ma un DOCUMENTO, e lo stesso uid puo' averne piu' d'uno.
+// Mancava solo che la creazione lo sapesse.
+//
+// ⚠️ IL LAVORO LO FA IL SERVER, e non e' una preferenza: dal browser
+// non si puo' cercare un utente per email. E' un'operazione dell'Admin
+// SDK, e l'unico modo di aggirarla sarebbe provare a entrare con
+// quell'indirizzo, cioe' avere la password di un altro.
+//
+// ⚠️ SE L'ACCOUNT ESISTE, LA PASSWORD SCRITTA NEL MODULO SI IGNORA.
+// Quella password e' del socio: sovrascriverla vorrebbe dire che un
+// Admin puo' impossessarsi dell'account di un proprio socio scrivendo
+// il suo indirizzo in un modulo. `creato` dice quale dei due casi e'
+// stato, e serve all'interfaccia per non promettere una password che
+// non esiste.
+// ============================================================
 export async function creaMaestro(
   circoloId: string, nome: string, cognome: string, email: string, password: string,
   consentiAdmin: boolean = false
-): Promise<string> {
-  const nomeAppTemporanea = `maestro-onboarding-${Date.now()}`;
-  const appSecondaria = initializeApp(firebaseConfig, nomeAppTemporanea);
-  const authSecondaria = getAuth(appSecondaria);
-
-  let uid: string;
-  try {
-    const cred = await createUserWithEmailAndPassword(authSecondaria, email.trim(), password.trim());
-    uid = cred.user.uid;
-    await signOutSecondaria(authSecondaria);
-  } finally {
-    await deleteApp(appSecondaria);
-  }
-
-  await setDoc(doc(db, 'maestri', uid), {
-    nome: nome.trim(), cognome: cognome.trim(), email: email.trim(), circoloId,
-    puoAccedereAdmin: consentiAdmin,
+): Promise<{ uid: string; creato: boolean }> {
+  const chiama = httpsCallable(functions, 'assegnaQualifica', { timeout: 120000 });
+  const esito = await chiama({
+    circoloId, qualifica: 'maestro',
+    nome: nome.trim(), cognome: cognome.trim(), email: email.trim(), password: password.trim(),
+    consentiAdmin,
   });
-
-  if (consentiAdmin) {
-    await setDoc(doc(db, 'responsabili', uid), {
-      nome: nome.trim(), cognome: cognome.trim(), email: email.trim(), circoloId,
-    });
-  }
-
-  return uid;
+  return esito.data as { uid: string; creato: boolean };
 }
 
 // Concede o revoca, per un Maestro già esistente, il permesso di

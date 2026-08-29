@@ -2,38 +2,31 @@
 // ONBOARDING CIRCOLI — crea un nuovo circolo e il suo primo
 // Admin Circolo, in sostituzione dello script seed.js.
 //
-// NOTA TECNICA IMPORTANTE:
-// creare un account con createUserWithEmailAndPassword sull'istanza
-// Firebase "principale" (quella con cui il Super Admin ha fatto
-// login) sostituirebbe automaticamente la sua sessione con quella
-// del nuovo account appena creato — è un comportamento nativo di
-// Firebase Auth, non un bug nostro: l'SDK considera "loggato" chi
-// ha appena fatto l'ultima createUser/signIn su una data istanza.
+// ⚠️ L'ACCOUNT DEL PRESIDENTE LO FA IL SERVER, dal 29 agosto 2026.
+// Prima lo creava questo file, dal browser, su un'istanza Firebase
+// SECONDARIA e "usa e getta": serviva perche' createUser sull'istanza
+// principale avrebbe sostituito la sessione del Super Admin con quella
+// dell'account appena creato — comportamento nativo di Firebase Auth,
+// non un difetto nostro.
 //
-// Per evitarlo, il nuovo account viene creato su un'istanza
-// Firebase SECONDARIA e "usa e getta", del tutto scollegata dalla
-// sessione del Super Admin. I documenti Firestore (circolo,
-// responsabile) vengono invece scritti con l'istanza PRINCIPALE,
-// quindi con i permessi del Super Admin — la sua sessione non si
-// muove mai.
+// Funzionava, ma aveva un limite che dal browser non si puo' aggirare:
+// non si puo' CERCARE un utente per email. Un presidente che fosse
+// gia' socio — del proprio circolo o di un altro — sbatteva contro
+// «esiste gia' un account con questa email», e il circolo non si
+// riusciva ad attivare. La qualifica non e' l'account: e' un
+// documento, e lo stesso indirizzo puo' averne piu' d'uno.
+//
+// Ora la chiamata e' a `assegnaQualifica` (functions/src/index.ts),
+// che l'account lo cerca e lo collega, oppure lo crea. La sessione del
+// Super Admin non si muove perche' da qui non si tocca piu' nessun
+// account: i documenti Firestore continuano a scriversi con l'istanza
+// principale, quindi con i suoi permessi.
 // ============================================================
 
-import { initializeApp, deleteApp } from 'firebase/app';
-import { getAuth, createUserWithEmailAndPassword, signOut as signOutSecondaria } from 'firebase/auth';
-import { doc, setDoc, addDoc, updateDoc, collection, serverTimestamp } from 'firebase/firestore';
-import { db } from '../lib/firebase';
+import { doc, addDoc, updateDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { httpsCallable } from 'firebase/functions';
+import { db, functions } from '../lib/firebase';
 import { TEMA_APP_DEFAULT } from './circoli';
-
-// Stessa configurazione di lib/firebase.ts — duplicata qui perché
-// serve per inizializzare l'istanza Firebase separata descritta sopra.
-const firebaseConfig = {
-  apiKey: 'AIzaSyBWoZ7tkJyMDQqYgPMNEdkgDY5RD1Y2ta0',
-  authDomain: 'racquet-fever.firebaseapp.com',
-  projectId: 'racquet-fever',
-  storageBucket: 'racquet-fever.firebasestorage.app',
-  messagingSenderId: '855486484632',
-  appId: '1:855486484632:web:dd84b4e27e2a5525f980ed',
-};
 
 export interface DatiOnboarding {
   nomeCircolo: string;
@@ -103,24 +96,31 @@ function ripulisci<T extends Record<string, any>>(oggetto: T): T {
 export const ONBOARDING_ACCOUNT_ORFANO = 'ONBOARDING_ACCOUNT_ORFANO';
 export const ONBOARDING_CIRCOLO_SENZA_ADMIN = 'ONBOARDING_CIRCOLO_SENZA_ADMIN';
 
-export async function creaCircoloConAdmin(dati: DatiOnboarding): Promise<string> {
-  // ---- 1. Crea l'account Auth dell'Admin su un'istanza usa-e-getta ----
-  const nomeAppTemporanea = `onboarding-${Date.now()}`;
-  const appSecondaria = initializeApp(firebaseConfig, nomeAppTemporanea);
-  const authSecondaria = getAuth(appSecondaria);
+// ⚠️ RESTITUISCE ANCHE `passwordCreata`, dal 29 agosto 2026: dice se
+// l'account del presidente e' nato adesso oppure se ne e' stato
+// collegato uno che esisteva gia'. Nel secondo caso il riepilogo non
+// deve mostrare nessuna password — quella e' sua, non la sappiamo.
+export async function creaCircoloConAdmin(
+  dati: DatiOnboarding,
+): Promise<{ circoloId: string; passwordCreata: boolean }> {
+  // ---- 1. Prima il circolo, e l'account DOPO ----
+  //
+  // ⚠️ L'ORDINE E' STATO ROVESCIATO, e ha tolto di mezzo un guasto
+  // intero. Prima si creava l'account e poi il circolo: se il secondo
+  // passo falliva restava un account Auth intestato al presidente e
+  // agganciato a niente — l'`ONBOARDING_ACCOUNT_ORFANO` qui sopra — e
+  // riprovando da capo ci si sentiva rispondere «email gia' in uso»
+  // senza capire perche'. Con il circolo per primo quel caso non esiste
+  // piu': un circolo senza Admin si vede, si racconta e si ripara.
+  //
+  // ⚠️ E L'ACCOUNT LO FA IL SERVER. Dal browser non si puo' cercare un
+  // utente per email, quindi un presidente che fosse gia' socio di un
+  // altro circolo — o del proprio — non si poteva collegare: si finiva
+  // contro «esiste gia' un account con questa email», che e' lo stesso
+  // muro che bloccava i Maestri. La qualifica non e' l'account: e' un
+  // documento, e lo stesso indirizzo puo' averne piu' d'uno.
 
-  let uidAdmin: string;
-  try {
-    const cred = await createUserWithEmailAndPassword(
-      authSecondaria, dati.emailAdmin.trim(), dati.passwordAdmin
-    );
-    uidAdmin = cred.user.uid;
-    await signOutSecondaria(authSecondaria);
-  } finally {
-    await deleteApp(appSecondaria);
-  }
-
-  // ---- 2. Da qui in poi si scrive con l'istanza principale (db),
+  // ---- 2. Si scrive con l'istanza principale (db),
   //         quindi con i permessi del Super Admin loggato ----
   //
   // ⚠️ temaApp, NON tema. "tema" era il campo di due versioni fa (una
@@ -166,43 +166,58 @@ export async function creaCircoloConAdmin(dati: DatiOnboarding): Promise<string>
     noteInterne: testoOpzionale(dati.noteInterne),
   }));
   } catch (errore) {
-    // L'account esiste gia' su Auth ma il circolo no: al secondo
-    // tentativo con la stessa email si otterrebbe "email gia' in uso"
-    // senza nessuna spiegazione.
-    console.warn('Circolo non creato dopo l\'account Auth:', errore);
-    throw new Error(ONBOARDING_ACCOUNT_ORFANO);
+    // ⚠️ NON C'E' PIU' NESSUN ACCOUNT ORFANO DA SPIEGARE: adesso il
+    // circolo si crea per primo, quindi se questo passo fallisce non e'
+    // rimasto niente in giro e si puo' semplicemente riprovare. La
+    // costante `ONBOARDING_ACCOUNT_ORFANO` resta esportata perche' il
+    // pannello la nomina ancora nei suoi messaggi, ma da qui non viene
+    // piu' lanciata.
+    console.warn('Circolo non creato:', errore);
+    throw new Error(ONBOARDING_CIRCOLO_SENZA_ADMIN);
   }
 
+  // ============================================================
+  // ⚠️ L'ACCOUNT E LA QUALIFICA IN UN COLPO SOLO, SUL SERVER.
+  //
+  // `assegnaQualifica` cerca l'indirizzo: se esiste gia' un account —
+  // il presidente che e' anche socio, che e' il caso normale — lo
+  // COLLEGA, e la password scritta nel modulo la ignora, perche' e'
+  // sua. Se non esiste lo crea con quella password e accende
+  // `passwordDaCambiare`, il segno che obbliga a sceglierne una propria
+  // al primo accesso.
+  //
+  // ⚠️ Il segno si accende SOLO sugli account nuovi, e lo decide il
+  // server: su uno che esisteva gia' la password non l'abbiamo mai
+  // saputa, quindi obbligarlo a cambiarla sarebbe una pretesa senza
+  // motivo — oltre che una bugia scritta su un documento.
+  // ============================================================
+  let passwordCreata = false;
   try {
-    await setDoc(doc(db, 'responsabili', uidAdmin), {
+    const chiama = httpsCallable(functions, 'assegnaQualifica', { timeout: 120000 });
+    const esito = await chiama({
+      circoloId: circoloRef.id,
+      qualifica: 'responsabile',
       nome: dati.nomeAdmin.trim(),
       cognome: dati.cognomeAdmin.trim(),
       email: dati.emailAdmin.trim(),
-      circoloId: circoloRef.id,
-      // ============================================================
-      // ⚠️ IL SEGNO DEL PRIMO ACCESSO — «questa password gliel'abbiamo
-      // data noi».
-      //
-      // La password dell'Admin la scegliamo qui, compare in chiaro nel
-      // riepilogo di fine onboarding e da li' viaggia su WhatsApp, per
-      // email o su un foglio. Finche' resta quella, l'account del
-      // presidente lo aprono almeno due persone — e una delle due siamo
-      // noi. Con questo segno acceso la dashboard non si disegna: al
-      // suo posto compare la scelta della password, e finito quel
-      // passaggio il segno si spegne per sempre.
-      //
-      // ⚠️ Vale solo da qui in avanti. I circoli gia' attivi non hanno
-      // il campo, e «assente» vuol dire «non fermarlo»: a loro la
-      // sezione «Sicurezza Accesso» resta disponibile quando vogliono.
-      // ============================================================
-      passwordDaCambiare: true,
+      password: dati.passwordAdmin,
     });
-  } catch (errore) {
+    passwordCreata = (esito.data as { creato?: boolean })?.creato === true;
+  } catch (errore: any) {
     // Il circolo esiste ma nessuno puo' amministrarlo: comparirebbe
     // nell'elenco dei soci senza campi, senza orari e senza nessuno
     // che possa configurarlo.
+    //
+    // ⚠️ Il MOTIVO del server viaggia insieme al codice, in `motivo`.
+    // Quasi sempre non e' un guasto ma una regola — «questo indirizzo e'
+    // gia' Admin di un altro circolo» — e chi sta creando il circolo deve
+    // leggerla, non sentirsi dire genericamente che qualcosa e' andato
+    // storto su un circolo che intanto esiste davvero.
     console.warn('Admin non collegato al circolo appena creato:', errore);
-    throw new Error(ONBOARDING_CIRCOLO_SENZA_ADMIN);
+    const guasto: any = new Error(ONBOARDING_CIRCOLO_SENZA_ADMIN);
+    guasto.motivo = typeof errore?.message === 'string' ? errore.message : '';
+    guasto.circoloId = circoloRef.id;
+    throw guasto;
   }
 
   // ---- 3. Se il circolo nasce da una richiesta arrivata dal sito,
@@ -221,5 +236,5 @@ export async function creaCircoloConAdmin(dati: DatiOnboarding): Promise<string>
     }
   }
 
-  return circoloRef.id;
+  return { circoloId: circoloRef.id, passwordCreata };
 }

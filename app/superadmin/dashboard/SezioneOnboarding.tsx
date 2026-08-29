@@ -14,6 +14,12 @@ interface Credenziali {
   passwordCircolo: string;
   emailAdmin: string;
   passwordAdmin: string;
+  // ⚠️ false quando l'account del presidente ESISTEVA GIA' ed e' stato
+  // soltanto collegato al circolo: in quel caso la password non la
+  // sappiamo — e' la sua — e il riepilogo non deve mostrarne nessuna.
+  // Mostrare quella scritta nel modulo sarebbe peggio che non mostrarne:
+  // il Super Admin la detterebbe al presidente, e non funzionerebbe.
+  passwordCreata: boolean;
 }
 
 export default function SezioneOnboarding() {
@@ -205,7 +211,7 @@ export default function SezioneOnboarding() {
     }
     setCreando(true);
     try {
-      await creaCircoloConAdmin({
+      const esito = await creaCircoloConAdmin({
         // `citta` continua a esistere sul documento del circolo, e la
         // riempie il comune scelto: vedi il riquadro in cima.
         nomeCircolo, citta: comune, sigla, regione, provincia, comune, passwordCircolo,
@@ -214,12 +220,18 @@ export default function SezioneOnboarding() {
         firmatarioNome, firmatarioRuolo, firmaIl, noteInterne,
         richiestaId,
       });
-      setSuccesso({ nomeCircolo, passwordCircolo, emailAdmin, passwordAdmin });
+      setSuccesso({
+        nomeCircolo, passwordCircolo, emailAdmin, passwordAdmin,
+        passwordCreata: esito.passwordCreata,
+      });
       reset();
     } catch (err: any) {
-      if (err.code === 'auth/email-already-in-use') {
-        setErrore('Esiste già un account con questa email.');
-      } else if (err.code === 'auth/weak-password') {
+      // ⚠️ «Esiste già un account con questa email» NON è più un errore:
+      // dal 29 agosto 2026 l'account che esiste si collega. Il ramo resta
+      // solo per i casi che il server rifiuta davvero — per esempio un
+      // indirizzo che è già Admin di un ALTRO circolo — e in quel caso il
+      // messaggio buono è quello che manda il server, non uno nostro.
+      if (err.code === 'auth/weak-password') {
         setErrore('Password troppo debole.');
       } else if (err.message === ONBOARDING_ACCOUNT_ORFANO) {
         setErrore(
@@ -228,10 +240,13 @@ export default function SezioneOnboarding() {
           + "quell'account dalla console Firebase prima di riprovare."
         );
       } else if (err.message === ONBOARDING_CIRCOLO_SENZA_ADMIN) {
+        const motivo = typeof err?.motivo === 'string' && err.motivo.trim().length > 0
+          ? ` Motivo: ${err.motivo}`
+          : '';
         setErrore(
           "Il circolo è stato creato ma l'Admin non è stato collegato: il circolo esiste e "
           + "nessuno può configurarlo. Aprilo dall'elenco qui sotto e sospendilo, poi segnala "
-          + "il problema prima di ricreare."
+          + "il problema prima di ricreare." + motivo
         );
       } else {
         setErrore('Si è verificato un errore. Riprova.');
@@ -258,18 +273,38 @@ export default function SezioneOnboarding() {
           <div className="superadmin-credenziali">
             <div><span>Password circolo (per i soci)</span><code>{successo.passwordCircolo}</code></div>
             <div><span>Email Admin</span><code>{successo.emailAdmin}</code></div>
-            <div>
-              <span>Password Admin</span>
-              {/* ⚠️ Coperta di partenza anche qui: è il momento in cui si
-                  gira lo schermo per leggerla a qualcuno, ed è
-                  esattamente il momento in cui non deve essere già lì
-                  scritta per chiunque passi. */}
-              <code>{mostraPassword ? successo.passwordAdmin : '••••••••'}</code>
-              <button className="admin-btn-small" type="button" onClick={() => setMostraPassword((v) => !v)}>
-                {mostraPassword ? 'Nascondi' : 'Mostra'}
-              </button>
-            </div>
+            {successo.passwordCreata ? (
+              <div>
+                <span>Password Admin</span>
+                {/* ⚠️ Coperta di partenza anche qui: è il momento in cui si
+                    gira lo schermo per leggerla a qualcuno, ed è
+                    esattamente il momento in cui non deve essere già lì
+                    scritta per chiunque passi. */}
+                <code>{mostraPassword ? successo.passwordAdmin : '••••••••'}</code>
+                <button className="admin-btn-small" type="button" onClick={() => setMostraPassword((v) => !v)}>
+                  {mostraPassword ? 'Nascondi' : 'Mostra'}
+                </button>
+              </div>
+            ) : (
+              <div>
+                <span>Password Admin</span>
+                <code>account già esistente</code>
+              </div>
+            )}
           </div>
+          {!successo.passwordCreata && (
+            // ⚠️ Questo è il caso NORMALE, non l'eccezione: il presidente
+            // è quasi sempre già socio del circolo. Il suo account non si
+            // ricrea, si collega — quindi entra con la password che usa
+            // già, e quella scritta nel modulo non è mai stata usata.
+            <p className="admin-card-hint">
+              Questo indirizzo aveva già un account su Racket Fever (di solito perché il
+              presidente è anche socio): non ne è stato creato uno nuovo, gli è stata
+              aggiunta la qualifica di Admin del circolo. Entra con la <b>password che usa
+              già</b> — quella scritta nel modulo è stata ignorata. Se non la ricorda, può
+              usare &quot;Password dimenticata&quot; nella schermata di accesso Admin.
+            </p>
+          )}
           <button className="admin-btn-full" onClick={() => setSuccesso(null)}>+ Crea un altro circolo</button>
         </div>
       </SezioneCollassabile>
@@ -410,6 +445,18 @@ export default function SezioneOnboarding() {
             Generane una
           </button>
         </div>
+        {/* ⚠️ Detta PRIMA di premere «Crea», non nel riepilogo dopo. Il
+            presidente è quasi sempre già socio di un circolo: in quel
+            caso l'account non nasce, si collega, e questa password non
+            viene mai usata. Chi compila deve saperlo mentre la sta
+            scegliendo, altrimenti se la scrive da parte e poi la detta
+            al telefono a qualcuno per cui non funziona. */}
+        <p className="admin-card-hint">
+          Serve solo se il presidente non ha ancora un account Racket Fever. Se ce l&apos;ha
+          già — di solito perché è socio di un circolo — questa password viene ignorata e la
+          sua qualifica di Admin viene aggiunta all&apos;account che ha: entrerà con la
+          password che usa già.
+        </p>
 
         <div className="superadmin-subtitolo">Contratto di adesione</div>
         <p className="admin-card-hint">

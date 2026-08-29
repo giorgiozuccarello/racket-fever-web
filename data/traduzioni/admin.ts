@@ -513,7 +513,13 @@ const it = {
   'adm.mae.aggiungiMaestro': 'Aggiungi Maestro',
   'adm.mae.compilaTuttiICampi': 'Compila tutti i campi.',
   'adm.mae.passwordTroppoCorta': 'La password deve avere almeno 6 caratteri.',
+  // ⚠️ Non è più un errore: dal 29 agosto 2026 un account che esiste
+  // già viene COLLEGATO invece che rifiutato. La chiave resta perché
+  // la usano ancora altri moduli.
   'adm.mae.emailGiaUsata': 'Esiste già un account con questa email.',
+  'adm.mae.collegatoTitolo': 'Maestro collegato a un account esistente',
+  'adm.mae.passwordSoloSeNuovo': 'Serve solo se questa persona non ha ancora un account Racket Fever. Se ce l’ha già — per esempio perché è socia di un circolo — viene ignorata: entrerà con la password che usa già.',
+  'adm.mae.collegatoSpiega': 'Questa persona aveva già un account (di solito perché è socia di un circolo): entrerà come Maestro con la password che usa già. La password scritta qui sopra non è stata usata.',
   'adm.mae.rimozioneFallita': '{nome} non è stato rimosso. Riprova.',
   'adm.mae.rimozioneAccessoNonRevocato': '{nome} non è stato rimosso: non è stato possibile togliergli l’accesso Admin. Riprova — se si cancellasse ora, quell’accesso resterebbe attivo e non sarebbe più revocabile.',
   'adm.mae.accessoNonTolto': 'Non è stato possibile togliere l’accesso Admin a {nome}. Riprova.',
@@ -1496,6 +1502,9 @@ const en: Record<keyof typeof it, string> = {
   'adm.mae.compilaTuttiICampi': 'Fill in every field.',
   'adm.mae.passwordTroppoCorta': 'The password needs at least 6 characters.',
   'adm.mae.emailGiaUsata': 'An account with this email already exists.',
+  'adm.mae.collegatoTitolo': 'Coach linked to an existing account',
+  'adm.mae.passwordSoloSeNuovo': 'Only needed if this person does not have a Racket Fever account yet. If they already do — for example because they are a club member — it is ignored: they will sign in with the password they already use.',
+  'adm.mae.collegatoSpiega': 'This person already had an account (usually because they are a member of a club): they will sign in as a coach with the password they already use. The password typed above was not used.',
   'adm.mae.rimozioneFallita': '{nome} wasn’t removed. Try again.',
   'adm.mae.rimozioneAccessoNonRevocato': '{nome} wasn’t removed: their Admin access couldn’t be taken away. Try again — deleting them now would leave that access switched on with no way to revoke it.',
   'adm.mae.accessoNonTolto': 'Couldn’t take the Admin access away from {nome}. Try again.',
@@ -2466,6 +2475,9 @@ const de: Record<keyof typeof it, string> = {
   'adm.mae.compilaTuttiICampi': 'Bitte alle Felder ausfüllen.',
   'adm.mae.passwordTroppoCorta': 'Das Passwort braucht mindestens 6 Zeichen.',
   'adm.mae.emailGiaUsata': 'Mit dieser E-Mail gibt es bereits ein Konto.',
+  'adm.mae.collegatoTitolo': 'Trainer mit einem bestehenden Konto verknüpft',
+  'adm.mae.passwordSoloSeNuovo': 'Wird nur benötigt, wenn diese Person noch kein Racket-Fever-Konto hat. Hat sie bereits eines — zum Beispiel als Vereinsmitglied — wird es ignoriert: sie meldet sich mit dem Passwort an, das sie schon benutzt.',
+  'adm.mae.collegatoSpiega': 'Diese Person hatte bereits ein Konto (meist weil sie Mitglied eines Vereins ist): sie meldet sich als Trainer mit dem Passwort an, das sie schon benutzt. Das oben eingegebene Passwort wurde nicht verwendet.',
   'adm.mae.rimozioneFallita': '{nome} wurde nicht entfernt. Bitte erneut versuchen.',
   'adm.mae.rimozioneAccessoNonRevocato': '{nome} wurde nicht entfernt: der Admin-Zugang ließ sich nicht entziehen. Versuch es erneut — würde man jetzt löschen, bliebe dieser Zugang aktiv und wäre nicht mehr widerrufbar.',
   'adm.mae.accessoNonTolto': 'Der Admin-Zugang von {nome} konnte nicht entzogen werden. Bitte erneut versuchen.',

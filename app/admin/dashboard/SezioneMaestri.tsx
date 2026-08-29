@@ -46,7 +46,10 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
   const [consentiAdmin, setConsentiAdmin] = useState(false);
   const [errore, setErrore] = useState('');
   const [creando, setCreando] = useState(false);
-  const [datiCreati, setDatiCreati] = useState<{ nome: string; email: string; password: string } | null>(null);
+  // ⚠️ `creato` dice se l'account è nato adesso o se ne abbiamo
+  // collegato uno che c'era già: nel secondo caso non c'è nessuna
+  // password da consegnare, perché è la sua.
+  const [datiCreati, setDatiCreati] = useState<{ nome: string; email: string; password: string; creato: boolean } | null>(null);
   const [aggiornandoUid, setAggiornandoUid] = useState<string | null>(null);
   const [erroreRimozione, setErroreRimozione] = useState('');
 
@@ -88,13 +91,18 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
     }
     setCreando(true);
     try {
-      await creaMaestro(circoloId, nome, cognome, email, password, consentiAdmin);
-      setDatiCreati({ nome: `${nome.trim()} ${cognome.trim()}`, email: email.trim(), password });
+      const esito = await creaMaestro(circoloId, nome, cognome, email, password, consentiAdmin);
+      setDatiCreati({
+        nome: `${nome.trim()} ${cognome.trim()}`, email: email.trim(), password, creato: esito.creato,
+      });
       reset();
       setFormAperto(false);
     } catch (err: any) {
-      if (err.code === 'auth/email-already-in-use') setErrore(t('adm.mae.emailGiaUsata'));
-      else setErrore(t('com.errore.generico'));
+      // ⚠️ Il messaggio arriva dal server, ed è più preciso del nostro:
+      // «esiste già un account» non è più un errore — quell'account
+      // viene collegato — mentre «è già Maestro di un altro circolo» è
+      // una cosa che va detta com'è.
+      setErrore(err?.message || t('com.errore.generico'));
     } finally {
       setCreando(false);
     }
@@ -182,7 +190,12 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
 
       {datiCreati && (
         <>
-          <p className="admin-card-hint">{t('adm.mae.creatoCredenziali')}</p>
+          <p className="admin-card-hint">
+            {t(datiCreati.creato ? 'adm.mae.creatoCredenziali' : 'adm.mae.collegatoTitolo')}
+          </p>
+          {!datiCreati.creato && (
+            <p className="admin-card-hint">{t('adm.mae.collegatoSpiega')}</p>
+          )}
           <div className="superadmin-credenziali">
             {/* ⚠️ Chiave diversa da quella del modulo: qui sotto c'è il
                 nome E il cognome insieme, quindi «Nome» vale «nome e
@@ -190,7 +203,13 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
                 sopra un nome intero. */}
             <div><span>{t('adm.mae.credenzialiNome')}</span><code>{datiCreati.nome}</code></div>
             <div><span>{t('adm.mae.campoEmail')}</span><code>{datiCreati.email}</code></div>
-            <div><span>{t('adm.mae.campoPassword')}</span><code>{datiCreati.password}</code></div>
+            {/* ⚠️ La password si mostra SOLO se l'account l'abbiamo
+                creato noi: su uno che esisteva già la password è sua e
+                non la conosce nessuno, quindi scriverne una qualunque
+                manderebbe a sbattere contro «credenziali non valide». */}
+            {datiCreati.creato && (
+              <div><span>{t('adm.mae.campoPassword')}</span><code>{datiCreati.password}</code></div>
+            )}
           </div>
         </>
       )}
@@ -210,6 +229,12 @@ export default function SezioneMaestri({ circoloId, maestri, prenotazioni }: {
           <input className="admin-input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t('adm.mae.esempioEmail')} />
           <label className="admin-label">{t('adm.mae.campoPassword')}</label>
           <input className="admin-input" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t('adm.mae.esempioPassword')} />
+          {/* ⚠️ La nota sta QUI, sotto il campo, e non nel riepilogo dopo:
+              e' prima di premere il tasto che l'Admin si chiede «e se ha
+              gia' un account?». Detta dopo servirebbe solo a spiegare
+              perche' la password che ha appena inventato non serve a
+              niente. */}
+          <div className="admin-card-hint">{t('adm.mae.passwordSoloSeNuovo')}</div>
 
           <label className="admin-checkbox-row" style={{ marginTop: '.8rem' }}>
             <input type="checkbox" checked={consentiAdmin} onChange={(e) => setConsentiAdmin(e.target.checked)} />
