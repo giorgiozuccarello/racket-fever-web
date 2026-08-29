@@ -63,7 +63,7 @@ const it = {
   'adm.gen.sez.limite-cancellazione.titolo': 'Limite Cancellazione Prenotazioni Campi',
   'adm.gen.sez.limite-cancellazione.descrizione': 'Entro quante ore prima un socio può disdire un campo',
   'adm.gen.sez.prezzi.titolo': 'Prezzi',
-  'adm.gen.sez.prezzi.descrizione': 'Tariffe orarie e fasce speciali',
+  'adm.gen.sez.prezzi.descrizione': 'Tariffe per mezz’ora e fasce speciali',
   'adm.gen.sez.blocchi.titolo': 'Orari Riservati',
   'adm.gen.sez.blocchi.descrizione': 'Manutenzione, tornei, corsi — orari non prenotabili',
   'adm.gen.sez.richieste.titolo': 'Richieste in sospeso',
@@ -78,7 +78,7 @@ const it = {
   'adm.gen.sez.classifica.descrizione': 'Ranking dei soci e gestione posizioni',
   'adm.gen.sez.sfide.titolo': 'Sfide in Corso',
   'adm.gen.sez.sfide.descrizione': 'Sfide sociali dal lancio alla conclusione',
-  'adm.gen.sez.prenotazioni.titolo': 'Prenotazione Campi',
+  'adm.gen.sez.prenotazioni.titolo': 'Griglia Prenotazioni',
   'adm.gen.sez.prenotazioni.descrizione': 'Griglia campi — clicca uno slot per i dettagli',
   'adm.gen.sez.note.titolo': 'Note alle Prenotazioni',
   'adm.gen.sez.note.descrizione': 'Prenotazioni con note lasciate dai soci',
@@ -308,9 +308,9 @@ const it = {
   'adm.bon.togliDati': 'Togli i dati (il pulsante «Ricarica» sparisce dall’app dei soci)',
 
   // ---------- Prezzi ----------
-  'adm.pri.titolo': 'Prezzi delle ore',
-  'adm.pri.intro': 'Scegli un campo per impostare il suo prezzo base e, se vuoi, quante tariffe speciali servono: una per ogni fascia oraria con un prezzo diverso. Due tariffe non possono coprire le stesse ore negli stessi giorni.',
-  'adm.pri.prezzoBase': 'Prezzo base — {campo}',
+  'adm.pri.titolo': 'Prezzi delle mezz’ore',
+  'adm.pri.intro': 'Scegli un campo per impostare il suo prezzo base per mezz’ora e, se vuoi, quante tariffe speciali servono: una per ogni fascia oraria con un prezzo diverso. Due tariffe non possono coprire le stesse ore negli stessi giorni.',
+  'adm.pri.prezzoBase': 'Prezzo base per mezz’ora — {campo}',
   'adm.pri.tariffaSpeciale': 'Tariffa speciale',
   'adm.pri.tuttiIGiorni': 'Tutti i giorni',
   'adm.pri.modifica': 'Modifica',
@@ -318,7 +318,7 @@ const it = {
   'adm.pri.aggiungiTariffa': 'Aggiungi tariffa speciale',
   'adm.pri.dalle': 'Dalle',
   'adm.pri.alle': 'Alle',
-  'adm.pri.prezzo': 'Prezzo',
+  'adm.pri.prezzo': 'Prezzo per mezz’ora',
   // La voce «nessun prezzo» della tendina: sul prezzo base vuol dire
   // togliere il prezzo al campo, ed e' una scelta che l'Admin fa
   // davvero. Prima era il «--» del selettore di sistema.
@@ -639,6 +639,14 @@ const it = {
   'adm.pre.hintOccupato': 'Clicca su uno slot occupato per vedere chi ha prenotato ed eventualmente annullare.',
   'adm.pre.hintPassate': 'Le mezz’ore già cominciate diventano grigie: non si possono più assegnare né riservare, ma restano cliccabili se hanno qualcosa sopra.',
   'adm.pre.statoLibero': 'Libero',
+  // ⚠️ IL PREZZO PRENDE IL POSTO DI «Libero» sullo slot della
+  // griglia dell'Admin, come gia' fa la griglia del Socio: la cella
+  // e' larga un terzo di schermo e una riga in piu' non ci sta.
+  // Uno slot con un prezzo scritto e' per forza libero — se fosse
+  // occupato ci sarebbe il nome di chi l'ha preso.
+  // ⚠️ L'euro sta DENTRO la traduzione perche' in tedesco va dopo
+  // la cifra, come per 'adm.pre.creditoCifra'.
+  'adm.pre.prezzoSlot': '€ {importo}',
   'adm.pre.statoPrenotato': 'Prenotato',
   'adm.pre.statoLezione': 'Lezione',
   'adm.pre.statoRiservato': 'Riservato',
@@ -728,6 +736,8 @@ const it = {
   'adm.pre.nessunAddebitoNessuno': 'Nessun addebito: né al socio né a loro.',
   'adm.pre.quotaDivisa': 'La quota di queste mezz’ore sarà divisa fra tutti, e a ciascuno verrà scalata la sua.',
   'adm.pre.nonAddebitare': 'Non addebitare il costo al socio',
+  // Il costo della fascia scelta, nel pop-up, prima di confermare.
+  'adm.pre.costoOre': 'Costo · € {importo}',
   'adm.pre.riservaOrarioTitolo': 'Riserva orario',
   'adm.pre.giaMessiDaParte': 'Già messi da parte',
   'adm.pre.togli': 'Togli',
@@ -1019,7 +1029,7 @@ const en: Record<keyof typeof it, string> = {
   'adm.gen.sez.limite-cancellazione.titolo': 'Court cancellation limit',
   'adm.gen.sez.limite-cancellazione.descrizione': 'How many hours ahead a member can still cancel a court',
   'adm.gen.sez.prezzi.titolo': 'Prices',
-  'adm.gen.sez.prezzi.descrizione': 'Hourly rates and special time bands',
+  'adm.gen.sez.prezzi.descrizione': 'Half-hour rates and special time bands',
   'adm.gen.sez.blocchi.titolo': 'Reserved slots',
   'adm.gen.sez.blocchi.descrizione': 'Maintenance, tournaments, courses — slots nobody can book',
   'adm.gen.sez.richieste.titolo': 'Pending requests',
@@ -1034,7 +1044,7 @@ const en: Record<keyof typeof it, string> = {
   'adm.gen.sez.classifica.descrizione': 'Where your members stand, and how to move them',
   'adm.gen.sez.sfide.titolo': 'Challenges under way',
   'adm.gen.sez.sfide.descrizione': 'Club challenges from the first call to the final score',
-  'adm.gen.sez.prenotazioni.titolo': 'Court bookings',
+  'adm.gen.sez.prenotazioni.titolo': 'Booking grid',
   'adm.gen.sez.prenotazioni.descrizione': 'The court grid — click a slot for the details',
   'adm.gen.sez.note.titolo': 'Booking notes',
   'adm.gen.sez.note.descrizione': 'Bookings your members left a note on',
@@ -1264,9 +1274,9 @@ const en: Record<keyof typeof it, string> = {
   'adm.bon.togliDati': 'Remove the details (the “Top up” button disappears from the members’ app)',
 
   // ---------- Prezzi ----------
-  'adm.pri.titolo': 'Hourly prices',
-  'adm.pri.intro': 'Pick a court to set its base price and, if you like, as many special rates as you need: one for each time band with a different price. Two rates cannot cover the same hours on the same days.',
-  'adm.pri.prezzoBase': 'Base price — {campo}',
+  'adm.pri.titolo': 'Half-hour prices',
+  'adm.pri.intro': 'Pick a court to set its base price per half-hour and, if you like, as many special rates as you need: one for each time band with a different price. Two rates cannot cover the same hours on the same days.',
+  'adm.pri.prezzoBase': 'Base price per half-hour — {campo}',
   'adm.pri.tariffaSpeciale': 'Special rate',
   'adm.pri.tuttiIGiorni': 'Every day',
   'adm.pri.modifica': 'Edit',
@@ -1274,7 +1284,7 @@ const en: Record<keyof typeof it, string> = {
   'adm.pri.aggiungiTariffa': 'Add a special rate',
   'adm.pri.dalle': 'From',
   'adm.pri.alle': 'To',
-  'adm.pri.prezzo': 'Price',
+  'adm.pri.prezzo': 'Price per half-hour',
   'adm.pri.prezzoNessuno': 'None',
   'adm.pri.etichetta': 'Label',
   'adm.pri.etichettaEsempio': 'With floodlights',
@@ -1588,6 +1598,7 @@ const en: Record<keyof typeof it, string> = {
   'adm.pre.hintOccupato': 'Click a taken slot to see who booked it and cancel if you need to.',
   'adm.pre.hintPassate': 'Half hours that have already started turn grey: you can no longer assign or reserve them, but they stay clickable if something sits on them.',
   'adm.pre.statoLibero': 'Free',
+  'adm.pre.prezzoSlot': '€ {importo}',
   'adm.pre.statoPrenotato': 'Booked',
   'adm.pre.statoLezione': 'Lesson',
   'adm.pre.statoRiservato': 'Reserved',
@@ -1677,6 +1688,7 @@ const en: Record<keyof typeof it, string> = {
   'adm.pre.nessunAddebitoNessuno': 'No charge: not to the member, not to them.',
   'adm.pre.quotaDivisa': 'The cost of these half hours is split between everyone, and each share comes off its own credit.',
   'adm.pre.nonAddebitare': 'Don’t charge the member',
+  'adm.pre.costoOre': 'Cost · € {importo}',
   'adm.pre.riservaOrarioTitolo': 'Reserve a slot',
   'adm.pre.giaMessiDaParte': 'Already set aside',
   'adm.pre.togli': 'Remove',
@@ -1964,7 +1976,7 @@ const de: Record<keyof typeof it, string> = {
   'adm.gen.sez.limite-cancellazione.titolo': 'Stornofrist für Plätze',
   'adm.gen.sez.limite-cancellazione.descrizione': 'Wie viele Stunden vorher ein Mitglied einen Platz noch absagen kann',
   'adm.gen.sez.prezzi.titolo': 'Preise',
-  'adm.gen.sez.prezzi.descrizione': 'Stundenpreise und Sondertarife',
+  'adm.gen.sez.prezzi.descrizione': 'Preise pro halbe Stunde und Sondertarife',
   'adm.gen.sez.blocchi.titolo': 'Reservierte Zeiten',
   'adm.gen.sez.blocchi.descrizione': 'Wartung, Turniere, Kurse — Zeiten, die niemand buchen kann',
   'adm.gen.sez.richieste.titolo': 'Offene Anfragen',
@@ -1979,7 +1991,7 @@ const de: Record<keyof typeof it, string> = {
   'adm.gen.sez.classifica.descrizione': 'Wo deine Mitglieder stehen und wie du sie verschiebst',
   'adm.gen.sez.sfide.titolo': 'Laufende Herausforderungen',
   'adm.gen.sez.sfide.descrizione': 'Club-Herausforderungen vom Aufruf bis zum Endstand',
-  'adm.gen.sez.prenotazioni.titolo': 'Platzbuchungen',
+  'adm.gen.sez.prenotazioni.titolo': 'Buchungsraster',
   'adm.gen.sez.prenotazioni.descrizione': 'Das Platzraster — klick auf ein Feld für die Details',
   'adm.gen.sez.note.titolo': 'Notizen zu Buchungen',
   'adm.gen.sez.note.descrizione': 'Buchungen, zu denen Mitglieder etwas notiert haben',
@@ -2209,9 +2221,9 @@ const de: Record<keyof typeof it, string> = {
   'adm.bon.togliDati': 'Daten entfernen (der „Aufladen“-Knopf verschwindet aus der Mitglieder-App)',
 
   // ---------- Prezzi ----------
-  'adm.pri.titolo': 'Preise pro Stunde',
-  'adm.pri.intro': 'Wähle einen Platz, um seinen Grundpreis festzulegen und, wenn du magst, so viele Sondertarife wie nötig: einen für jeden Zeitraum mit einem anderen Preis. Zwei Tarife dürfen nicht dieselben Stunden an denselben Tagen abdecken.',
-  'adm.pri.prezzoBase': 'Grundpreis — {campo}',
+  'adm.pri.titolo': 'Preise pro halbe Stunde',
+  'adm.pri.intro': 'Wähle einen Platz, um seinen Grundpreis pro halbe Stunde festzulegen und, wenn du magst, so viele Sondertarife wie nötig: einen für jeden Zeitraum mit einem anderen Preis. Zwei Tarife dürfen nicht dieselben Stunden an denselben Tagen abdecken.',
+  'adm.pri.prezzoBase': 'Grundpreis pro halbe Stunde — {campo}',
   'adm.pri.tariffaSpeciale': 'Sondertarif',
   'adm.pri.tuttiIGiorni': 'Täglich',
   'adm.pri.modifica': 'Ändern',
@@ -2219,7 +2231,7 @@ const de: Record<keyof typeof it, string> = {
   'adm.pri.aggiungiTariffa': 'Sondertarif hinzufügen',
   'adm.pri.dalle': 'Von',
   'adm.pri.alle': 'Bis',
-  'adm.pri.prezzo': 'Preis',
+  'adm.pri.prezzo': 'Preis pro halbe Stunde',
   'adm.pri.prezzoNessuno': 'Kein Preis',
   'adm.pri.etichetta': 'Bezeichnung',
   'adm.pri.etichettaEsempio': 'Mit Flutlicht',
@@ -2533,6 +2545,7 @@ const de: Record<keyof typeof it, string> = {
   'adm.pre.hintOccupato': 'Klicke auf eine belegte Kachel, um zu sehen, wer gebucht hat, und bei Bedarf zu stornieren.',
   'adm.pre.hintPassate': 'Bereits begonnene halbe Stunden werden grau: sie lassen sich nicht mehr vergeben oder reservieren, bleiben aber anklickbar, wenn etwas darauf liegt.',
   'adm.pre.statoLibero': 'Frei',
+  'adm.pre.prezzoSlot': '{importo} €',
   'adm.pre.statoPrenotato': 'Gebucht',
   'adm.pre.statoLezione': 'Training',
   'adm.pre.statoRiservato': 'Reserviert',
@@ -2622,6 +2635,7 @@ const de: Record<keyof typeof it, string> = {
   'adm.pre.nessunAddebitoNessuno': 'Keine Abbuchung: weder beim Mitglied noch bei ihnen.',
   'adm.pre.quotaDivisa': 'Der Betrag dieser halben Stunden wird auf alle aufgeteilt, und jedem wird sein Anteil abgezogen.',
   'adm.pre.nonAddebitare': 'Dem Mitglied nichts berechnen',
+  'adm.pre.costoOre': 'Kosten · {importo} €',
   'adm.pre.riservaOrarioTitolo': 'Zeit reservieren',
   'adm.pre.giaMessiDaParte': 'Bereits vorgemerkt',
   'adm.pre.togli': 'Entfernen',

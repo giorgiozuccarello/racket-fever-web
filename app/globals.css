@@ -871,6 +871,11 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .pc-toggle-btn{flex:1;border:2px solid var(--bordo);border-radius:10px;padding:.55rem;background:#fff;font-size:.78rem;font-weight:700;cursor:pointer}
 .pc-toggle-btn.selezionato{background:#0E3B2E;border-color:#0E3B2E;color:#fff}
 .pc-spunta-riga{display:flex;align-items:center;gap:.5rem;margin-top:.9rem;font-size:.8rem;font-weight:600;cursor:pointer}
+/* Il costo nel pop-up di prenotazione: un riquadro, non una riga di
+   testo fra le altre. È il numero su cui l'Admin decide. Gemello di
+   `pcCostoBox` nell'app. */
+.pc-costo-box{margin-top:.9rem;padding:.6rem .75rem;border:2px solid #E9E5D9;border-radius:10px;background:var(--carta,#FBFAF6);text-align:center}
+.pc-costo-cifra{font-size:.95rem;font-weight:800;color:var(--inchiostro)}
 
 
 /* ============================================================

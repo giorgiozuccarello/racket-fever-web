@@ -183,6 +183,16 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   };
 
   const campoSel = campi.find((c) => c.id === selCampoId);
+
+  // ⚠️ IL TOTALE SI SOMMA MEZZ'ORA PER MEZZ'ORA (gemello della stessa
+  // riga nell'app): con piu' tariffe speciali sullo stesso campo una
+  // fascia puo' attraversarne due — 17:30 al prezzo base e 18:00 a
+  // quello serale — e «prezzo × ore» darebbe un numero sbagliato. E' la
+  // stessa somma, ora per ora, che finisce poi sulle prenotazioni.
+  const totaleDaPrenotare = campoSel
+    ? oreDaPrenotare.reduce((somma, ora) => somma + calcolaPrezzo(campoSel, giornoSel, ora), 0)
+    : 0;
+
   // ============================================================
   // ⚠️ UNA MEZZ'ORA DA SOLA NON E' UNA PRENOTAZIONE.
   //
@@ -1313,7 +1323,21 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
           // ⚠️ Etichette corte: nello slot ci stanno una decina di
           // caratteri, quindi in tedesco si usa la parola breve — la
           // stessa che sta in legenda, cosi' le due si riconoscono.
-          let sotto = t('adm.pre.statoLibero');
+          //
+          // ⚠️ SULLO SLOT LIBERO C'E' IL PREZZO, NON LA PAROLA «Libero»,
+          // ed e' la stessa scelta fatta nell'app (e gia' in uso nella
+          // griglia del Socio). L'Admin che ha impostato piu' tariffe
+          // speciali non aveva nessun modo di verificarle se non
+          // rileggendo il modulo dove le aveva scritte: qui le vede ora
+          // per ora, che e' dove un errore di fascia salta all'occhio.
+          // Al POSTO e non in aggiunta: la cella ha due righe e sotto i
+          // 480 punti sta in un terzo di schermo.
+          // ⚠️ A prezzo zero resta «Libero»: zero non vuol dire gratis,
+          // vuol dire che il prezzo base non e' ancora stato messo.
+          const prezzoSlot = campoSel ? calcolaPrezzo(campoSel, giornoSel, ora) : 0;
+          let sotto = prezzoSlot > 0
+            ? t('adm.pre.prezzoSlot', { importo: prezzoSlot.toFixed(2) })
+            : t('adm.pre.statoLibero');
           if (p?.sfidaId) sotto = t('adm.pre.sfidaInCorso');
           else if (p) sotto = p.utenteCognome ? `${p.utenteNome} ${p.utenteCognome[0]}.` : p.utenteNome;
           else if (blocco) sotto = t('adm.pre.statoRiservato');
@@ -1480,6 +1504,24 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
             : oreDaPrenotare[0] ? fasciaOraria(oreDaPrenotare[0]) : ''}
         </p>
         <p className="admin-modal-sub">{campoSel?.nome} · {dataMostrata}</p>
+
+        {/* ⚠️ QUANTO COSTA, PRIMA DI CONFERMARE. Il prezzo era gia'
+            calcolato, ma dentro `confermaPrenotazione` — cioe' un
+            istante DOPO che l'Admin aveva deciso. E' la stessa somma
+            che verra' scritta sulle prenotazioni: stessa funzione,
+            stesse ore. Se le due divergessero, l'Admin vedrebbe un
+            numero e il socio se ne vedrebbe addebitato un altro. */}
+        {/* ⚠️ Con la spunta il costo e' zero e basta: la nota che
+            diceva quanto «restava al circolo» e' stata tolta perche'
+            diceva una cosa falsa — il circolo non paga niente a
+            nessuno, semplicemente non incassa. */}
+        <div className="pc-costo-box">
+          <div className="pc-costo-cifra">
+            {t('adm.pre.costoOre', {
+              importo: (senzaAddebito && !modalitaEsterno ? 0 : totaleDaPrenotare).toFixed(2),
+            })}
+          </div>
+        </div>
 
         <div className="pc-toggle-row">
           <button
