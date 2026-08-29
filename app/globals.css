@@ -268,12 +268,28 @@ footer li a:hover{opacity:1;text-decoration:underline}
    ha bisogno di distinguere a colpo d'occhio. */
 .admin-sic-errore{color:#B3261E;font-size:.82rem;line-height:1.45;margin-top:.9rem}
 .admin-sic-fatta{color:#1F7A45;font-size:.82rem;line-height:1.45;font-weight:700;margin-top:.9rem}
+/* Riquadro «Accesso del presidente» nel pannello del team. */
+.sa-accesso-riga{border:1.5px solid #E9E5D9;border-radius:10px;padding:.8rem;margin-top:.7rem;
+  display:flex;flex-wrap:wrap;gap:.6rem;align-items:flex-start;justify-content:space-between}
+.sa-accesso-chi{display:flex;flex-direction:column;gap:.15rem;min-width:0}
+.sa-accesso-email{font-size:.78rem;color:var(--grigio);word-break:break-all}
+/* La spia è ambra e non rossa: dice come stanno le cose, non segnala un guasto. */
+.sa-accesso-spia{font-size:.7rem;font-weight:700;color:#8A6200;background:#FDF6E3;
+  border:1px solid #EFE4C0;border-radius:999px;padding:.15rem .5rem;margin-top:.2rem;align-self:flex-start}
+.sa-accesso-modulo{flex:1 1 100%;border-top:1.5px solid #E9E5D9;padding-top:.7rem;margin-top:.2rem}
 /* La schermata del primo accesso: non è la dashboard con un pop-up
    sopra, è l'unica cosa che c'è finché la password non è stata
    scelta. */
 .admin-primo-accesso{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--carta,#FBFAF6)}
 .admin-primo-accesso-dentro{width:100%;max-width:520px}
 .admin-primo-accesso-testo{font-size:.9rem;line-height:1.6;color:var(--grigio);margin:.8rem 0 1.6rem}
+/* I messaggi allegati a una segnalazione: si leggono come sono stati
+   scritti, quindi a capo dove c'erano gli a capo e in un riquadro che
+   li distingue dal resto della scheda. */
+.admin-seg-messaggi{margin-top:.6rem;border:1.5px solid #E9E5D9;border-radius:8px;background:#FBFAF6;padding:.55rem .65rem}
+.admin-seg-messaggi-titolo{font-size:.7rem;font-weight:800;color:var(--grigio);text-transform:uppercase;letter-spacing:.03em}
+.admin-seg-messaggi-corpo{margin:.35rem 0 0;font-family:inherit;font-size:.78rem;line-height:1.45;
+  color:var(--inchiostro);white-space:pre-wrap;word-break:break-word;max-height:11rem;overflow:auto}
 .admin-login-hint{color:rgba(245,241,230,.6);font-size:.75rem;text-align:center;margin-top:1.4rem;line-height:1.5}
 .admin-login-hint a{color:rgba(245,241,230,.75);text-decoration:underline}
 

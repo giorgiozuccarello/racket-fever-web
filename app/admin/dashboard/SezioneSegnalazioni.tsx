@@ -94,6 +94,17 @@ export default function SezioneSegnalazioni({ circolo }: {
             })}
           </div>
         )}
+        {/* ⚠️ I MESSAGGI ALLEGATI, quando c'è di mezzo una chat. Non è un
+            permesso di lettura che ci siamo dati: le conversazioni
+            restano chiuse a tutti, e questo è solo ciò che la persona ha
+            scelto di consegnare premendo «Segnala». Senza, la
+            segnalazione di una frase sarebbe un'accusa senza prova. */}
+        {!!s.copiaMessaggi && (
+          <div className="admin-seg-messaggi">
+            <div className="admin-seg-messaggi-titolo">{t('adm.seg.messaggiAllegati')}</div>
+            <pre className="admin-seg-messaggi-corpo">{s.copiaMessaggi}</pre>
+          </div>
+        )}
       </div>
       {s.stato === 'nuova' ? (
         <>

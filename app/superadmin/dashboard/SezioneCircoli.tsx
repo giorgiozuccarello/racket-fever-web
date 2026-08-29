@@ -14,6 +14,7 @@
 // ============================================================
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import type { ChangeEvent } from 'react';
 import { Circolo, statoCircolo, etichettaStatoCircolo, StatoCircolo, attivazioneCircoloMs } from '../../../data/circoli';
 import { REGIONI_ITALIA, provinceDi } from '../../../data/tornei';
@@ -25,6 +26,8 @@ import {
 import SezioneCollassabile from '../../admin/dashboard/SezioneCollassabile';
 import SchedaCircoloVista from './SchedaCircoloVista';
 import SezioneResetCircolo from './SezioneResetCircolo';
+import SezioneAccessoPresidente from './SezioneAccessoPresidente';
+import { ArchivioRegistro, leggiUltimoArchivio } from '../../../data/resetCircolo';
 
 // I circoli si ordinano per stato e poi per nome: quelli che
 // funzionano stanno in cima, i chiusi in fondo — sono quelli che si
@@ -95,8 +98,30 @@ export default function SezioneCircoli() {
   const [ancheAccessi, setAncheAccessi] = useState(false);
   const [inCancellazione, setInCancellazione] = useState(false);
   const [ricerca, setRicerca] = useState('');
+  // ⚠️ Tre valori e non due: `undefined` vuol dire «non lo so ancora»,
+  // `null` vuol dire «guardato, non c'e'». Scritti come un solo
+  // booleano, un circolo senza copia dei conti si sarebbe presentato
+  // come «nessuna copia» per la frazione di secondo prima della
+  // risposta — cioe' un allarme falso proprio nel momento in cui uno
+  // apre la scheda per una contestazione.
+  const [ultimoArchivio, setUltimoArchivio] = useState<ArchivioRegistro | null | undefined>(undefined);
 
   useEffect(() => ascoltaCircoli(setCircoli), []);
+
+  // ⚠️ SOLO SUI CIRCOLI CHIUSI, e una lettura sola. Su un circolo attivo
+  // la domanda non ha senso — i conti si guardano dal vivo — e farla
+  // comunque vorrebbe dire una interrogazione in piu' ogni volta che si
+  // apre una scheda qualunque.
+  useEffect(() => {
+    if (!apertoId) return;
+    const c = circoli.find((x) => x.id === apertoId);
+    if (!c || statoCircolo(c) !== 'chiuso') return;
+    let vivo = true;
+    leggiUltimoArchivio(apertoId)
+      .then((a) => { if (vivo) setUltimoArchivio(a); })
+      .catch(() => { if (vivo) setUltimoArchivio(null); });
+    return () => { vivo = false; };
+  }, [apertoId, circoli]);
 
   const ordinati = useMemo(() => {
     const testo = ricerca.trim().toLowerCase();
@@ -120,6 +145,7 @@ export default function SezioneCircoli() {
     setModulo(moduloDa(c));
     setOriginale(moduloDa(c));
     setEsito(''); setErrore(''); setConferma(null);
+    setUltimoArchivio(undefined);
   };
   const chiudiScheda = () => {
     setApertoId(null); setModulo(null); setOriginale(null);
@@ -218,10 +244,16 @@ export default function SezioneCircoli() {
     const azione = conferma;
     setConferma(null); setErrore(''); setEsito('');
     try {
-      if (azione === 'sospendi') await sospendiCircolo(aperto.id);
-      else if (azione === 'riattiva') await riattivaCircolo(aperto.id);
-      else await chiudiCircolo(aperto.id);
-      setEsito('Stato aggiornato.');
+      if (azione === 'sospendi') { await sospendiCircolo(aperto.id); setEsito('Stato aggiornato.'); }
+      else if (azione === 'riattiva') { await riattivaCircolo(aperto.id); setEsito('Stato aggiornato.'); }
+      else {
+        // ⚠️ Chiudere archivia anche il registro (vedi chiudiCircolo):
+        // dirlo qui serve, perche' e' l'unica prova che la copia dei
+        // conti e' stata fatta davvero — e se non fosse riuscita, il
+        // circolo NON sarebbe chiuso e questo messaggio non arriverebbe.
+        const esitoChiusura = await chiudiCircolo(aperto.id);
+        setEsito(`Circolo chiuso. Registro archiviato: ${esitoChiusura.righeArchiviate} righe.`);
+      }
     } catch (err: any) {
       setErrore(err?.message ?? 'Operazione non riuscita.');
     }
@@ -417,11 +449,28 @@ export default function SezioneCircoli() {
           </>
         )}
         {stato === 'chiuso' && (
-          <p className="admin-card-hint">
-            Il circolo è chiuso: non fa più parte della rete e non si può riaprire da qui. I suoi
-            dati restano scritti — prenotazioni, movimenti e tessere continuano ad avere un
-            circolo a cui riferirsi.
-          </p>
+          <>
+            <p className="admin-card-hint">
+              Il circolo è chiuso: non fa più parte della rete e non si può riaprire da qui. I suoi
+              dati restano scritti — prenotazioni, movimenti e tessere continuano ad avere un
+              circolo a cui riferirsi.
+            </p>
+            {/* ⚠️ LA COPIA DEI CONTI, DETTA A COLPO D'OCCHIO. Dopo una
+                chiusura il registro riga per riga si legge solo dagli
+                archivi: sapere SE c'è e DI QUANDO è la prima cosa da
+                guardare quando arriva una contestazione, e andarla a
+                cercare in fondo alla scheda è un passaggio che, sotto
+                pressione, non fa nessuno. Dalla Tornata 134 la chiusura
+                l'archivio se lo porta dietro da sola, ma i circoli
+                chiusi PRIMA possono non averlo. */}
+            <p className="admin-card-hint">
+              {ultimoArchivio === undefined
+                ? 'Copia dei conti: sto guardando…'
+                : ultimoArchivio === null
+                  ? '⚠️ Nessuna copia del registro archiviata. Falla adesso dagli «Archivi del registro» qui sotto: è l’unico modo di rileggere i movimenti riga per riga.'
+                  : `Copia dei conti archiviata il ${dataLeggibile(ultimoArchivio.creatoIlMs)} — ${ultimoArchivio.righe} righe.`}
+            </p>
+          </>
         )}
 
         <div className="superadmin-subtitolo">Circolo dimostrativo</div>
@@ -446,6 +495,26 @@ export default function SezioneCircoli() {
             ? 'Approvazione automatica ACCESA — spegnila'
             : 'Accendi l’approvazione automatica'}
         </button>
+
+        {/* ⚠️ IL REGISTRO E' UNA PORTA, NON UNA SEZIONE. Vive a tutta
+            pagina e si stampa con un foglio di stile suo: dentro questa
+            scheda verrebbe schiacciato, e la stampa si porterebbe
+            dietro tutto il pannello. Stesso ragionamento gia' scritto
+            per «Modelli di Revenue». */}
+        <div className="superadmin-subtitolo">Registro movimenti</div>
+        <p className="admin-card-hint">
+          Ogni ricarica, addebito e rimborso di questo circolo, con i filtri per socio, periodo e
+          tipo, e la stampa del prospetto. È la schermata che serve quando un socio contesta un
+          addebito: gli archivi qui sotto contengono le stesse righe, ma non si filtrano.
+        </p>
+        <Link className="admin-btn-full" href={`/superadmin/movimenti?circolo=${aperto.id}`}>
+          Apri il registro di {aperto.nome}
+        </Link>
+
+        {/* ⚠️ Prima dei due gesti distruttivi, e non dopo: chi arriva
+            qui perché «il presidente non entra più» deve incontrare la
+            riparazione prima del reset e dell'eliminazione. */}
+        <SezioneAccessoPresidente circoloId={aperto.id} />
 
         {/* ⚠️ Il reset sta PRIMA dell'eliminazione definitiva, e non è
             un dettaglio d'ordine: sono i due gesti più distruttivi del

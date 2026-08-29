@@ -15,6 +15,7 @@ import { db } from '../lib/firebase';
 import {
   COLLEZIONE_SEGNALAZIONI, COLLEZIONE_BLOCCHI, Segnalazione, BloccoSocio, idBlocco,
 } from './segnalazioni';
+import { MAX_COPIA_MESSAGGI } from './moderazioneTesto';
 
 // ---------------- Segnalazioni ----------------
 
@@ -25,6 +26,9 @@ export async function segnalaSocio(dati: {
   copiaFotoUrl?: string | null;
   copiaRacchetta?: string | null;
   copiaClassifica?: string | null;
+  // Gli ultimi messaggi della chat, quando si segnala una frase e non
+  // un profilo. Vedi il riquadro in data/segnalazioni.ts.
+  copiaMessaggi?: string | null;
   daUid: string;
   daNome: string;
   motivo: string;
@@ -47,6 +51,9 @@ export async function segnalaSocio(dati: {
     copiaFotoUrl: dati.copiaFotoUrl ?? '',
     copiaRacchetta: dati.copiaRacchetta ?? '',
     copiaClassifica: dati.copiaClassifica ?? '',
+    // ⚠️ Stringa vuota e non `null`, per la stessa ragione dei tre campi
+    // qui sopra — e con lo stesso tetto che controllano le regole.
+    copiaMessaggi: (dati.copiaMessaggi ?? '').slice(0, MAX_COPIA_MESSAGGI),
     daUid: dati.daUid,
     daNome: dati.daNome,
     motivo: dati.motivo,

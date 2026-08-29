@@ -13,6 +13,7 @@ import {
   where, getDocs, writeBatch,
 } from 'firebase/firestore';
 import { db, functions } from '../lib/firebase';
+import { archiviaRegistro } from './resetCircolo';
 import { httpsCallable } from 'firebase/functions';
 import { Circolo, Campo, Blocco, StatoCircolo, statoCircolo } from './circoli';
 import { durataTimerMs } from './sfide';
@@ -155,27 +156,74 @@ async function faiRipartireITimerDelleSfide(circoloId: string, circolo: Circolo)
   }
 }
 
-export async function chiudiCircolo(circoloId: string) {
+// ============================================================
+// ⚠️ CHIUDERE ARCHIVIA ANCHE IL REGISTRO, dal 29 agosto 2026.
+//
+// Un circolo chiuso resta consultabile dal pannello del team, ma il
+// registro dei movimenti riga per riga si legge SOLO dagli «Archivi del
+// registro» — e l'archivio esisteva solo se qualcuno si ricordava di
+// premere il pulsante. Una contestazione arriva due mesi dopo, quando
+// non se lo ricorda piu' nessuno.
+//
+// La chiusura e' il momento naturale per fissare una copia: e' un gesto
+// che si fa una volta sola, e' irreversibile, e da li' in poi i conti
+// non cambiano piu'.
+//
+// ⚠️ PRIMA SI ARCHIVIA, POI SI CHIUDE. Se l'archiviazione fallisce, il
+// circolo NON viene chiuso: chiudere e' irreversibile, e farlo sapendo
+// che la copia dei conti non c'e' vorrebbe dire accettare di restare
+// senza. Non chiudere invece si rimedia — si riprova.
+// ============================================================
+export async function chiudiCircolo(circoloId: string): Promise<{ righeArchiviate: number }> {
   const attuale = await leggiCircolo(circoloId);
   if (!attuale) throw new Error('Circolo non trovato.');
   if (statoCircolo(attuale) !== 'sospeso') {
     throw new Error('Si puo\' chiudere solo un circolo gia\' sospeso.');
   }
+
+  let righeArchiviate = 0;
+  try {
+    const esito = await archiviaRegistro(circoloId);
+    righeArchiviate = esito.righe;
+  } catch (e) {
+    throw new Error(
+      'Il registro non e\' stato archiviato, quindi il circolo non e\' stato chiuso. '
+      + 'Riprova, oppure archivia a mano dagli «Archivi del registro» e richiudi.',
+    );
+  }
+
   await updateDoc(doc(db, 'circoli', circoloId), {
     stato: 'chiuso' as StatoCircolo,
     chiusoIlMs: Date.now(),
   });
+  return { righeArchiviate };
 }
 
 // ============================================================
 // ELIMINARE UN CIRCOLO — per davvero, e non e' «chiudi».
 //
 // ⚠️ CHIUDERE E ELIMINARE SONO DUE COSE DIVERSE. «Chiudi» mette lo
-// stato a 'chiuso' e lascia tutto dov'e': e' quello che serve per un
-// club che smette, perche' i conti restano consultabili e una
-// riattivazione e' possibile. Questa invece porta via i dati e non
-// torna indietro: serve a ripulire i circoli di prova prima di andare
-// sugli store. Su un circolo vero non si usa.
+// stato a 'chiuso' e lascia tutto dov'e': tessere, prenotazioni,
+// movimenti, portafogli e registro restano scritti e consultabili dal
+// pannello del team, e gli account continuano a funzionare. E' quello
+// che serve per un club che smette, perche' due anni dopo una
+// contestazione ha ancora una risposta.
+//
+// ⚠️ MA CHIUSO NON SI RIAPRE — e qui, fino al 29 agosto 2026, questo
+// commento diceva il contrario («una riattivazione e' possibile»).
+// Non e' vero e non lo e' mai stato: `riattivaCircolo` qui sopra
+// rifiuta esplicitamente i circoli chiusi, perche' se si potesse
+// tornare indietro «definitivo» non vorrebbe dire niente e il gesto in
+// due passaggi sarebbe teatro. Un commento rimasto indietro rispetto al
+// codice e' costato a questo progetto due tornate intere ad agosto: se
+// leggendo trovi una differenza fra quello che c'e' scritto qui e
+// quello che fa il codice, ha ragione il codice.
+//
+// Questa funzione invece porta via i dati e non torna indietro: serve a
+// ripulire i circoli di prova prima di andare sugli store. Su un
+// circolo vero non si usa.
+// ⚠️ E porta via anche gli ARCHIVI del registro, che sono l'unica copia
+// consultabile dei conti dopo una chiusura.
 //
 // Il lavoro lo fa una Cloud Function: da qui non si potrebbe fare
 // nemmeno volendo, perche' significa cancellare tessere, movimenti e

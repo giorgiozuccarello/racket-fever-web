@@ -396,6 +396,10 @@ const it = {
   'adm.seg.erroreAggiorna': 'Non sono riuscito ad aggiornare la segnalazione. Riprova.',
   'adm.seg.segnalatoDa': 'Segnalato da {chi} · {quando}',
   'adm.seg.nellaScheda': 'Nella scheda: {cosa}',
+  // ⚠️ «allegati» e non «della chat»: chi legge deve capire che sta
+  // guardando quello che una persona ha consegnato, non una
+  // conversazione che abbiamo aperto noi.
+  'adm.seg.messaggiAllegati': 'Messaggi allegati alla segnalazione',
   'adm.seg.prendiInCarico': 'Presa in carico',
   'adm.seg.inCarico': 'In carico',
   'adm.seg.chiusa': 'Chiusa',
@@ -1377,6 +1381,7 @@ const en: Record<keyof typeof it, string> = {
   'adm.seg.erroreAggiorna': 'I couldn’t update the report. Please try again.',
   'adm.seg.segnalatoDa': 'Reported by {chi} · {quando}',
   'adm.seg.nellaScheda': 'On the profile: {cosa}',
+  'adm.seg.messaggiAllegati': 'Messages attached to the report',
   'adm.seg.prendiInCarico': 'Take it on',
   'adm.seg.inCarico': 'Being handled',
   'adm.seg.chiusa': 'Closed',
@@ -2346,6 +2351,7 @@ const de: Record<keyof typeof it, string> = {
   'adm.seg.erroreAggiorna': 'Die Meldung konnte nicht aktualisiert werden. Bitte erneut versuchen.',
   'adm.seg.segnalatoDa': 'Gemeldet von {chi} · {quando}',
   'adm.seg.nellaScheda': 'Im Profil: {cosa}',
+  'adm.seg.messaggiAllegati': 'An die Meldung angehängte Nachrichten',
   'adm.seg.prendiInCarico': 'Übernehmen',
   'adm.seg.inCarico': 'In Bearbeitung',
   'adm.seg.chiusa': 'Geschlossen',

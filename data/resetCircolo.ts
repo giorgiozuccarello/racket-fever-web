@@ -71,6 +71,19 @@ export function ascoltaArchiviCircolo(
 // Rilegge tutte le pagine e ricompone il registro. È la funzione che
 // rende l'archivio un archivio: senza, sarebbe una copia che nessuno
 // può riaprire.
+// ⚠️ UNA LETTURA SOLA, PER UNA DOMANDA SOLA: «di questo circolo chiuso
+// esiste una copia dei conti, e di quando?». La scheda del circolo la
+// fa una volta all'apertura, e non ha bisogno di restare in ascolto
+// come l'elenco completo qui sopra: un archivio nasce quando qualcuno
+// preme un pulsante, non da solo.
+export async function leggiUltimoArchivio(circoloId: string): Promise<ArchivioRegistro | null> {
+  const istantanea = await getDocs(query(collection(db, 'archivi_registro'), where('circoloId', '==', circoloId)));
+  const elenco = istantanea.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Omit<ArchivioRegistro, 'id'>) }))
+    .sort((a, b) => (b.creatoIlMs ?? 0) - (a.creatoIlMs ?? 0));
+  return elenco[0] ?? null;
+}
+
 export async function leggiRigheArchivio(archivioId: string): Promise<RigaArchivio[]> {
   const snap = await getDocs(collection(db, 'archivi_registro', archivioId, 'pagine'));
   const pagine = snap.docs

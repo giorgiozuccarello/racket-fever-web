@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { passwordProvvisoria } from '../../../data/accessoResponsabile';
 import {
   creaCircoloConAdmin, ONBOARDING_ACCOUNT_ORFANO, ONBOARDING_CIRCOLO_SENZA_ADMIN,
 } from '../../../data/onboarding';
@@ -26,6 +27,13 @@ export default function SezioneOnboarding() {
   const [cognomeAdmin, setCognomeAdmin] = useState('');
   const [emailAdmin, setEmailAdmin] = useState('');
   const [passwordAdmin, setPasswordAdmin] = useState('');
+  // ⚠️ La password dell'Admin resta coperta finché non si chiede di
+  // vederla — sia mentre la si scrive, sia nel riepilogo finale. È una
+  // password che apre i dati dei soci e il registro del denaro, e questo
+  // pannello si compila spesso con qualcuno accanto o con lo schermo
+  // condiviso. Dalla Tornata 133 è comunque usa-e-getta: il presidente è
+  // obbligato a cambiarla al primo accesso.
+  const [mostraPassword, setMostraPassword] = useState(false);
   const [errore, setErrore] = useState('');
 
   // ============================================================
@@ -250,7 +258,17 @@ export default function SezioneOnboarding() {
           <div className="superadmin-credenziali">
             <div><span>Password circolo (per i soci)</span><code>{successo.passwordCircolo}</code></div>
             <div><span>Email Admin</span><code>{successo.emailAdmin}</code></div>
-            <div><span>Password Admin</span><code>{successo.passwordAdmin}</code></div>
+            <div>
+              <span>Password Admin</span>
+              {/* ⚠️ Coperta di partenza anche qui: è il momento in cui si
+                  gira lo schermo per leggerla a qualcuno, ed è
+                  esattamente il momento in cui non deve essere già lì
+                  scritta per chiunque passi. */}
+              <code>{mostraPassword ? successo.passwordAdmin : '••••••••'}</code>
+              <button className="admin-btn-small" type="button" onClick={() => setMostraPassword((v) => !v)}>
+                {mostraPassword ? 'Nascondi' : 'Mostra'}
+              </button>
+            </div>
           </div>
           <button className="admin-btn-full" onClick={() => setSuccesso(null)}>+ Crea un altro circolo</button>
         </div>
@@ -368,7 +386,30 @@ export default function SezioneOnboarding() {
         <input className="admin-input" type="email" value={emailAdmin} onChange={(e) => setEmailAdmin(e.target.value)} placeholder="presidente@circolo.it" />
 
         <label className="admin-label">Password</label>
-        <input className="admin-input" type="password" value={passwordAdmin} onChange={(e) => setPasswordAdmin(e.target.value)} placeholder="Almeno 6 caratteri" />
+        <div className="admin-row">
+          <input
+            className="admin-input"
+            type={mostraPassword ? 'text' : 'password'}
+            value={passwordAdmin}
+            onChange={(e) => setPasswordAdmin(e.target.value)}
+            placeholder="Almeno 6 caratteri"
+            autoComplete="new-password"
+          />
+          <button className="admin-btn-small" type="button" onClick={() => setMostraPassword((v) => !v)}>
+            {mostraPassword ? 'Nascondi' : 'Mostra'}
+          </button>
+          {/* ⚠️ FACOLTATIVO, ed è una scelta di Giorgio: un pulsante che
+              si può usare o ignorare, non un automatismo che sceglie al
+              posto di chi sta compilando. Chi preferisce una password
+              propria continua a scriverla a mano. */}
+          <button
+            className="admin-btn-small"
+            type="button"
+            onClick={() => { setPasswordAdmin(passwordProvvisoria()); setMostraPassword(true); }}
+          >
+            Generane una
+          </button>
+        </div>
 
         <div className="superadmin-subtitolo">Contratto di adesione</div>
         <p className="admin-card-hint">

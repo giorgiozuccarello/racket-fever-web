@@ -113,6 +113,14 @@ export default function SezioneSegnalazioni() {
                   Nella scheda: {[s.copiaRacchetta, s.copiaClassifica].filter(Boolean).join(' · ')}
                 </div>
               )}
+              {/* ⚠️ Solo quello che chi segnala ha scelto di consegnare:
+                  le chat restano chiuse anche a noi. */}
+              {!!s.copiaMessaggi && (
+                <div className="admin-seg-messaggi">
+                  <div className="admin-seg-messaggi-titolo">Messaggi allegati alla segnalazione</div>
+                  <pre className="admin-seg-messaggi-corpo">{s.copiaMessaggi}</pre>
+                </div>
+              )}
             </div>
             {s.stato === 'nuova' ? (
               <>

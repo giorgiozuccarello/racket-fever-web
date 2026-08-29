@@ -84,6 +84,21 @@ export interface Segnalazione {
   copiaFotoUrl?: string | null;
   copiaRacchetta?: string | null;
   copiaClassifica?: string | null;
+  // ============================================================
+  // ⚠️ LE PROVE, quando si segnala un MESSAGGIO e non un profilo.
+  //
+  // Dal 29 agosto 2026 fra Maestro e allievo si scrive a mano. Chi
+  // modera non può leggere le chat — le regole gliele negano, e devono
+  // continuare a farlo — quindi senza questa copia una segnalazione
+  // sarebbe un'accusa senza prova, e chi deve decidere non avrebbe
+  // niente in mano.
+  //
+  // ⚠️ NON È UN PERMESSO DI LETTURA. Sono gli ultimi scambi, copiati
+  // nell'istante in cui una persona preme «Segnala»: è lei che sceglie
+  // di consegnarli, esattamente come per la copia della foto qui sopra.
+  // Fuori da quella segnalazione la conversazione resta chiusa a tutti.
+  // ============================================================
+  copiaMessaggi?: string | null;
   // Chi ha segnalato. Non è anonimo verso l'Admin: in un circolo di
   // duecento persone una segnalazione anonima è un'arma, e chi la fa
   // deve metterci la faccia come la mette di persona.
