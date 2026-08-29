@@ -36,7 +36,13 @@
 // esempio o come valore da rifiutare. È esattamente così che quella
 // vecchia è finita in chiaro nel progetto. Il controllo «non rimettere
 // quella di prima» si fa confrontando i due campi del modulo, che
-// vivono in memoria e non vengono scritti da nessuna parte.
+// vivono in memoria e non vengono scritti da nessuna parte.//
+// ⚠️ E' UN FILE GEMELLO app↔web, e le due copie vanno tenute identiche.
+// La parte che cambia l'EMAIL e la mappa di frasi italiane servono solo
+// al Super Admin, che vive sul sito: nell'app restano inerti. Sono
+// rimaste qui lo stesso perche' due copie che divergono «solo un po'»
+// sono il modo in cui, in questo progetto, i gemelli si sono gia'
+// separati una volta senza che nessuno se ne accorgesse.
 // ============================================================
 
 import {
@@ -45,6 +51,7 @@ import {
 } from 'firebase/auth';
 import { doc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { ChiaveTesto } from './testi';
 
 // ⚠️ Dodici e non sei. Il minimo di Firebase è sei caratteri, ed è il
 // minimo per un account qualunque; questo apre l'intera rete dei
@@ -53,22 +60,44 @@ import { auth, db } from '../lib/firebase';
 // conta davvero contro un tentativo automatico.
 export const MIN_PASSWORD = 12;
 
+// ============================================================
+// ⚠️ IL CONTROLLO TORNA UN CODICE, NON UNA FRASE — e la frase italiana
+// qui sotto e' costruita su questo.
+//
+// Nato per il Super Admin, dove tutto e' in italiano fisso perche' quel
+// pannello lo guarda solo il team. Dal 29 agosto 2026 lo stesso
+// controllo serve all'Admin di circolo, che l'applicazione la vede
+// nella SUA lingua: un presidente tedesco a cui rispondiamo «Le due
+// password non coincidono» non capisce cosa ha sbagliato.
+//
+// Le regole pero' sono le stesse, e duplicarle vorrebbe dire che fra un
+// anno una delle due copie chiedera' dodici caratteri e l'altra dieci.
+// Quindi: la regola sta in un posto solo e restituisce un codice; chi
+// mostra il messaggio lo traduce come sa.
+// ============================================================
+export type ProblemaPassword = 'corta' | 'lettereECifre' | 'ugualeAttuale' | 'nonCoincidono';
+
+export function problemaPasswordCodice(
+  nuova: string, attuale: string, conferma: string,
+): ProblemaPassword | null {
+  if (nuova.length < MIN_PASSWORD) return 'corta';
+  if (!/[a-zA-Z]/.test(nuova) || !/[0-9]/.test(nuova)) return 'lettereECifre';
+  if (nuova === attuale) return 'ugualeAttuale';
+  if (nuova !== conferma) return 'nonCoincidono';
+  return null;
+}
+
 // Restituisce il problema da mostrare, oppure null se la password va
 // bene. Il messaggio è quello che legge una persona, non un codice.
+// ⚠️ Solo per il Super Admin: è l'unica area senza traduzioni.
 export function problemaPassword(nuova: string, attuale: string, conferma: string): string | null {
-  if (nuova.length < MIN_PASSWORD) {
-    return `La nuova password deve essere lunga almeno ${MIN_PASSWORD} caratteri.`;
+  switch (problemaPasswordCodice(nuova, attuale, conferma)) {
+    case 'corta': return `La nuova password deve essere lunga almeno ${MIN_PASSWORD} caratteri.`;
+    case 'lettereECifre': return 'La nuova password deve contenere almeno una lettera e almeno una cifra.';
+    case 'ugualeAttuale': return 'La nuova password è identica a quella attuale: non cambierebbe niente.';
+    case 'nonCoincidono': return 'Le due password non coincidono.';
+    default: return null;
   }
-  if (!/[a-zA-Z]/.test(nuova) || !/[0-9]/.test(nuova)) {
-    return 'La nuova password deve contenere almeno una lettera e almeno una cifra.';
-  }
-  if (nuova === attuale) {
-    return 'La nuova password è identica a quella attuale: non cambierebbe niente.';
-  }
-  if (nuova !== conferma) {
-    return 'Le due password non coincidono.';
-  }
-  return null;
 }
 
 // ⚠️ I codici di Firebase non si mostrano DA SOLI, e nemmeno si
@@ -153,6 +182,27 @@ export async function cambiaPasswordProprio(passwordAttuale: string, nuova: stri
   }
 }
 
+// ⚠️ LA STESSA COSA, MA SENZA DECIDERE LE PAROLE. La versione qui sopra
+// torna una frase italiana ed e' quella che usa il Super Admin; questa
+// torna il CODICE di Firebase (`auth/wrong-password`…) e la lascia
+// tradurre a chi la chiama. Serve all'Admin di circolo e al Maestro,
+// che leggono l'applicazione nella loro lingua.
+// Torna `null` se e' andata bene, il codice se no. Non lancia: un
+// cambio password fallito non e' un guasto del programma, e' una
+// risposta da mostrare.
+export async function cambiaPasswordConEsito(
+  passwordAttuale: string, nuova: string,
+): Promise<string | null> {
+  try {
+    const utente = await riautentica(passwordAttuale);
+    await updatePassword(utente, nuova);
+    return null;
+  } catch (e: unknown) {
+    const codice = String((e as { code?: string })?.code ?? '');
+    return codice || 'sconosciuto';
+  }
+}
+
 // ⚠️ `verifyBeforeUpdateEmail` E NON `updateEmail`. Il secondo cambia
 // l'indirizzo subito, senza verificare che esista: è così che si
 // arriva ad avere un account su una casella che non c'è, cioè il
@@ -202,5 +252,48 @@ export async function allineaEmailProfilo(uid: string, emailVera: string): Promi
     // Un allineamento mancato non deve impedire di lavorare: si
     // riproverà al prossimo accesso.
     return false;
+  }
+}
+
+// ============================================================
+// DAL CODICE ALLA PAROLA — la tabella che serve a chi traduce.
+//
+// ⚠️ STA QUI E NON NELLE DUE SCHERMATE. Il modulo di cambio password
+// esiste in due posti (dashboard del sito e dashboard dell'app) e ne
+// nascera' un terzo; una tabella copiata tre volte e' una tabella che
+// fra sei mesi risponde in tre modi diversi allo stesso errore.
+// Qui non si traduce niente: si restituisce QUALE frase serve, e la
+// frase la sceglie la lingua di chi guarda.
+// ============================================================
+export function chiaveProblemaPassword(p: ProblemaPassword): ChiaveTesto {
+  switch (p) {
+    case 'corta': return 'adm.sic.err.corta';
+    case 'lettereECifre': return 'adm.sic.err.lettereECifre';
+    case 'ugualeAttuale': return 'adm.sic.err.ugualeAttuale';
+    default: return 'adm.sic.err.nonCoincidono';
+  }
+}
+
+// ⚠️ I codici che NON si mappano non spariscono: cadono su
+// «adm.sic.err.generico», che stampa il codice dentro la frase. Un
+// errore sconosciuto detto com'e' vale piu' di un «riprova» che manda a
+// ripremere un pulsante che non funzionera' mai.
+export function chiaveErroreCambioPassword(codice: string): ChiaveTesto {
+  switch (codice) {
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'adm.sic.err.attualeSbagliata';
+    case 'auth/too-many-requests':
+      return 'adm.sic.err.troppiTentativi';
+    case 'auth/weak-password':
+    case 'auth/password-does-not-meet-requirements':
+      return 'adm.sic.err.rifiutata';
+    case 'auth/requires-recent-login':
+    case 'auth/user-token-expired':
+      return 'adm.sic.err.sessioneVecchia';
+    case 'auth/network-request-failed':
+      return 'adm.sic.err.rete';
+    default:
+      return 'adm.sic.err.generico';
   }
 }

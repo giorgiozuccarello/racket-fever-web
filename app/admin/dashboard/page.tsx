@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { onAuthStateChanged, signOut, User } from 'firebase/auth';
 import { auth } from '../../../lib/firebase';
 import { allineaProfiliCircolo } from '../../../data/tessere';
-import { leggiResponsabile, ProfiloResponsabile } from '../../../data/responsabili';
+import { leggiResponsabile, segnaPasswordCambiata, ProfiloResponsabile } from '../../../data/responsabili';
 import { leggiSessioneCollaboratore, sessioneScaduta } from '../../../data/collaboratori';
 import { ascoltaSociCircolo, SocioCircolo } from '../../../data/users';
 import { Circolo, Campo, Blocco, statoCircolo, attivazioneCircoloMs, limiteFidoDi } from '../../../data/circoli';
@@ -19,6 +19,7 @@ import SezionePanoramicaCircolo from './SezionePanoramicaCircolo';
 // anche qui, sciolte, per il solo Collaboratore.
 
 import SezionePassword from './SezionePassword';
+import SezioneSicurezzaAccesso from './SezioneSicurezzaAccesso';
 import SezioneCollaboratori from './SezioneCollaboratori';
 import SezionePersonalizzaApp, { SezioneBannerMarketing } from './SezionePersonalizzaApp';
 import SezioneCampi from './SezioneCampi';
@@ -178,6 +179,45 @@ export default function AdminDashboard() {
     );
   }
 
+  // ============================================================
+  // ⚠️ IL PRIMO ACCESSO SI FERMA QUI, e non e' una finestra.
+  //
+  // La password con cui il presidente e' appena entrato gliel'abbiamo
+  // data noi: sta nel riepilogo dell'onboarding, e' passata su WhatsApp
+  // o su un foglio, e finche' resta quella non e' sua.
+  //
+  // ⚠️ UNA PAGINA INTERA E NON UN POP-UP, e la differenza conta: un
+  // pop-up ha sempre una via d'uscita, e una via d'uscita da un
+  // passaggio obbligatorio e' un passaggio facoltativo. Qui la
+  // dashboard non viene proprio disegnata.
+  //
+  // ⚠️ Vale solo per i circoli creati dopo il 29 agosto 2026: il segno
+  // lo scrive l'onboarding. Quelli gia' attivi non vengono fermati — a
+  // loro la sezione «Sicurezza Accesso» resta disponibile quando
+  // vogliono.
+  // ============================================================
+  if (responsabile.passwordDaCambiare) {
+    return (
+      <LinguaProvider ruolo="admin">
+        <PrimoAccesso
+          onEsci={logout}
+          onCambiata={async () => {
+            // ⚠️ SI PASSA COMUNQUE, anche se la scrittura non riesce. La
+            // password ORMAI E' CAMBIATA — e' successo su Firebase Auth
+            // un istante fa — e questo segno e' solo la nota che dice
+            // «fatto». Tenere fuori il presidente perche' una nota non
+            // si e' salvata vorrebbe dire chiuderlo fuori dal suo
+            // circolo per un dettaglio contabile: se le regole non sono
+            // ancora pubblicate, il peggio che succede e' rivedere
+            // questa pagina al prossimo accesso.
+            await segnaPasswordCambiata(auth.currentUser?.uid ?? '');
+            setResponsabile({ ...responsabile, passwordDaCambiare: false });
+          }}
+        />
+      </LinguaProvider>
+    );
+  }
+
   return (
     // ============================================================
     // ⚠️ L'INVOLUCRO DELLA LINGUA STA QUI, E PRIMA STAVA PIÙ IN BASSO.
@@ -221,6 +261,27 @@ export default function AdminDashboard() {
 // L'attesa: una parola sola, ma passa dal traduttore come tutto il
 // resto. Componente a se' per lo stesso motivo di `ContenutoDashboard`
 // — vedi il commento qui sotto.
+// ⚠️ COMPONENTE A PARTE, per la stessa ragione di `SplashCaricamento`
+// qui sotto: `useLingua()` va chiamato DENTRO il `LinguaProvider`, e
+// chi lo monta non puo' leggerlo. Scritto nel corpo di
+// `AdminDashboard`, il primo accesso sarebbe rimasto in italiano anche
+// per un presidente che ha scelto il tedesco.
+function PrimoAccesso({ onEsci, onCambiata }: { onEsci: () => void; onCambiata: () => void }) {
+  const { t } = useLingua();
+  return (
+    <div className="admin-primo-accesso">
+      <div className="admin-primo-accesso-dentro">
+        <h1 className="display" style={{ fontSize: '1.5rem' }}>{t('adm.sic.primoTitolo')}</h1>
+        <p className="admin-primo-accesso-testo">{t('adm.sic.primoTesto')}</p>
+        <SezioneSicurezzaAccesso senzaTitolo onCambiata={onCambiata} />
+        <button className="admin-btn-piccolo-rosso" style={{ marginTop: '1.4rem' }} onClick={onEsci}>
+          {t('adm.gen.esci')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function SplashCaricamento() {
   const { t } = useLingua();
   return (
@@ -461,6 +522,14 @@ function ContenutoDashboard({
             comando destinato a essere respinto. */}
         {scadenzaSessione == null && (
           <>
+            {/* ⚠️ Dentro lo stesso ramo della password del circolo, che
+                e' riservato al responsabile vero: il Collaboratore entra
+                con un codice a tempo, non ha un account Firebase suo, e
+                un modulo «cambia la tua password» per lui non avrebbe
+                nessuna password da cambiare. */}
+            <SezioneCollassabile id="sicurezza" titolo={t('adm.gen.sez.sicurezza.titolo')} descrizione={t('adm.gen.sez.sicurezza.descrizione')}>
+              <SezioneSicurezzaAccesso />
+            </SezioneCollassabile>
             <SezioneCollassabile id="password" titolo={t('adm.gen.sez.password.titolo')} descrizione={t('adm.gen.sez.password.descrizione')}>
               <SezionePassword circolo={circolo} />
             </SezioneCollassabile>

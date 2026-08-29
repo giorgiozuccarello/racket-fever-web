@@ -2,7 +2,7 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
+import { signInWithEmailAndPassword, signOut, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
 
@@ -41,6 +41,43 @@ export default function AdminLogin() {
     }
   };
 
+  // ============================================================
+  // ⚠️ «PASSWORD DIMENTICATA» — prima da qui non si usciva.
+  //
+  // Le credenziali le dava il team, quindi «chiedile a noi» sembrava
+  // la risposta. Non lo e' piu': dalla sezione Sicurezza Accesso il
+  // circolo si sceglie la propria password, e da quel momento noi non
+  // la sappiamo. Senza questo collegamento un presidente che la
+  // dimentica non ha nessuna strada — ed e' esattamente quello che e'
+  // successo il 29 agosto 2026.
+  //
+  // ⚠️ NON DICIAMO SE L'INDIRIZZO ESISTE. Rispondere «questa email non
+  // e' registrata» permetterebbe a chiunque di scoprire quali indirizzi
+  // hanno un account. La risposta e' la stessa in tutti i casi, tranne
+  // l'indirizzo scritto male: quello e' un errore di battitura e va
+  // detto.
+  // ============================================================
+  const [reset, setReset] = useState('');
+  const [inviandoReset, setInviandoReset] = useState(false);
+
+  const richiediReset = async () => {
+    if (!email.trim() || !email.includes('@')) {
+      setErrore('Scrivi qui sopra la tua email, poi premi di nuovo «Password dimenticata?».');
+      return;
+    }
+    setErrore('');
+    setInviandoReset(true);
+    try {
+      await sendPasswordResetEmail(auth, email.trim());
+      setReset(`Se l'indirizzo è registrato, fra poco arriverà a ${email.trim()} un'email con il link per scegliere una nuova password.`);
+    } catch (err: any) {
+      if (err?.code === 'auth/invalid-email') setErrore('L’indirizzo non è scritto in modo valido.');
+      else setReset('Se l’indirizzo è registrato, fra poco arriverà un’email con il link per scegliere una nuova password.');
+    } finally {
+      setInviandoReset(false);
+    }
+  };
+
   return (
     <div className="admin-login-root">
       <form className="admin-login-card" onSubmit={accedi}>
@@ -64,7 +101,20 @@ export default function AdminLogin() {
           placeholder="••••••••"
         />
 
+        {/* ⚠️ `type="button"`: dentro un <form> un bottone senza tipo
+            è un bottone di invio, e premerlo avrebbe tentato l'accesso
+            invece di mandare l'email. */}
+        <button
+          type="button"
+          className="admin-login-link-reset"
+          onClick={richiediReset}
+          disabled={inviandoReset}
+        >
+          {inviandoReset ? 'Invio in corso…' : 'Password dimenticata?'}
+        </button>
+
         {errore && <p className="admin-login-error">{errore}</p>}
+        {reset && <p className="admin-login-ok">{reset}</p>}
 
         <button className="btn" type="submit" disabled={caricando}>
           {caricando ? 'Accesso in corso…' : 'Accedi'}

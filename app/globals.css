@@ -256,6 +256,24 @@ footer li a:hover{opacity:1;text-decoration:underline}
 .admin-login-card input:focus{outline:3px solid var(--terra-chiara);outline-offset:1px}
 .admin-login-card .btn{width:100%;margin-top:1.4rem;padding:.9rem;border-radius:10px;text-align:center}
 .admin-login-error{color:#FFB4A8;font-size:.85rem;margin-top:.8rem}
+/* Il collegamento «Password dimenticata?»: sta sotto il campo password,
+   allineato a destra come nell'app, e non è un pulsante d'azione — non
+   deve competere con «Accedi». */
+.admin-login-link-reset{display:block;margin-left:auto;background:none;border:0;padding:.2rem 0;margin-top:.5rem;
+  color:rgba(245,241,230,.8);font-size:.78rem;font-weight:600;text-decoration:underline;cursor:pointer}
+.admin-login-link-reset:disabled{opacity:.6;cursor:default}
+.admin-login-ok{color:#9BE7B4;font-size:.82rem;margin-top:.8rem;line-height:1.5}
+/* Esito del cambio password nella dashboard Admin. Verde e rosso non
+   sono decorazione: sono le due sole cose che chi preme quel pulsante
+   ha bisogno di distinguere a colpo d'occhio. */
+.admin-sic-errore{color:#B3261E;font-size:.82rem;line-height:1.45;margin-top:.9rem}
+.admin-sic-fatta{color:#1F7A45;font-size:.82rem;line-height:1.45;font-weight:700;margin-top:.9rem}
+/* La schermata del primo accesso: non è la dashboard con un pop-up
+   sopra, è l'unica cosa che c'è finché la password non è stata
+   scelta. */
+.admin-primo-accesso{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:2rem 1rem;background:var(--carta,#FBFAF6)}
+.admin-primo-accesso-dentro{width:100%;max-width:520px}
+.admin-primo-accesso-testo{font-size:.9rem;line-height:1.6;color:var(--grigio);margin:.8rem 0 1.6rem}
 .admin-login-hint{color:rgba(245,241,230,.6);font-size:.75rem;text-align:center;margin-top:1.4rem;line-height:1.5}
 .admin-login-hint a{color:rgba(245,241,230,.75);text-decoration:underline}
 

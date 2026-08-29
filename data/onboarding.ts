@@ -179,6 +179,23 @@ export async function creaCircoloConAdmin(dati: DatiOnboarding): Promise<string>
       cognome: dati.cognomeAdmin.trim(),
       email: dati.emailAdmin.trim(),
       circoloId: circoloRef.id,
+      // ============================================================
+      // ⚠️ IL SEGNO DEL PRIMO ACCESSO — «questa password gliel'abbiamo
+      // data noi».
+      //
+      // La password dell'Admin la scegliamo qui, compare in chiaro nel
+      // riepilogo di fine onboarding e da li' viaggia su WhatsApp, per
+      // email o su un foglio. Finche' resta quella, l'account del
+      // presidente lo aprono almeno due persone — e una delle due siamo
+      // noi. Con questo segno acceso la dashboard non si disegna: al
+      // suo posto compare la scelta della password, e finito quel
+      // passaggio il segno si spegne per sempre.
+      //
+      // ⚠️ Vale solo da qui in avanti. I circoli gia' attivi non hanno
+      // il campo, e «assente» vuol dire «non fermarlo»: a loro la
+      // sezione «Sicurezza Accesso» resta disponibile quando vogliono.
+      // ============================================================
+      passwordDaCambiare: true,
     });
   } catch (errore) {
     // Il circolo esiste ma nessuno puo' amministrarlo: comparirebbe
