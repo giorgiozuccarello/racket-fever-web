@@ -23,6 +23,12 @@ const it = {
   // alla × mentre la tastiera e' su, e serve quando un campo apre una
   // tendina che la tastiera copre.
   'com.abbassaTastiera': 'Abbassa la tastiera',
+  // Le tre parole delle tendine (theme/Tendina.tsx): il testo che sta
+  // nel campo finche' non si e' scelto niente, e le due etichette che
+  // il lettore vocale legge sul campo chiuso e su quello aperto.
+  'com.scegli': 'Scegli…',
+  'com.apriElenco': 'Apri l’elenco delle scelte',
+  'com.chiudiElenco': 'Chiudi l’elenco delle scelte',
   'com.conferma': 'Conferma',
   'com.continua': 'Continua',
   'com.indietro': 'Indietro',
@@ -205,6 +211,9 @@ const en: Record<keyof typeof it, string> = {
   'com.annulla': 'Cancel',
   'com.chiudi': 'Close',
   'com.abbassaTastiera': 'Hide the keyboard',
+  'com.scegli': 'Choose…',
+  'com.apriElenco': 'Open the list of choices',
+  'com.chiudiElenco': 'Close the list of choices',
   'com.conferma': 'Confirm',
   'com.continua': 'Continue',
   'com.indietro': 'Back',
@@ -390,6 +399,9 @@ const de: Record<keyof typeof it, string> = {
   'com.annulla': 'Abbrechen',
   'com.chiudi': 'Schließen',
   'com.abbassaTastiera': 'Tastatur ausblenden',
+  'com.scegli': 'Auswählen…',
+  'com.apriElenco': 'Auswahlliste öffnen',
+  'com.chiudiElenco': 'Auswahlliste schließen',
   'com.conferma': 'Bestätigen',
   'com.continua': 'Weiter',
   'com.indietro': 'Zurück',

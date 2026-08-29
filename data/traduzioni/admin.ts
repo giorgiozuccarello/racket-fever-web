@@ -319,6 +319,10 @@ const it = {
   'adm.pri.dalle': 'Dalle',
   'adm.pri.alle': 'Alle',
   'adm.pri.prezzo': 'Prezzo',
+  // La voce «nessun prezzo» della tendina: sul prezzo base vuol dire
+  // togliere il prezzo al campo, ed e' una scelta che l'Admin fa
+  // davvero. Prima era il «--» del selettore di sistema.
+  'adm.pri.prezzoNessuno': 'Nessuno',
   'adm.pri.etichetta': 'Etichetta',
   'adm.pri.etichettaEsempio': 'Con illuminazione',
   'adm.pri.giorni': 'Giorni (nessuno selezionato = tutti i giorni)',
@@ -1271,6 +1275,7 @@ const en: Record<keyof typeof it, string> = {
   'adm.pri.dalle': 'From',
   'adm.pri.alle': 'To',
   'adm.pri.prezzo': 'Price',
+  'adm.pri.prezzoNessuno': 'None',
   'adm.pri.etichetta': 'Label',
   'adm.pri.etichettaEsempio': 'With floodlights',
   'adm.pri.giorni': 'Days (none selected = every day)',
@@ -2215,6 +2220,7 @@ const de: Record<keyof typeof it, string> = {
   'adm.pri.dalle': 'Von',
   'adm.pri.alle': 'Bis',
   'adm.pri.prezzo': 'Preis',
+  'adm.pri.prezzoNessuno': 'Kein Preis',
   'adm.pri.etichetta': 'Bezeichnung',
   'adm.pri.etichettaEsempio': 'Mit Flutlicht',
   'adm.pri.giorni': 'Tage (keiner gewählt = täglich)',
