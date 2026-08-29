@@ -34,6 +34,12 @@ export default function SezionePersonalizzaDashboard({
   tema: TemaDashboard;
   setTema: (t: TemaDashboard) => void;
   puoSalvare: boolean;
+  // ⚠️ NON SI USANO QUI DENTRO, e non sono un residuo: le legge
+  // `SezioniOrdinate` dal di fuori, per sapere dove mettere questa
+  // sezione nell'ordine alfabetico e con quale chiave. Il titolo vero
+  // lo prende comunque il collassabile qui sotto, dal dizionario.
+  id?: string;
+  titolo?: string;
 }) {
   const { t } = useLingua();
   const [salvando, setSalvando] = useState(false);

@@ -45,6 +45,8 @@ import SezioneMaestri from './SezioneMaestri';
 import SezioneClassificaSociale from './SezioneClassificaSociale';
 import SezioneSfideInCorso from './SezioneSfideInCorso';
 import SezioneCollassabile from './SezioneCollassabile';
+import SezioniOrdinate from './SezioniOrdinate';
+import { confrontaTitoli } from '../../../data/ordineSezioni';
 import SezionePersonalizzaDashboard from './SezionePersonalizzaDashboard';
 import { TemaDashboard, TEMA_ADMIN_DI_PARTENZA, variabiliCss } from '../../../data/temaDashboard';
 import { leggiTemaCircolo, leggiTemaLocale } from '../../../data/temaDashboardRepo';
@@ -396,6 +398,27 @@ function ContenutoDashboard({
       </div>
 
       <main className="admin-main">
+        {/* ============================================================
+            ⚠️ LE SEZIONI SONO IN ORDINE ALFABETICO, e l'ordine lo decide
+            `SezioniOrdinate` quando la pagina si disegna — non l'ordine
+            in cui sono scritte qui sotto.
+
+            Il motivo e' che i titoli sono tradotti: riordinare le righe
+            avrebbe dato l'ordine giusto in italiano e un ordine casuale
+            in inglese e in tedesco. «Prezzi delle ore» sta fra P e Q in
+            italiano, ma e' «Hourly prices» sotto la H e «Stundenpreise»
+            sotto la S.
+
+            ⚠️ LA PANORAMICA NON E' QUI DENTRO: sta sopra, nel suo
+            contenitore a tutta riga, e per questo resta in cima
+            qualunque sia la lingua. Non e' una sezione fra le altre —
+            e' il quadro d'insieme da cui si parte.
+
+            ⚠️ Aggiungendo una sezione non c'e' nessun ordine da
+            rispettare: la si scrive dove capita e finisce al suo posto
+            da sola.
+            ============================================================ */}
+        <SezioniOrdinate confronta={confrontaTitoli}>
         {/* ⚠️ LA SEZIONE «TEST RESET» NON C'È PIÙ, ed è passata al Super
             Admin. Azzerava crediti, prenotazioni, movimenti, avvisi,
             sfide e lezioni di un intero circolo, e stava in cima alla
@@ -416,7 +439,13 @@ function ContenutoDashboard({
         {/* Subito dopo le due personalizzazioni dell'app: chi cerca
             «dove si cambiano i colori» le apre tutte e tre nello stesso
             momento, e tenerle lontane vorrebbe dire farle cercare. */}
+        {/* ⚠️ `titolo` e `id` non li usa il componente: li legge
+            `SezioniOrdinate` per sapere dove metterlo e con quale
+            chiave. Senza, questa sezione sarebbe l'unica a non avere un
+            posto nell'ordine e finirebbe in fondo. */}
         <SezionePersonalizzaDashboard
+          id="temaDashboard"
+          titolo={t('adm.gen.sez.temaDash.titolo')}
           circoloId={circolo.id}
           tema={tema}
           setTema={setTema}
@@ -551,6 +580,7 @@ function ContenutoDashboard({
             nomeEsecutore={`${responsabile.nome} ${responsabile.cognome}`}
           />
         </SezioneCollassabile>
+        </SezioniOrdinate>
       </main>
     </div>
   );
