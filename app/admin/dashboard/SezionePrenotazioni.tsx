@@ -172,6 +172,31 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
   const giornoSel = giorni[selDay];
   const dataSelIso = formatISO(giornoSel);
 
+  // ============================================================
+  // ⚠️ STA QUI IN CIMA, E NON PIU' A META' FILE. NON SPOSTARLA IN BASSO.
+  //
+  // E' la causa dell'errore che il 29 agosto 2026 rompeva la dashboard
+  // del sito al primo clic destro sulla griglia:
+  // «Uncaught ReferenceError: Cannot access 'eg' before initialization».
+  //
+  // Il percorso era questo. `const` non e' `function`: fino alla riga
+  // che lo inizializza il nome esiste ma non si puo' leggere (zona
+  // morta). `confermaPossibile` — che si calcola DURANTE il render —
+  // chiama `prenotazioniAdiacenti`, che a sua volta chiama questa
+  // funzione. Con la selezione vuota la catena si ferma prima per
+  // corto circuito e non succede niente; al primo clic destro la
+  // selezione diventa di una mezz'ora, la catena arriva fino in fondo,
+  // e questa funzione veniva letta trecento righe prima di essere
+  // inizializzata. Schermata bianca e «Application error».
+  //
+  // ⚠️ TYPESCRIPT NON LO VEDE, e non e' una sua mancanza: la lettura
+  // avviene dentro una funzione definita prima: legale finche' quella
+  // funzione viene chiamata dopo. Il compilatore non puo' sapere quando
+  // verra' chiamata; noi si'.
+  // ============================================================
+  const prenotazioneSlot = (ora: string) =>
+    prenotazioni.find((p) => p.campoId === selCampoId && p.data === dataSelIso && p.orario === ora);
+
   const bloccoAttivo = (ora: string): Blocco | undefined => {
     if (!selCampoId) return undefined;
     return blocchi.find((b) => {
@@ -1032,9 +1057,6 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
     }
   };
 
-  const prenotazioneSlot = (ora: string) =>
-    prenotazioni.find((p) => p.campoId === selCampoId && p.data === dataSelIso && p.orario === ora);
-
   const confermaAnnulla = async () => {
     if (!daAnnullare) return;
     setErroreAnnullo('');
@@ -1518,7 +1540,11 @@ export default function SezionePrenotazioni({ campi, blocchi, prenotazioni, sfid
         <div className="pc-costo-box">
           <div className="pc-costo-cifra">
             {t('adm.pre.costoOre', {
-              importo: (senzaAddebito && !modalitaEsterno ? 0 : totaleDaPrenotare).toFixed(2),
+              /* ⚠️ Zero anche per l'esterno: non ha un account, quindi
+                 dall'app non gli viene addebitato niente. Sul documento
+                 il prezzo pieno resta scritto — è quello che il circolo
+                 incassa in cassa, e conta nei suoi ricavi. */
+              importo: (modalitaEsterno || senzaAddebito ? 0 : totaleDaPrenotare).toFixed(2),
             })}
           </div>
         </div>
