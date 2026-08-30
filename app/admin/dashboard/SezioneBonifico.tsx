@@ -89,7 +89,7 @@ export default function SezioneBonifico({ circolo }: { circolo: Circolo }) {
         className="admin-input"
         value={intestatario}
         onChange={(e) => { toccato.current = true; setIntestatario(e.target.value); }}
-        placeholder="ASD Tennis Milazzo"
+        placeholder="ASD Circolo Tennis Sant'Agata"
       />
 
       <label className="admin-label" style={{ marginTop: '.8rem', display: 'block' }}>IBAN</label>

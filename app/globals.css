@@ -1,4 +1,32 @@
+/* ============================================================
+   SITO PUBBLICO — palette nera e giallo pallina.
+   ============================================================
+   ⚠️ IL 30 AGOSTO 2026 IL SITO PUBBLICO E' PASSATO DAL VERDE PINO E
+   DALLA TERRA ROSSA AL NERO E AL GIALLO DELLA PALLINA. I due colori
+   sono campionati dal logo (`public/logo-rf-pallina.png`): il giallo
+   e' #DEF217, il nero e' quello dell'anello. Non sono un gusto, sono
+   il marchio — e adesso la vetrina e il marchio dicono la stessa cosa.
+
+   ⚠️ `--pino`, `--terra` e i loro derivati RESTANO DEFINITI QUI SOTTO
+   e non si tolgono. Non li usa piu' nessuna riga del sito pubblico, ma
+   li usa tutta l'area Admin che comincia piu' in basso in questo
+   stesso file — compreso il colore di ripiego della testata della
+   dashboard (`var(--dash-testata, var(--pino))`), che un circolo
+   vede finche' non sceglie il proprio. Cancellarli scolorirebbe la
+   dashboard di ogni circolo senza toccare una riga della dashboard.
+   ============================================================ */
 :root{
+  /* ---- Marchio: sito pubblico ---- */
+  --nero:#000000;
+  --nero-2:#0B0C0B;
+  --nero-3:#141614;
+  --giallo:#DEF217;
+  --giallo-2:#C0DE20;
+  --bianco:#FFFFFF;
+  --fumo:#9BA09B;
+  --linea:rgba(255,255,255,.14);
+
+  /* ---- Area Admin: NON rimuovere, vedi nota qui sopra ---- */
   --pino:#0E3B2E;
   --pino-scuro:#092A21;
   --terra:#B0451F;
@@ -12,8 +40,8 @@
 html{scroll-behavior:smooth}
 body{
   font-family: var(--font-archivo), sans-serif;
-  background:var(--carta);
-  color:var(--inchiostro);
+  background:var(--nero);
+  color:var(--bianco);
   line-height:1.6;
 }
 .mono{font-family: var(--font-spline-mono), monospace;font-size:.75rem;letter-spacing:.12em;text-transform:uppercase}
@@ -30,51 +58,67 @@ img{max-width:100%}
 /* ---------- NAV ---------- */
 nav{
   position:sticky;top:0;z-index:50;
-  background:var(--pino);
-  color:var(--riga);
+  background:var(--nero);
+  color:var(--bianco);
   display:flex;align-items:center;justify-content:space-between;
   padding:0 clamp(1rem,4vw,3rem);
-  height:64px;
-  border-bottom:3px solid var(--riga);
+  height:72px;
+  border-bottom:2px solid var(--giallo);
 }
+/* ⚠️ In testata va il logo ESTESO BIANCO, e per questo la testata deve
+   restare nera: quel file e' bianco su trasparente, su fondo chiaro
+   sparirebbe. La scritta «Racket Fever» accanto e' stata tolta perche'
+   il logo la contiene gia'. */
+.logo-esteso{display:block;height:34px;width:auto}
 .logo{display:flex;align-items:center;gap:.6rem}
 .logo-mark{
   width:34px;height:34px;flex-shrink:0;
-  background-image:url('/logo-rf.png');
+  background-image:url('/logo-rf-pallina.png');
   background-size:contain;background-position:center;background-repeat:no-repeat;
 }
 .logo span{font-variation-settings:'wdth' 118,'wght' 850;text-transform:uppercase;font-size:1.05rem;letter-spacing:.02em}
-.nav-links{display:flex;gap:2rem;align-items:center}
-.nav-links a{font-size:.85rem;font-weight:500;opacity:.85;transition:opacity .15s}
-.nav-links a:hover,.nav-links a:focus-visible{opacity:1;text-decoration:underline;text-underline-offset:5px}
+.nav-links{display:flex;gap:1.6rem;align-items:center}
+.nav-links a{font-size:.85rem;font-weight:500;color:var(--bianco);opacity:.8;transition:opacity .15s,color .15s}
+.nav-links a:hover,.nav-links a:focus-visible{opacity:1;color:var(--giallo)}
 .btn{
   display:inline-block;
-  background:var(--terra);color:var(--riga);
+  background:var(--giallo);color:var(--nero);
   padding:.7rem 1.4rem;
-  font-weight:700;font-size:.85rem;
+  font-weight:800;font-size:.85rem;
   border:none;cursor:pointer;
   transition:background .15s, transform .15s;
 }
-.btn:hover,.btn:focus-visible{background:var(--terra-chiara);transform:translateY(-1px)}
-.btn-outline{background:transparent;border:2px solid currentColor;color:inherit}
-.btn-outline:hover,.btn-outline:focus-visible{background:rgba(255,255,255,.1)}
+.btn:hover,.btn:focus-visible{background:var(--giallo-2);transform:translateY(-1px)}
+.nav-links .btn:hover{color:var(--nero)}
+.btn-outline{background:transparent;border:2px solid var(--giallo);color:var(--giallo)}
+.btn-outline:hover,.btn-outline:focus-visible{background:var(--giallo);color:var(--nero)}
+.nav-links a.btn-outline:hover{color:var(--nero)}
 .nav-login-btn{padding:.6rem 1.1rem;font-size:.8rem}
-:focus-visible{outline:3px solid var(--terra-chiara);outline-offset:2px}
+:focus-visible{outline:3px solid var(--giallo);outline-offset:2px}
 
 /* ---------- HERO ---------- */
 .hero{
-  background:var(--terra);
-  color:var(--riga);
+  background:var(--nero);
+  color:var(--bianco);
   position:relative;
   padding:clamp(3rem,8vw,6rem) clamp(1rem,4vw,3rem) 0;
   overflow:hidden;
 }
+/* Le righe del campo, in giallo tenue: restano il segno grafico di
+   prima, cambia solo il colore. */
 .hero::before{
   content:'';position:absolute;inset:0;
   background:
-    linear-gradient(var(--riga) 0 0) center/2px 100% no-repeat,
-    linear-gradient(var(--riga) 0 0) 0 78%/100% 3px no-repeat;
-  opacity:.35;pointer-events:none;
+    linear-gradient(var(--giallo) 0 0) center/2px 100% no-repeat,
+    linear-gradient(var(--giallo) 0 0) 0 78%/100% 2px no-repeat;
+  opacity:.22;pointer-events:none;
+}
+/* L'alone giallo dietro il titolo: dice «pallina» senza disegnarla. */
+.hero::after{
+  content:'';position:absolute;left:-12%;top:-30%;
+  width:min(760px,80vw);aspect-ratio:1;border-radius:50%;
+  background:radial-gradient(circle,rgba(222,242,23,.16) 0%,rgba(222,242,23,0) 65%);
+  pointer-events:none;
 }
 .hero-grid{
   position:relative;z-index:1;
@@ -82,125 +126,219 @@ nav{
   max-width:1200px;margin:0 auto;
   align-items:end;
 }
+.hero .mono{color:var(--giallo)}
 .hero h1{font-size:clamp(2.6rem,7vw,5.2rem);margin:.8rem 0 1.2rem}
-.hero h1 em{font-style:normal;color:var(--pino-scuro)}
-.hero p.lead{font-size:clamp(1rem,1.6vw,1.2rem);max-width:34rem;margin-bottom:2rem;opacity:.95}
+.hero h1 em{font-style:normal;color:var(--giallo)}
+.hero p.lead{font-size:clamp(1rem,1.6vw,1.2rem);max-width:34rem;margin-bottom:2rem;color:rgba(255,255,255,.82)}
+.hero p.lead strong{color:var(--bianco)}
 .hero-cta{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:3.5rem}
-.hero .btn{background:var(--pino);font-size:.95rem;padding:.9rem 1.8rem}
-.hero .btn:hover{background:var(--pino-scuro)}
+.hero .btn{font-size:.95rem;padding:.9rem 1.8rem}
 .phone{
-  background:var(--pino-scuro);
-  border:3px solid var(--riga);
+  background:var(--nero-3);
+  border:2px solid var(--giallo);
   border-bottom:none;
   border-radius:28px 28px 0 0;
   padding:1.2rem 1rem 0;
   max-width:300px;margin:0 auto;
-  box-shadow:0 -10px 60px rgba(0,0,0,.25);
+  box-shadow:0 -10px 60px rgba(222,242,23,.14);
 }
-.phone-screen{background:var(--carta);border-radius:14px 14px 0 0;overflow:hidden;color:var(--inchiostro)}
-.phone-header{background:var(--pino);color:var(--riga);padding:.9rem 1rem;font-weight:700;font-size:.85rem;display:flex;justify-content:space-between;align-items:center}
+.phone-screen{background:var(--nero-2);border-radius:14px 14px 0 0;overflow:hidden;color:var(--bianco);border:1px solid var(--linea);border-bottom:none}
+.phone-header{background:var(--giallo);color:var(--nero);padding:.9rem 1rem;font-weight:800;font-size:.82rem;display:flex;justify-content:space-between;align-items:center;gap:.6rem}
 .slot-grid{padding:.8rem;display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem}
-.slot{font-family:var(--font-spline-mono),monospace;font-size:.62rem;text-align:center;padding:.5rem .2rem;border:1.5px solid var(--pino);border-radius:4px}
-.slot.busy{background:var(--terra);border-color:var(--terra);color:var(--riga)}
-.slot.mine{background:var(--pino);color:var(--riga)}
-.phone-note{padding:.7rem 1rem 1.4rem;font-size:.72rem;color:var(--grigio)}
+.slot{font-family:var(--font-spline-mono),monospace;font-size:.62rem;text-align:center;padding:.5rem .2rem;border:1.5px solid rgba(255,255,255,.28);border-radius:4px;color:rgba(255,255,255,.75)}
+.slot.busy{background:rgba(255,255,255,.13);border-color:transparent;color:rgba(255,255,255,.45)}
+.slot.mine{background:var(--giallo);border-color:var(--giallo);color:var(--nero);font-weight:700}
+.phone-note{padding:.7rem 1rem 1.4rem;font-size:.72rem;color:var(--fumo)}
 
 /* ---------- STRIP ---------- */
 .strip{
-  background:var(--pino);color:var(--riga);
+  background:var(--giallo);color:var(--nero);
   display:grid;grid-template-columns:repeat(3,1fr);
-  border-top:3px solid var(--riga);
 }
-.strip div{padding:1.6rem 1rem;text-align:center;border-left:1.5px solid rgba(245,241,230,.25)}
+.strip div{padding:1.6rem 1rem;text-align:center;border-left:1.5px solid rgba(0,0,0,.18)}
 .strip div:first-child{border-left:none}
 .strip b{display:block;font-variation-settings:'wdth' 118,'wght' 850;font-size:clamp(1.4rem,3vw,2.2rem);text-transform:uppercase}
-.strip small{font-family:var(--font-spline-mono),monospace;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;opacity:.8}
+.strip small{font-family:var(--font-spline-mono),monospace;font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;opacity:.7}
 
 /* ---------- SEZIONI ---------- */
-section{padding:clamp(3.5rem,8vw,6.5rem) clamp(1rem,4vw,3rem)}
-.wrap{max-width:1200px;margin:0 auto}
-.eyebrow{color:var(--terra);margin-bottom:.8rem}
+section{padding:clamp(3.5rem,8vw,6.5rem) clamp(1rem,4vw,3rem);background:var(--nero)}
+.wrap{max-width:1200px;margin:0 auto;position:relative}
+.eyebrow{color:var(--giallo);margin-bottom:.8rem}
 h2.display{font-size:clamp(1.9rem,4.5vw,3.2rem);margin-bottom:1rem;max-width:22ch}
-.sub{color:var(--grigio);max-width:42rem;margin-bottom:3rem;font-size:1.05rem}
+h2.display em{font-style:normal;color:var(--giallo)}
+.sub{color:var(--fumo);max-width:42rem;margin-bottom:3rem;font-size:1.05rem}
 
-.sodalizio{display:grid;grid-template-columns:1fr 1fr;gap:0;border:3px solid var(--pino)}
+/* La pallina in filigrana: compare grande e appena visibile dietro il
+   titolo di una sezione, per rompere il nero senza aggiungere colore.
+   `aria-hidden` sul nodo, perche' non dice niente a chi non la vede. */
+.filigrana{
+  position:absolute;pointer-events:none;user-select:none;
+  width:min(420px,42vw);opacity:.06;
+  right:-4%;top:-8%;
+}
+
+.sodalizio{display:grid;grid-template-columns:1fr 1fr;gap:0;border:2px solid var(--giallo)}
 .sodalizio>div{padding:2.2rem}
-.sodalizio .noi{background:var(--pino);color:var(--riga)}
-.sodalizio .voi{background:var(--carta)}
+.sodalizio .noi{background:var(--giallo);color:var(--nero)}
+.sodalizio .voi{background:var(--nero-2);color:var(--bianco)}
 .sodalizio h3{font-variation-settings:'wdth' 118,'wght' 800;text-transform:uppercase;font-size:1.1rem;margin-bottom:1.4rem;padding-bottom:.8rem;border-bottom:2px solid currentColor}
 .sodalizio ul{list-style:none}
 .sodalizio li{padding:.65rem 0;font-size:.95rem;display:flex;gap:.7rem;align-items:baseline}
 .sodalizio li::before{content:'●';font-size:.55rem;flex-shrink:0;position:relative;top:-2px}
-.noi li::before{color:var(--terra-chiara)}
-.voi li::before{color:var(--terra)}
+.noi li::before{color:var(--nero)}
+.voi li::before{color:var(--giallo)}
 .gratis{
-  margin-top:2.5rem;background:var(--terra);color:var(--riga);
+  margin-top:2.5rem;background:var(--nero-2);color:var(--bianco);border:2px solid var(--giallo);
   padding:1.6rem 2rem;display:flex;align-items:center;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;
 }
 .gratis strong{font-variation-settings:'wdth' 118,'wght' 800;text-transform:uppercase;font-size:1.15rem}
 
-.giocatori{background:var(--pino);color:var(--riga)}
-.giocatori .eyebrow{color:var(--terra-chiara)}
-.giocatori .sub{color:rgba(245,241,230,.75)}
-.feat{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5px;background:rgba(245,241,230,.3);border:1.5px solid rgba(245,241,230,.3)}
-.feat article{background:var(--pino);padding:1.8rem 1.6rem}
+.giocatori{background:var(--nero-2)}
+.feat{display:grid;grid-template-columns:repeat(3,1fr);gap:1.5px;background:var(--linea);border:1.5px solid var(--linea)}
+.feat article{background:var(--nero);padding:1.8rem 1.6rem;transition:background .15s}
+.feat article:hover{background:var(--nero-3)}
 .feat h3{font-variation-settings:'wdth' 118,'wght' 750;text-transform:uppercase;font-size:.95rem;margin:.9rem 0 .5rem}
-.feat p{font-size:.88rem;opacity:.8}
-.feat .mono{color:var(--terra-chiara)}
+.feat p{font-size:.88rem;color:var(--fumo)}
+.feat .mono{color:var(--giallo)}
 
+/* ---------- RF COACH ---------- */
+.coach{background:var(--nero);border-top:1px solid var(--linea)}
+.coach-grid{display:grid;grid-template-columns:.85fr 1.15fr;gap:clamp(2rem,5vw,4rem);align-items:center}
+.coach-visual{
+  position:relative;display:flex;align-items:center;justify-content:center;
+  background:var(--nero-2);border:2px solid var(--giallo);padding:clamp(2rem,5vw,3.4rem);
+  aspect-ratio:1;
+}
+.coach-visual img{width:min(220px,60%);height:auto;filter:drop-shadow(0 12px 40px rgba(222,242,23,.25))}
+.coach-visual .coach-tag{
+  position:absolute;left:0;bottom:0;
+  background:var(--giallo);color:var(--nero);
+  font-family:var(--font-spline-mono),monospace;font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;
+  font-weight:700;padding:.5rem .9rem;
+}
+.coach-lista{list-style:none;margin:1.6rem 0 2rem;display:grid;grid-template-columns:1fr 1fr;gap:.2rem 1.6rem}
+.coach-lista li{padding:.5rem 0;font-size:.95rem;display:flex;gap:.7rem;align-items:baseline;color:rgba(255,255,255,.86)}
+.coach-lista li::before{content:'▸';color:var(--giallo);flex-shrink:0}
+.pill{
+  display:inline-block;background:rgba(222,242,23,.14);color:var(--giallo);
+  border:1px solid var(--giallo);
+  font-family:var(--font-spline-mono),monospace;font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;
+  padding:.3rem .7rem;margin-left:.6rem;vertical-align:middle;
+}
+
+/* ---------- SCARICA L'APP ---------- */
+.scarica{background:var(--giallo);color:var(--nero);text-align:center}
+.scarica .eyebrow{color:rgba(0,0,0,.6)}
+.scarica h2.display{margin-inline:auto;color:var(--nero)}
+.scarica .sub{color:rgba(0,0,0,.72);margin-inline:auto}
+/* ⚠️ IL LOGO NON SI INVERTE, SI APPOGGIA SU UNA PIASTRA NERA.
+   Invertirlo con `filter:brightness(0)` per farlo stare sul giallo
+   anneriva TUTTO — pallina compresa — e il marchio diventava una
+   macchia scura senza il suo colore. La piastra invece e' la stessa
+   cosa che succede in testata: fondo nero, logo bianco, pallina viva. */
+.scarica-piastra{
+  background:var(--nero);
+  padding:clamp(1.4rem,3vw,2.2rem) clamp(1.5rem,5vw,3rem);
+  margin:0 auto 2.4rem;
+  width:fit-content;max-width:100%;
+}
+.scarica-logo{display:block;width:min(420px,70vw);height:auto}
+.store-riga{display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;margin-top:.5rem}
+/* ⚠️ SEGNAPOSTO. Questi non sono i badge ufficiali: Apple e Google li
+   forniscono loro e ne impongono forma, proporzioni e diciture. Il
+   giorno della pubblicazione vanno sostituiti con quelli veri e
+   `href` va portato sulle schede degli store — vedi il commento in
+   `app/page.tsx`. */
+.store-badge{
+  display:inline-flex;align-items:center;gap:.75rem;
+  background:var(--nero);color:var(--bianco);
+  padding:.7rem 1.3rem;min-width:200px;text-align:left;
+  border:2px solid var(--nero);
+  transition:transform .15s, opacity .15s;
+}
+.store-badge:hover{transform:translateY(-2px)}
+/* ⚠️ Il badge spento NON si sbiadisce. Sul fondo giallo un nero al
+   55% diventa oliva e sembra un difetto di stampa, non un pulsante in
+   attesa. Resta pieno: a dire che non e' ancora attivo ci pensa la
+   scritta «In arrivo su», che si legge anche da lontano. */
+.store-badge[aria-disabled='true']{cursor:default}
+.store-badge[aria-disabled='true']:hover{transform:none}
+.store-badge[aria-disabled='true'] .store-su{color:var(--giallo);opacity:1}
+.store-badge svg{flex-shrink:0}
+.store-badge .store-testo{display:flex;flex-direction:column;line-height:1.15}
+.store-badge .store-su{font-family:var(--font-spline-mono),monospace;font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;opacity:.7}
+.store-badge .store-nome{font-variation-settings:'wdth' 112,'wght' 800;font-size:1.02rem;text-transform:uppercase}
+.scarica-nota{margin-top:1.6rem;font-family:var(--font-spline-mono),monospace;font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:rgba(0,0,0,.6)}
+
+/* ---------- PREZZI ---------- */
 .prezzi-grid{display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:stretch}
-.card-prezzo{border:3px solid var(--pino);padding:2.4rem;display:flex;flex-direction:column}
-.card-prezzo.evidenza{background:var(--pino);color:var(--riga)}
-.prezzo{font-variation-settings:'wdth' 118,'wght' 850;font-size:clamp(2.6rem,5vw,4rem);line-height:1;margin:.8rem 0}
+.card-prezzo{border:2px solid var(--giallo);padding:2.4rem;display:flex;flex-direction:column;background:var(--nero-2)}
+.card-prezzo.evidenza{background:var(--giallo);color:var(--nero);border-color:var(--giallo)}
+.prezzo{font-variation-settings:'wdth' 118,'wght' 850;font-size:clamp(2.2rem,4.4vw,3.4rem);line-height:1;margin:.8rem 0}
 .prezzo small{font-size:1rem;font-variation-settings:'wdth' 100,'wght' 500;text-transform:none}
 .card-prezzo ul{list-style:none;margin:1.4rem 0 2rem;flex:1}
 .card-prezzo li{padding:.45rem 0;font-size:.92rem;display:flex;gap:.6rem}
-.card-prezzo li::before{content:'—';color:var(--terra)}
-.card-prezzo.evidenza li::before{color:var(--terra-chiara)}
+.card-prezzo li::before{content:'—';color:var(--giallo)}
+.card-prezzo.evidenza li::before{color:var(--nero)}
+.card-prezzo.evidenza .btn{background:var(--nero);color:var(--giallo)}
+.card-prezzo.evidenza .btn:hover{background:var(--nero-3)}
 
-.chisiamo{background:var(--terra);color:var(--riga);position:relative;overflow:hidden}
-.chisiamo::before{content:'';position:absolute;right:-8%;top:-20%;width:420px;height:420px;border:3px solid rgba(245,241,230,.3);border-radius:50%}
-.chisiamo::after{content:'';position:absolute;right:calc(-8% + 208px);top:-20%;width:3px;height:420px;background:rgba(245,241,230,.3)}
+/* ---------- CHI SIAMO ---------- */
+.chisiamo{background:var(--nero-2);color:var(--bianco);position:relative;overflow:hidden}
+.chisiamo::before{content:'';position:absolute;right:-8%;top:-20%;width:420px;height:420px;border:2px solid rgba(222,242,23,.22);border-radius:50%}
+.chisiamo::after{content:'';position:absolute;right:calc(-8% + 209px);top:-20%;width:2px;height:420px;background:rgba(222,242,23,.22)}
 .chisiamo .wrap{position:relative;z-index:1}
-.chisiamo p{max-width:38rem;font-size:1.05rem;margin-bottom:1.2rem}
+.chisiamo .eyebrow{color:var(--giallo)}
+.chisiamo p{max-width:38rem;font-size:1.05rem;margin-bottom:1.2rem;color:rgba(255,255,255,.84)}
 
+/* ---------- MODULO ---------- */
+#richiesta{background:var(--nero)}
 .form-box{max-width:560px;margin:0 auto}
-.form-box label{display:block;font-family:var(--font-spline-mono),monospace;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin:1.2rem 0 .4rem;color:var(--pino)}
+.form-box label{display:block;font-family:var(--font-spline-mono),monospace;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;margin:1.2rem 0 .4rem;color:var(--giallo)}
 .form-box input,.form-box textarea{
   width:100%;padding:.85rem 1rem;font-family:var(--font-archivo),sans-serif;font-size:.95rem;
-  border:2px solid var(--pino);background:var(--carta);color:var(--inchiostro);
+  border:2px solid rgba(255,255,255,.25);background:var(--nero-2);color:var(--bianco);
 }
+.form-box input::placeholder,.form-box textarea::placeholder{color:rgba(255,255,255,.35)}
 /* I menu a tendina del modulo di attivazione: stesso bordo e stesso
    corpo delle caselle di testo, o accanto a quelle sembrerebbero un
    pezzo di un'altra pagina. `appearance:none` toglie lo stile del
    sistema operativo, che su Windows e su Mac e' diverso. */
 .form-box select{
   width:100%;padding:.85rem 1rem;font-family:var(--font-archivo),sans-serif;font-size:.95rem;
-  border:2px solid var(--pino);background:var(--carta);color:var(--inchiostro);
+  border:2px solid rgba(255,255,255,.25);background:var(--nero-2);color:var(--bianco);
   appearance:none;-webkit-appearance:none;border-radius:0;cursor:pointer;
-  background-image:linear-gradient(45deg,transparent 50%,var(--pino) 50%),linear-gradient(135deg,var(--pino) 50%,transparent 50%);
+  background-image:linear-gradient(45deg,transparent 50%,var(--giallo) 50%),linear-gradient(135deg,var(--giallo) 50%,transparent 50%);
   background-position:calc(100% - 20px) calc(1.3rem),calc(100% - 14px) calc(1.3rem);
   background-size:6px 6px,6px 6px;background-repeat:no-repeat;
 }
+/* ⚠️ Le voci del menu aperto le disegna il sistema operativo, non
+   questa regola: senza un colore esplicito su `option`, su Windows si
+   aprirebbe un elenco di testo bianco su fondo bianco. */
+.form-box select option{background:var(--nero-2);color:var(--bianco)}
 .form-box select:disabled{opacity:.5;cursor:not-allowed}
-.form-box input:focus,.form-box textarea:focus,.form-box select:focus{outline:3px solid var(--terra-chiara);outline-offset:1px}
+.form-box input:focus,.form-box textarea:focus,.form-box select:focus{outline:3px solid var(--giallo);outline-offset:1px}
 /* La riga del consenso non e' un'etichetta di campo: va letta come una
    frase, quindi niente maiuscoletto e niente spaziatura da etichetta. */
 .form-box label.form-consenso{
   display:flex;gap:.6rem;align-items:flex-start;margin:1.4rem 0 0;
   font-family:var(--font-archivo),sans-serif;font-size:.92rem;letter-spacing:normal;
-  text-transform:none;color:var(--inchiostro);cursor:pointer;line-height:1.45;
+  text-transform:none;color:rgba(255,255,255,.85);cursor:pointer;line-height:1.45;
 }
-.form-box label.form-consenso input{width:auto;margin-top:.15rem;accent-color:var(--pino)}
+.form-box label.form-consenso input{width:auto;margin-top:.15rem;accent-color:var(--giallo)}
 .form-box .btn{margin-top:1.6rem;width:100%;padding:1rem;font-size:1rem}
-.form-ok{border:3px solid var(--pino);padding:2rem;text-align:center;margin-top:1.5rem}
+.form-nota{margin-top:1rem;font-size:.85rem;color:var(--fumo)}
+.form-nota a{color:var(--giallo);text-decoration:underline;text-underline-offset:3px}
+.form-ok{border:2px solid var(--giallo);background:var(--nero-2);padding:2rem;text-align:center;margin-top:1.5rem}
 
-footer{background:var(--pino-scuro);color:var(--riga);padding:3rem clamp(1rem,4vw,3rem)}
+/* ---------- FOOTER ---------- */
+footer{background:var(--nero);color:var(--bianco);padding:3rem clamp(1rem,4vw,3rem);border-top:2px solid var(--giallo)}
 .foot-grid{max-width:1200px;margin:0 auto;display:grid;grid-template-columns:2fr 1fr 1fr;gap:2rem}
-footer h4{font-family:var(--font-spline-mono),monospace;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--terra-chiara);margin-bottom:1rem}
-footer li{list-style:none;padding:.3rem 0;font-size:.88rem;opacity:.8}
-footer li a:hover{opacity:1;text-decoration:underline}
-.foot-bottom{max-width:1200px;margin:2.5rem auto 0;padding-top:1.5rem;border-top:1.5px solid rgba(245,241,230,.2);font-size:.78rem;opacity:.6;display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem}
+.foot-logo{display:block;height:38px;width:auto;margin-bottom:1rem}
+footer h4{font-family:var(--font-spline-mono),monospace;font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--giallo);margin-bottom:1rem}
+footer li{list-style:none;padding:.3rem 0;font-size:.88rem;color:var(--fumo)}
+footer li a:hover{color:var(--giallo)}
+.foot-bottom{max-width:1200px;margin:2.5rem auto 0;padding-top:1.5rem;border-top:1px solid var(--linea);font-size:.78rem;color:var(--fumo);display:flex;justify-content:space-between;flex-wrap:wrap;gap:1rem}
 
 .reveal{opacity:0;transform:translateY(18px);transition:opacity .6s ease,transform .6s ease}
 .reveal.in{opacity:1;transform:none}
@@ -210,17 +348,22 @@ footer li a:hover{opacity:1;text-decoration:underline}
 }
 
 @media (max-width:900px){
-  .nav-links a:not(.btn){display:none}
+  .nav-links a:not(.btn):not(.btn-outline){display:none}
   .nav-links{gap:.6rem}
-  .hero-grid,.sodalizio,.prezzi-grid{grid-template-columns:1fr}
+  .hero-grid,.sodalizio,.prezzi-grid,.coach-grid{grid-template-columns:1fr}
+  .coach-visual{aspect-ratio:16/9}
+  .coach-lista{grid-template-columns:1fr}
   .feat{grid-template-columns:1fr 1fr}
   .foot-grid{grid-template-columns:1fr 1fr}
   .phone{margin-top:1rem}
+  .filigrana{display:none}
 }
 @media (max-width:560px){
   .feat{grid-template-columns:1fr}
   .strip{grid-template-columns:1fr}
-  .strip div{border-left:none;border-top:1.5px solid rgba(245,241,230,.25)}
+  .strip div{border-left:none;border-top:1.5px solid rgba(0,0,0,.18)}
+  .logo-esteso{height:28px}
+  .store-badge{width:100%;justify-content:center}
 }
 
 /* ============================================================
