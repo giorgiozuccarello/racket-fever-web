@@ -71,11 +71,33 @@ export type CategoriaNotifica =
   // trovare facilmente l'interruttore, o spegnera' tutto dalle
   // impostazioni del telefono — che e' il danno peggiore, perche' porta
   // via anche i promemoria delle partite, che nessuno voleva spegnere.
-  | 'chat';
+  | 'chat'
+  // Un'ora liberata da un altro socio con «Cancella con Riserva»: e'
+  // tornata disponibile e chi la prende toglie l'addebito a chi l'ha
+  // liberata.
+  //
+  // ⚠️ E' L'UNICA CATEGORIA CHE NASCE SPENTA, e l'eccezione e' voluta
+  // (decisione di Giorgio, 30 agosto 2026). Tutte le altre annunciano
+  // qualcosa che riguarda TE — la tua partita, la tua lezione, il tuo
+  // circolo — e il silenzio va scelto, non ereditato. Questa no:
+  // annuncia un'occasione creata dal comportamento di ALTRI, puo'
+  // suonare piu' volte al giorno, e a chi non sta cercando un campo non
+  // dice niente. Accesa per tutti sarebbe il modo piu' rapido di far
+  // spegnere ogni notifica dell'app — comprese quelle che servono.
+  //
+  // Chi la vuole la accende: e' la voce «Avvisami se un'ora si libera
+  // con Riserva» nelle impostazioni.
+  | 'oreLibere';
 
 export const CATEGORIE: CategoriaNotifica[] = [
-  'prenotazioni', 'lezioni', 'promemoria', 'bacheca', 'circolo', 'chat',
+  'prenotazioni', 'lezioni', 'promemoria', 'bacheca', 'circolo', 'chat', 'oreLibere',
 ];
+
+// ⚠️ L'ELENCO DELLE CATEGORIE CHE NASCONO SPENTE. Sta qui e non dentro
+// `categoriaAccesa` perche' e' un dato, non una regola: il giorno che
+// ne nascesse una seconda si aggiunge un nome, e nessuno deve andare a
+// leggere un `if` per sapere quali sono.
+export const CATEGORIE_DA_ATTIVARE: CategoriaNotifica[] = ['oreLibere'];
 
 export const NOME_CATEGORIA: Record<CategoriaNotifica, string> = {
   prenotazioni: 'Le mie partite',
@@ -84,6 +106,7 @@ export const NOME_CATEGORIA: Record<CategoriaNotifica, string> = {
   bacheca: 'Avvisi del circolo',
   circolo: 'Circolo, sfide e classifica',
   chat: 'Messaggi in chat',
+  oreLibere: 'Avvisami se un’ora si libera con Riserva',
 };
 
 export const SPIEGA_CATEGORIA: Record<CategoriaNotifica, string> = {
@@ -93,6 +116,7 @@ export const SPIEGA_CATEGORIA: Record<CategoriaNotifica, string> = {
   bacheca: 'Quando il circolo pubblica un avviso importante in bacheca.',
   circolo: 'Ammissione approvata, tessera sospesa, credito ricaricato — e tutto quello che riguarda le sfide: match fissati, penalità, posizione in classifica.',
   chat: 'Ogni messaggio nella conversazione con il Maestro. Sono tanti: spegnilo se ti disturbano.',
+  oreLibere: 'Quando un socio disdice tardi, la sua ora torna libera: chi la prende gli toglie l’addebito. Utile se cerchi un campo e non lo trovi. Nasce spenta.',
 };
 
 export interface PreferenzeNotifiche {
@@ -117,11 +141,17 @@ export interface PreferenzeNotifiche {
 // ⚠️ SOLO `true` E `false` CONTANO. Un campo scritto male, o un valore
 // che non e' un booleano, vale «acceso»: un dato sporco non deve poter
 // zittire un telefono senza che nessuno l'abbia deciso.
+//
+// ⚠️ CON UNA SOLA ECCEZIONE, e sta in `CATEGORIE_DA_ATTIVARE`. Per
+// quelle il ripiego e' rovesciato: assente vuol dire SPENTA, e si
+// accendono solo scegliendo. Il motivo per categoria e' scritto accanto
+// al suo nome, in cima al file.
 export function categoriaAccesa(
   pref: PreferenzeNotifiche | null | undefined, cat: CategoriaNotifica,
 ): boolean {
   const scelta = pref?.categorie?.[cat];
-  return typeof scelta === 'boolean' ? scelta : true;
+  if (typeof scelta === 'boolean') return scelta;
+  return !CATEGORIE_DA_ATTIVARE.includes(cat);
 }
 
 export function silenzioNotturnoAcceso(pref: PreferenzeNotifiche | null | undefined): boolean {
