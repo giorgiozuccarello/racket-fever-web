@@ -109,6 +109,69 @@ export function riservaViva(r: Riserva, adessoMs: number = Date.now()): boolean 
 }
 
 // ============================================================
+// UNA PARTITA, UNA CARD.
+//
+// ⚠️ ESISTE PERCHÉ IN HOME NE COMPARIVANO DUE. Ogni mezz'ora liberata è
+// un documento suo — ed è giusto così, è quello che permette a due metà
+// di estinguersi in modo indipendente — ma quello che l'utente vede non
+// è la mezz'ora: è la partita. Disegnando una card per documento,
+// un'ora liberata produceva due riquadri arancioni identici uno sopra
+// l'altro.
+//
+// È la stessa regola per cui i promemoria raggruppano le mezz'ore in
+// blocchi, per cui la Home usa `raggruppaConsecutive` e per cui esiste
+// `cardId`. Qui si raggruppa allo stesso modo: per `cardId` quando c'è,
+// altrimenti per `gruppoId`, e come ultimo ripiego per campo e giorno.
+//
+// ⚠️ IL RIPIEGO NON SCENDE MAI FINO ALL'ORARIO. Era il difetto del
+// lucchetto lato server: una chiave che cade sull'orario diventa
+// diversa per ogni mezz'ora, cioè non raggruppa più niente proprio nel
+// caso in cui serve.
+// ============================================================
+export interface PartitaLiberata {
+  chiave: string;
+  campoNome: string | null;
+  dataLabel: string | null;
+  // Il primo orario e la fine dell'ultima mezz'ora: l'intervallo intero.
+  oraInizio: string | null;
+  oraFine: string | null;
+  mezzore: number;
+  riserve: Riserva[];
+}
+
+export function raggruppaRiserve(lista: Riserva[]): PartitaLiberata[] {
+  const per = new Map<string, Riserva[]>();
+  for (const r of lista) {
+    const chiave = r.cardId || r.gruppoId || `${r.campoId ?? '-'}|${r.data ?? '-'}`;
+    const gia = per.get(chiave);
+    if (gia) gia.push(r); else per.set(chiave, [r]);
+  }
+  const partite: PartitaLiberata[] = [];
+  per.forEach((riserveDelGruppo, chiave) => {
+    const ordinate = [...riserveDelGruppo].sort(
+      (a, b) => (a.orario ?? '').localeCompare(b.orario ?? ''),
+    );
+    const primo = ordinate[0];
+    const ultimo = ordinate[ordinate.length - 1];
+    partite.push({
+      chiave,
+      campoNome: primo.campoNome,
+      dataLabel: primo.dataLabel,
+      oraInizio: primo.orario,
+      // `orarioFine` lo scrive il server sulla riserva: qui non si
+      // ricalcola, o due punti del progetto direbbero la stessa cosa in
+      // due modi che prima o poi divergono.
+      oraFine: ultimo.orarioFine,
+      mezzore: ordinate.length,
+      riserve: ordinate,
+    });
+  });
+  // Le più recenti in cima, come già faceva l'elenco piatto.
+  partite.sort((a, b) => (b.riserve[0]?.liberataIlMs ?? 0) - (a.riserve[0]?.liberataIlMs ?? 0));
+  return partite;
+}
+
+// ============================================================
 // LE MIE RISERVE — quelle che mi hanno lasciato un addebito aperto.
 //
 // ⚠️ SI FILTRA SU `liberataDa` E NON SU `beneficiari`. Firestore non sa
