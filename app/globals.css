@@ -1465,223 +1465,245 @@ footer li a:hover{color:var(--giallo)}
 .tema-cursore:focus-visible{ outline:3px solid var(--terra-chiara); outline-offset:2px; }
 
 /* ============================================================
-   SPAZIO WEB DEI CIRCOLI — /asdcircolosantagata e, in futuro, gli
+   SPAZIO WEB DEI CIRCOLI — /asdcircolosantagata, e in futuro gli
    altri. Prefisso `cir-` su tutto: queste regole non devono
    incontrare ne' il sito pubblico ne' l'area Admin.
 
-   ⚠️ PAGINA BIANCA DENTRO UN SITO NERO. `body` qui sopra e' nero con
-   testo bianco, e `nav`, `section` e `footer` hanno regole di
-   ELEMENTO che dipingono di nero. Non basta quindi mettere un fondo
-   bianco al contenitore: ognuno di quei tre va scavalcato per nome,
-   ed e' quello che fanno `.cir-pagina nav`, `.cir-pagina section` e
-   `.cir-pagina footer` (specificita' 0,1,1 contro 0,0,1). Se un
-   giorno si aggiunge un altro selettore di elemento la' sopra, va
-   scavalcato anche qui.
+   ⚠️ IL PREFISSO NON PUO' TORNARE `pc-`. L'area Admin qui sopra ha
+   gia' delle classi `.pc-*` sue — `.pc-row`, `.pc-day`, `.pc-court`,
+   la griglia delle prenotazioni — e due famiglie con lo stesso
+   prefisso in un foglio solo prima o poi si incontrano.
 
-   ⚠️ NESSUN FONT NUOVO. La pagina usa Archivo e Spline Sans Mono, che
-   il layout carica gia' per tutto il sito: un terzo font si sarebbe
-   scaricato per due titoli. Il registro istituzionale lo fanno la
-   misura, lo spazio e i filetti, non un carattere in piu'.
+   ⚠️ PAGINA CHIARA DENTRO UN SITO NERO. `body` piu' in alto e' nero
+   con testo bianco, e `nav`, `section` e `footer` hanno regole di
+   ELEMENTO che dipingono di nero. Non basta quindi un fondo chiaro
+   sul contenitore: ognuno di quei tre va scavalcato per nome, ed e'
+   quello che fanno `.cir-pagina nav`, `.cir-pagina section` e
+   `.cir-pagina footer` (specificita' 0,1,1 contro 0,0,1). E per lo
+   stesso motivo una sezione con un fondo proprio va scritta
+   `.cir-pagina section.cir-campi` e non `.cir-campi`: una classe sola
+   non batte `.cir-pagina section`, e la sezione diventa testo bianco
+   su bianco. E' gia' successo una volta.
 
-   I colori dell'accento sono campionati DAL MARCHIO DEL CIRCOLO
-   (public/asdcircolosantagata/logo-circolo.png): il verde salvia
-   della figura, #476256. Quando arrivera' il secondo circolo, questo
-   blocco resta e cambiano solo le due variabili in cima.
+   ⚠️ I COLORI SONO CAMPIONATI DALLE FOTO DEL CIRCOLO, non scelti a
+   gusto: il verde-petrolio #174249 e' il contorno del campo,
+   l'azzurro #123B6F e' il manto da gioco, il rame viene dall'arco del
+   marchio del Circolo. Sono i colori che il Circolo ha gia' a terra.
+
+   ⚠️ NESSUN FONT NUOVO, e non e' una rinuncia. Archivo e' variabile
+   anche in LARGHEZZA: il sito pubblico usa l'estremo largo
+   (`wdth 118`), qui si usa quello stretto (`wdth 62`) a peso pieno.
+   E' un'altra voce dello stesso carattere — costa zero download e non
+   litiga con il resto del sito.
+
+   ⚠️ LE FOTO DEL CIRCOLO SONO PICCOLE (591-667 px). Niente immagini a
+   piena pagina: verrebbero raddoppiate di scala e sfocate.
+   L'impaginato e' costruito su colonne che non superano quella
+   misura, ed e' il motivo per cui l'apertura e' divisa in due invece
+   di essere una fascia unica. Se un giorno arrivano foto piu' grandi,
+   si puo' alzare la scala delle figure.
    ============================================================ */
 .cir-pagina{
-  --cir-carta:#FFFFFF;
-  --cir-carta-2:#F6F7F5;
-  --cir-inchiostro:#232725;
-  --cir-testo:#3B403D;
-  --cir-fumo:#6B7370;
-  --cir-linea:#E2E4E0;
-  --cir-verde:#476256;
-  --cir-verde-cupo:#34493F;
+  --cir-scuro:#12363C;
+  --cir-scuro-2:#0C2A2F;
+  --cir-blu:#123B6F;
+  --cir-carta:#FBFAF8;
+  --cir-carta-2:#F1EFE9;
+  --cir-inchiostro:#14201F;
+  --cir-testo:#3D4746;
+  --cir-fumo:#77817F;
+  --cir-linea:#E0DED6;
+  --cir-brace:#B6512C;
 
   background:var(--cir-carta);
   color:var(--cir-inchiostro);
   min-height:100vh;
-  line-height:1.6;
 }
-.cir-pagina section{
-  background:var(--cir-carta);
-  padding:clamp(3rem,6vw,4.75rem) 0;
-}
+.cir-pagina section{background:transparent;padding:clamp(3rem,6vw,5rem) 0}
 .cir-pagina footer{
-  background:var(--cir-carta-2);
-  color:var(--cir-inchiostro);
-  border-top:1px solid var(--cir-linea);
-  padding:2.25rem 0;
+  background:var(--cir-scuro-2);color:rgba(255,255,255,.72);
+  border-top:0;padding:2.5rem 0;
 }
-.cir-dentro{max-width:1080px;margin:0 auto;padding:0 clamp(1rem,4vw,1.5rem)}
+.cir-dentro{max-width:1100px;margin:0 auto;padding:0 clamp(1rem,4vw,1.75rem)}
+
+/* Voce da manifesto: Archivo stretta e pesante, tutta maiuscola. */
+.cir-display{
+  font-variation-settings:'wdth' 62,'wght' 900;
+  text-transform:uppercase;line-height:.9;letter-spacing:.005em;
+  text-wrap:balance;
+}
+.cir-mono{
+  font-family:var(--font-spline-mono),monospace;
+  font-size:.7rem;letter-spacing:.16em;text-transform:uppercase;
+}
+.cir-testo{max-width:60ch;color:var(--cir-testo);line-height:1.7;font-size:1rem}
+.cir-testo + .cir-testo{margin-top:.9rem}
 
 /* ---------- Testata ---------- */
 .cir-pagina nav.cir-nav{
-  position:sticky;top:0;z-index:50;
-  display:flex;align-items:center;gap:1.25rem;
-  height:auto;min-height:76px;
-  padding:.65rem clamp(1rem,4vw,1.5rem);
-  background:rgba(255,255,255,.94);
-  backdrop-filter:saturate(140%) blur(8px);
-  color:var(--cir-inchiostro);
-  border-bottom:1px solid var(--cir-linea);
-  justify-content:flex-start;
+  position:sticky;top:0;z-index:50;height:auto;min-height:70px;
+  display:flex;align-items:center;gap:1.25rem;justify-content:flex-start;
+  padding:.6rem clamp(1rem,4vw,1.75rem);
+  background:var(--cir-scuro);color:#fff;border-bottom:0;
 }
-.cir-nav-marchio{display:block;flex:0 0 auto}
-.cir-nav-marchio img{display:block;height:46px;width:auto}
-.cir-nav-voci{display:flex;gap:1.4rem;margin-left:auto;align-items:center}
-.cir-nav-voci a{
-  font-size:.85rem;font-weight:500;color:var(--cir-testo);
-  padding-bottom:2px;border-bottom:2px solid transparent;
-}
-.cir-nav-voci a:hover,.cir-nav-voci a:focus-visible{color:var(--cir-verde);border-bottom-color:var(--cir-verde)}
+.cir-nav img{display:block;height:42px;width:auto;background:#fff;padding:4px 7px}
+.cir-nav-voci{display:flex;gap:1.3rem;margin-left:auto;align-items:center}
+.cir-nav-voci a{color:rgba(255,255,255,.82);font-size:.84rem}
+.cir-nav-voci a:hover{color:#fff;text-decoration:underline;text-underline-offset:4px}
 .cir-btn{
   display:inline-flex;align-items:center;justify-content:center;
-  background:var(--cir-verde);color:#fff;
-  font-size:.85rem;font-weight:700;letter-spacing:.01em;
-  padding:.7rem 1.15rem;border:1.5px solid var(--cir-verde);
+  background:var(--cir-brace);color:#fff;
+  font-size:.82rem;font-variation-settings:'wght' 750;
+  letter-spacing:.02em;text-transform:uppercase;
+  padding:.7rem 1.15rem;
 }
-.cir-btn:hover{background:var(--cir-verde-cupo);border-color:var(--cir-verde-cupo)}
-.cir-btn-vuoto{background:transparent;color:var(--cir-verde)}
-.cir-btn-vuoto:hover{background:var(--cir-carta-2);color:var(--cir-verde-cupo)}
-.cir-pagina a:focus-visible,.cir-pagina button:focus-visible{outline:2px solid var(--cir-verde);outline-offset:3px}
+.cir-btn:hover{background:#9C4425}
+.cir-btn-chiaro{background:#fff;color:var(--cir-scuro)}
+.cir-btn-chiaro:hover{background:var(--cir-carta-2)}
+.cir-pagina a:focus-visible{outline:2px solid var(--cir-brace);outline-offset:3px}
 
-/* ---------- Tipografia ---------- */
-.cir-occhiello{
+/* ---------- Apertura: due metà, non una fascia ---------- */
+.cir-apertura{background:var(--cir-scuro);color:#fff}
+.cir-apertura-griglia{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,560px);
+  gap:clamp(1.5rem,4vw,3rem);align-items:center;
+  padding:clamp(2.5rem,6vw,4.5rem) 0;
+}
+.cir-apertura .cir-mono{color:rgba(255,255,255,.62)}
+.cir-apertura h1{font-size:clamp(2.6rem,7vw,5rem);margin:.75rem 0 1.1rem}
+.cir-apertura p{color:rgba(255,255,255,.8);max-width:46ch;line-height:1.65}
+.cir-apertura-azioni{display:flex;flex-wrap:wrap;gap:.7rem;margin-top:1.75rem}
+.cir-apertura-foto{position:relative}
+.cir-apertura-foto img{display:block;width:100%;height:auto}
+/* La riga di dati corre sotto l'apertura, sul filo fra scuro e chiaro. */
+.cir-fascia{background:var(--cir-scuro-2);color:#fff}
+.cir-fascia-griglia{display:grid;grid-template-columns:repeat(4,1fr)}
+.cir-fascia-griglia > div{padding:1.1rem 1.25rem 1.1rem 0;border-right:1px solid rgba(255,255,255,.14)}
+.cir-fascia-griglia > div:last-child{border-right:0}
+.cir-fascia dt{color:rgba(255,255,255,.55);margin-bottom:.3rem}
+.cir-fascia dd{font-variation-settings:'wdth' 88,'wght' 700;font-size:1.05rem;font-variant-numeric:tabular-nums}
+
+/* ---------- Titolo di sezione ---------- */
+.cir-testata-sezione{display:flex;flex-direction:column;gap:.55rem;margin-bottom:2.25rem}
+.cir-testata-sezione .cir-mono{color:var(--cir-brace)}
+.cir-titolo-sezione{font-size:clamp(1.7rem,3.6vw,2.6rem)}
+
+/* ---------- La giornata: il filo del tempo ----------
+   Le ore NON sono una numerazione decorativa: sono il momento in cui
+   quella cosa succede davvero al circolo. Se un giorno cambia
+   l'orario, cambia il numero. */
+.cir-giornata{border-top:1px solid var(--cir-linea)}
+.cir-momento{
+  display:grid;grid-template-columns:5.5rem minmax(0,1fr) minmax(0,460px);
+  gap:clamp(1.25rem,3vw,2.5rem);align-items:start;
+  padding:2.5rem 0;border-bottom:1px solid var(--cir-linea);
+}
+.cir-momento-ora{
   font-family:var(--font-spline-mono),monospace;
-  font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
-  color:var(--cir-verde);
+  font-size:1.05rem;color:var(--cir-brace);
+  font-variant-numeric:tabular-nums;padding-top:.15rem;
 }
-.cir-titolo{
-  font-size:clamp(1.9rem,4.2vw,2.9rem);line-height:1.08;
-  font-variation-settings:'wght' 700;letter-spacing:-.015em;
-  text-wrap:balance;
+.cir-momento h3{font-size:1.45rem;margin-bottom:.65rem}
+.cir-momento img{display:block;width:100%;height:auto;aspect-ratio:3/2;object-fit:cover}
+.cir-momento-senzafoto{grid-template-columns:5.5rem minmax(0,1fr)}
+.cir-scheda{
+  display:grid;grid-template-columns:auto 1fr;gap:.3rem 1.1rem;
+  margin-top:1rem;font-size:.9rem;
 }
-.cir-sezione-titolo{
-  font-size:clamp(1.3rem,2.6vw,1.75rem);line-height:1.2;
-  font-variation-settings:'wght' 700;letter-spacing:-.012em;
-  text-wrap:balance;margin-top:.65rem;
+.cir-scheda dt{color:var(--cir-fumo)}
+.cir-scheda dd{font-variant-numeric:tabular-nums;color:var(--cir-testo)}
+
+/* ---------- I campi: scheda tecnica su fondo scuro ---------- */
+/* ⚠️ `.cir-pagina section` qui sopra vale 0,1,1: una classe sola
+   (0,1,0) non la batte e il fondo scuro non si vedeva — testo bianco
+   su bianco, cioe' una sezione invisibile. Va scritta con lo stesso
+   peso, come si e' fatto per `.cir-rf`. */
+.cir-pagina section.cir-campi{background:var(--cir-scuro);color:#fff}
+.cir-campi .cir-testata-sezione .cir-mono{color:rgba(255,255,255,.6)}
+.cir-campi-griglia{display:grid;grid-template-columns:minmax(0,460px) minmax(0,1fr);gap:clamp(1.5rem,4vw,3rem);align-items:start}
+.cir-campi img{display:block;width:100%;height:auto}
+.cir-tabella{width:100%;border-collapse:collapse;font-size:.92rem}
+.cir-tabella th,.cir-tabella td{
+  text-align:left;padding:.75rem .5rem;border-bottom:1px solid rgba(255,255,255,.16);
+  font-variant-numeric:tabular-nums;
 }
-.cir-testo{max-width:64ch;color:var(--cir-testo);font-size:1rem;line-height:1.72}
-.cir-testo + .cir-testo{margin-top:1rem}
-.cir-intestazione{margin-bottom:2rem}
-
-/* ---------- Il filetto che separa le sezioni ---------- */
-.cir-filetto{border:0;height:1px;background:var(--cir-linea);position:relative}
-.cir-filetto::before{content:"";position:absolute;left:0;top:-1px;width:48px;height:3px;background:var(--cir-verde)}
-
-/* ---------- Apertura ---------- */
-.cir-apertura{padding:clamp(2.75rem,6vw,4.25rem) 0 0}
-.cir-apertura .cir-testo{margin-top:1.1rem}
-.cir-azioni{display:flex;flex-wrap:wrap;gap:.7rem;margin-top:1.75rem}
-
-/* Prospetto: i dati del circolo, in colonne, cifre a larghezza fissa. */
-.cir-prospetto{
-  display:grid;grid-template-columns:repeat(4,1fr);
-  border-top:1px solid var(--cir-linea);margin-top:2.75rem;
+.cir-tabella thead th{
+  color:rgba(255,255,255,.55);font-family:var(--font-spline-mono),monospace;
+  font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;font-weight:400;
 }
-.cir-prospetto > div{padding:1.05rem 1.1rem 1.05rem 0;border-right:1px solid var(--cir-linea)}
-.cir-prospetto > div:last-child{border-right:0}
-.cir-prospetto dt{
-  font-family:var(--font-spline-mono),monospace;
-  font-size:.68rem;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--cir-fumo);margin-bottom:.35rem;
+.cir-tabella tbody th{font-variation-settings:'wdth' 88,'wght' 750;color:#fff}
+.cir-tabella td{color:rgba(255,255,255,.82)}
+.cir-nota-campi{color:rgba(255,255,255,.72);font-size:.92rem;margin-top:1.25rem;max-width:52ch;line-height:1.65}
+
+/* ---------- Incordatura: un blocco tecnico ---------- */
+.cir-officina{display:grid;grid-template-columns:minmax(0,460px) minmax(0,1fr);gap:clamp(1.5rem,4vw,3rem);align-items:center}
+.cir-officina img{display:block;width:100%;height:auto}
+.cir-chip{
+  display:inline-block;border:1px solid var(--cir-linea);
+  padding:.4rem .7rem;margin:0 .4rem .4rem 0;
+  font-family:var(--font-spline-mono),monospace;font-size:.68rem;
+  letter-spacing:.1em;text-transform:uppercase;color:var(--cir-testo);
 }
-.cir-prospetto dd{font-size:1.08rem;font-variation-settings:'wght' 650;font-variant-numeric:tabular-nums;line-height:1.25}
 
-/* ---------- Figure e dati ---------- */
-.cir-figura{margin:0}
-.cir-figura img{display:block;width:100%;height:auto;border:1px solid var(--cir-linea)}
-.cir-figura figcaption{padding-top:.9rem}
-.cir-figura-pari img{aspect-ratio:3/2;object-fit:cover}
-.cir-dati{display:grid;grid-template-columns:auto 1fr;gap:.35rem 1.25rem;margin-top:.7rem;font-size:.92rem}
-.cir-dati dt{color:var(--cir-fumo)}
-.cir-dati dd{font-variant-numeric:tabular-nums}
-.cir-coppia{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:2.25rem;align-items:start}
-/* ⚠️ `display:grid` RIPETUTO QUI, e non ereditato da `.cir-coppia`:
-   questa classe si usa DA SOLA, non insieme all'altra. Senza,
-   `grid-template-columns` non ha nessuna griglia su cui agire e le
-   due colonne si impilano — in silenzio, che e' il modo peggiore. */
-.cir-coppia-larga{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:3rem;align-items:start}
-.cir-nome-campo{font-size:1.05rem;font-variation-settings:'wght' 700}
-
-/* ---------- Elenco dei servizi: filetti, non riquadri ---------- */
-.cir-elenco{list-style:none;border-top:1px solid var(--cir-linea);margin-top:2rem}
-.cir-elenco li{
-  display:grid;grid-template-columns:minmax(150px,230px) 1fr;gap:2rem;
-  padding:1.15rem 0;border-bottom:1px solid var(--cir-linea);
-}
-.cir-elenco h3{font-size:1rem;font-variation-settings:'wght' 700}
-.cir-elenco p{color:var(--cir-testo);font-size:.94rem;max-width:58ch}
-
-/* ---------- Sponsor ---------- */
-.cir-sponsor-principale{display:block;margin-top:1.5rem;border:1px solid var(--cir-linea)}
-.cir-sponsor-principale img{display:block;width:100%;height:auto}
-.cir-sponsor-riga{display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-top:1.25rem}
-.cir-sponsor-riga > div{border:1px solid var(--cir-linea);display:grid;place-items:center;padding:0}
-.cir-sponsor-riga img{display:block;width:100%;height:auto}
-
-/* ---------- Blocco Racket Fever: l'unico nero della pagina ---------- */
+/* ---------- Prenotazioni: il blocco nostro ---------- */
 .cir-pagina section.cir-rf{background:var(--nero);color:var(--bianco)}
-.cir-rf .cir-sezione-titolo,.cir-rf .cir-titolo{color:var(--bianco)}
-.cir-rf .cir-testo{color:rgba(255,255,255,.82)}
-.cir-rf .cir-occhiello{color:var(--giallo)}
-.cir-rf-logo{display:block;height:34px;width:auto;margin-bottom:1.5rem}
-.cir-passi{list-style:none;display:grid;gap:.8rem;margin-top:.25rem}
-.cir-passi li{display:grid;grid-template-columns:1.6rem 1fr;gap:.85rem;align-items:start;color:rgba(255,255,255,.86);font-size:.95rem}
-.cir-passi .cir-n{
+.cir-rf .cir-testata-sezione .cir-mono{color:var(--giallo)}
+.cir-rf .cir-titolo-sezione{color:#fff}
+.cir-rf .cir-testo{color:rgba(255,255,255,.8)}
+.cir-rf-logo{display:block;height:32px;width:auto;margin-bottom:1.75rem}
+.cir-rf-griglia{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:clamp(1.5rem,4vw,3rem);align-items:start}
+.cir-passi{list-style:none;display:grid;gap:.75rem}
+.cir-passi li{display:grid;grid-template-columns:1.7rem 1fr;gap:.9rem;color:rgba(255,255,255,.85);font-size:.95rem}
+.cir-passi span:first-child{
   font-family:var(--font-spline-mono),monospace;font-size:.7rem;
-  color:var(--nero);background:var(--giallo);
-  width:1.6rem;height:1.6rem;display:grid;place-items:center;
+  background:var(--giallo);color:var(--nero);
+  width:1.7rem;height:1.7rem;display:grid;place-items:center;
 }
 .cir-store{display:flex;flex-wrap:wrap;gap:.7rem;margin-top:1.5rem}
 .cir-distintivo{
   display:inline-flex;flex-direction:column;justify-content:center;
-  border:1.5px solid rgba(255,255,255,.32);padding:.55rem 1.1rem;
-  color:rgba(255,255,255,.58);
+  border:1.5px solid rgba(255,255,255,.3);padding:.5rem 1.05rem;color:rgba(255,255,255,.55);
 }
-.cir-distintivo small{font-family:var(--font-spline-mono),monospace;font-size:.62rem;letter-spacing:.1em;text-transform:uppercase}
-.cir-distintivo strong{font-size:.95rem;font-variation-settings:'wght' 650}
-.cir-nota{margin-top:.85rem;font-size:.78rem;color:rgba(255,255,255,.55)}
+.cir-distintivo small{font-family:var(--font-spline-mono),monospace;font-size:.6rem;letter-spacing:.1em;text-transform:uppercase}
+.cir-distintivo strong{font-size:.92rem;font-variation-settings:'wght' 700}
+.cir-nota{margin-top:.8rem;font-size:.76rem;color:rgba(255,255,255,.5)}
+
+/* ---------- Sponsor ---------- */
+.cir-sponsor-uno{display:block;border:1px solid var(--cir-linea)}
+.cir-sponsor-uno img{display:block;width:100%;height:auto}
+.cir-sponsor-due{display:grid;grid-template-columns:1fr 1fr;gap:1.1rem;margin-top:1.1rem}
+.cir-sponsor-due > div{border:1px solid var(--cir-linea)}
+.cir-sponsor-due img{display:block;width:100%;height:auto}
 
 /* ---------- Contatti ---------- */
-.cir-contatti{display:grid;grid-template-columns:repeat(3,1fr);border-top:1px solid var(--cir-linea);margin-top:2rem}
+.cir-contatti{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--cir-linea)}
 .cir-contatti > div{padding:1.5rem 1.5rem 1.5rem 0;border-right:1px solid var(--cir-linea)}
 .cir-contatti > div:last-child{border-right:0}
-.cir-contatti h3{font-size:.92rem;font-variation-settings:'wght' 700;margin-bottom:.6rem}
-.cir-contatti p,.cir-contatti a{font-size:.94rem;color:var(--cir-testo)}
-.cir-contatti a:hover{color:var(--cir-verde)}
-.cir-orari{list-style:none;font-size:.94rem;font-variant-numeric:tabular-nums}
-.cir-orari li{display:flex;justify-content:space-between;gap:1rem;padding:.15rem 0;max-width:17rem}
+.cir-contatti h3{font-size:.9rem;font-variation-settings:'wght' 750;margin-bottom:.55rem}
+.cir-contatti p,.cir-contatti li{font-size:.93rem;color:var(--cir-testo)}
+.cir-orari{list-style:none;font-variant-numeric:tabular-nums}
+.cir-orari li{display:flex;justify-content:space-between;gap:1rem;padding:.12rem 0;max-width:17rem}
 .cir-orari span:first-child{color:var(--cir-fumo)}
-
-/* ⚠️ Il segno giallo dei dati NON confermati. Serve a Giorgio e al
-   Circolo durante la prova: e' un dato che abbiamo scritto noi e che
-   nessuno ha ancora validato. Quando la pagina va online per davvero,
-   nella pagina non deve restarne nemmeno uno. */
 .cir-daconfermare{
   display:inline-block;font-family:var(--font-spline-mono),monospace;
-  font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;
+  font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;
   color:#7A5B00;background:#FCF3D2;border:1px solid #E8D79B;
   padding:.1rem .4rem;margin-left:.35rem;vertical-align:.12em;
 }
-
-/* ---------- Piede ---------- */
-.cir-piede-dentro{display:flex;flex-wrap:wrap;align-items:center;gap:1.25rem;justify-content:space-between}
-.cir-piede-dentro p{font-size:.82rem;color:var(--cir-fumo)}
-.cir-piede-dentro a{color:var(--cir-verde);font-variation-settings:'wght' 650}
-.cir-piede-dentro a:hover{text-decoration:underline}
-.cir-affiliazioni{display:block;height:44px;width:auto}
+.cir-piede{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:1.25rem}
+.cir-piede img{height:44px;width:auto;background:#fff;padding:5px 8px}
+.cir-piede p{font-size:.8rem}
+.cir-piede a{color:var(--giallo)}
 
 @media (max-width:900px){
-  .cir-coppia,.cir-coppia-larga{grid-template-columns:1fr;gap:1.75rem}
-  .cir-prospetto{grid-template-columns:1fr 1fr}
-  .cir-prospetto > div:nth-child(2){border-right:0}
-  .cir-prospetto > div:nth-child(-n+2){border-bottom:1px solid var(--cir-linea)}
+  .cir-apertura-griglia,.cir-campi-griglia,.cir-officina,.cir-rf-griglia{grid-template-columns:1fr}
+  .cir-fascia-griglia{grid-template-columns:1fr 1fr}
+  .cir-fascia-griglia > div:nth-child(2){border-right:0}
+  .cir-fascia-griglia > div:nth-child(-n+2){border-bottom:1px solid rgba(255,255,255,.14)}
+  .cir-momento,.cir-momento-senzafoto{grid-template-columns:4rem minmax(0,1fr)}
   .cir-contatti{grid-template-columns:1fr}
   .cir-contatti > div{border-right:0;border-bottom:1px solid var(--cir-linea);padding-right:0}
   .cir-contatti > div:last-child{border-bottom:0}
   .cir-nav-voci{display:none}
-  .cir-elenco li{grid-template-columns:1fr;gap:.4rem}
-  .cir-sponsor-riga{grid-template-columns:1fr}
+  .cir-sponsor-due{grid-template-columns:1fr}
 }

@@ -11,30 +11,38 @@
 // non si tocca. Se un testo finisce dentro il JSX, quel giorno si
 // riscrive tutto.
 //
-// ⚠️ LE ETICHETTE «DA CONFERMARE» SONO VOLUTE. Indirizzo esatto,
-// telefono, email, tariffe e alcune date sono dati che abbiamo scritto
-// noi per far vedere la pagina al Circolo: finche' non li conferma
-// loro, restano segnati in giallo. Prima di mandare la pagina online
-// per davvero non ne deve restare nemmeno una.
+// ⚠️ L'ORDINE DI `giornata` E' LA STRUTTURA DELLA PAGINA. Le sezioni
+// non sono un catalogo di servizi: sono i momenti della giornata del
+// circolo, e le ore che le marcano NON sono una numerazione
+// decorativa — sono l'orario in cui quella cosa succede davvero. Se
+// cambia l'orario cambia il numero; se si aggiunge un momento, la
+// sezione cresce da sola. Chi ordinasse l'elenco per comodita' invece
+// che per orario romperebbe l'unica cosa che quella colonna dice.
 //
-// ⚠️ LA PAGINA E' BIANCA DENTRO UN SITO NERO. Il fondo, i tre
-// selettori di elemento (`nav`, `section`, `footer`) e i colori sono
-// scavalcati nel blocco `.cir-*` in fondo a app/globals.css. Niente
-// font nuovi: Archivo e Spline Sans Mono li carica gia' il layout.
+// ⚠️ LE ETICHETTE «DA CONFERMARE» SONO VOLUTE. Indirizzo, telefono,
+// email, tariffe, anno di costituzione e alcune date sono dati che
+// abbiamo scritto noi per far vedere la pagina al Circolo: finche'
+// non li conferma loro, restano segnati in giallo. Prima di mandare
+// la pagina online per davvero non ne deve restare nemmeno una.
+//
+// ⚠️ LA PAGINA E' CHIARA DENTRO UN SITO NERO, e le regole che lo
+// rendono possibile stanno nel blocco `.cir-*` in fondo a
+// app/globals.css: leggerne le avvertenze prima di toccare i fondi
+// delle sezioni.
 // ============================================================
 
 import type { Metadata } from 'next';
-import { Fragment } from 'react';
 import Link from 'next/link';
 import { SITO } from '../../data/consenso';
 
 // ⚠️ Gli stessi due indirizzi della home, e per lo stesso motivo:
 // finche' sono stringhe vuote i due distintivi restano spenti e
-// dichiarati `aria-disabled`. Il giorno della pubblicazione si
-// scrivono qui e in app/page.tsx — sono due file, non uno.
+// dichiarati `aria-disabled`, perche' un pulsante «Scarica» che non
+// porta da nessuna parte e' peggio di un pulsante che non c'e'. Il
+// giorno della pubblicazione si scrivono qui E in app/page.tsx: sono
+// due file, non uno.
 const LINK_APP_STORE = '';
 const LINK_GOOGLE_PLAY = '';
-
 const BASE = '/asdcircolosantagata';
 
 const CIRCOLO = {
@@ -45,50 +53,96 @@ const CIRCOLO = {
   affiliazioni: `${BASE}/affiliazioni.png`,
 
   apertura:
-    'Associazione sportiva dilettantistica affiliata alla Federazione Italiana '
-    + 'Tennis e Padel. Due campi in cemento con illuminazione, scuola tennis, '
-    + 'corsi per ragazzi e campus estivi. L’accesso ai campi è consentito ai '
-    + 'soci e, su prenotazione, anche ai non soci.',
+    'Due campi in cemento con illuminazione, scuola tennis, corsi per ragazzi '
+    + 'e campus estivi. Il circolo è aperto ai soci e, su prenotazione, anche '
+    + 'a chi socio non è.',
 
-  prospetto: [
+  fascia: [
     { voce: 'Campi', valore: '2, in cemento' },
-    { voce: 'Illuminazione', valore: 'Su entrambi' },
+    { voce: 'Illuminazione', valore: 'Fino alle 24:00' },
     { voce: 'Affiliazione', valore: 'FITP — CONI' },
     { voce: 'Prenotazioni', valore: 'App Racket Fever' },
   ],
 
-  campi: [
+  // ⚠️ L'ordine di questo elenco È la struttura della pagina: si
+  // aggiunge un momento e la sezione cresce da sola.
+  giornata: [
     {
-      nome: 'Campo 1',
-      foto: `${BASE}/campo.jpg`,
-      dati: [
-        ['Superficie', 'Cemento'],
-        ['Misure', '23,77 × 10,97 m'],
-        ['Illuminazione', 'Sì'],
-        ['Uso', 'Singolare e doppio'],
+      ora: '08:00',
+      titolo: 'Le lezioni',
+      foto: `${BASE}/lezioni.jpg`,
+      alt: 'Lezione individuale con il maestro',
+      testi: [
+        'Le lezioni si svolgono su prenotazione, dal mattino alla sera, in forma '
+        + 'individuale, a coppie o in piccoli gruppi. La richiesta si inoltra '
+        + 'dall’applicazione: si propone un orario, il maestro lo conferma oppure '
+        + 'ne propone un altro.',
+        'Sono rivolte anche a chi inizia da adulto. Per le prime lezioni il '
+        + 'circolo mette a disposizione le racchette.',
+      ],
+      scheda: [
+        ['Individuale', '60 minuti, un allievo'],
+        ['A coppie', '60 minuti, due allievi'],
+        ['Gruppo', 'Fino a 4 allievi, su richiesta'],
       ],
     },
     {
-      nome: 'Campo 2',
-      foto: `${BASE}/campo.jpg`,
-      dati: [
-        ['Superficie', 'Cemento'],
-        ['Misure', '23,77 × 10,97 m'],
-        ['Illuminazione', 'Sì'],
-        ['Uso', 'Singolare, doppio e corsi'],
+      ora: '16:30',
+      titolo: 'I ragazzi',
+      foto: `${BASE}/corsi-ragazzi.jpg`,
+      alt: 'Corso per ragazzi sul campo',
+      testi: [
+        'Da ottobre a maggio i corsi occupano i pomeriggi infrasettimanali, con '
+        + 'gruppi divisi per età e livello. L’avviamento utilizza palline '
+        + 'depressurizzate e campo ridotto.',
+        'A giugno e luglio gli stessi campi diventano campus estivi, dal lunedì '
+        + 'al venerdì in fascia mattutina: si può partecipare anche per singole '
+        + 'settimane, senza esperienza pregressa.',
+      ],
+      scheda: [
+        ['Corsi', 'Ottobre – Maggio, pomeriggio'],
+        ['Campus', 'Giugno – Luglio, 8:30 – 13:00'],
+        ['Età', 'Da 5 a 14 anni'],
+        ['Gruppi', 'Massimo 6 allievi per campo'],
+      ],
+      daConfermare: true,
+    },
+    {
+      ora: '21:00',
+      titolo: 'Il gioco sotto le luci',
+      foto: null,
+      alt: '',
+      testi: [
+        'Entrambi i campi sono illuminati e restano prenotabili fino a '
+        + 'mezzanotte. È la fascia dei doppi serali, ed è quella che si esaurisce '
+        + 'per prima: la griglia dell’applicazione mostra in tempo reale le '
+        + 'mezz’ore ancora libere.',
+      ],
+      scheda: [
+        ['Ultimo ingresso', '23:30'],
+        ['Prenotazione', 'A mezz’ore'],
+      ],
+    },
+    {
+      ora: '23:00',
+      titolo: 'Lo spazio bar',
+      foto: `${BASE}/bar.jpg`,
+      alt: 'Lo spazio bar del circolo',
+      testi: [
+        'Il servizio bar ha i tavoli all’aperto affacciati sui campi ed è aperto '
+        + 'negli orari del circolo. È il punto in cui finiscono le partite, ed è '
+        + 'anche la ragione per cui molti soci restano dopo aver giocato.',
+      ],
+      scheda: [
+        ['Spogliatoi', 'Con docce, negli orari del circolo'],
+        ['Parcheggio', 'Interno, gratuito'],
       ],
     },
   ],
 
-  servizi: [
-    {
-      titolo: 'Spogliatoi',
-      testo: 'Spogliatoi con docce, disponibili negli orari di apertura del circolo.',
-    },
-    {
-      titolo: 'Parcheggio',
-      testo: 'Parcheggio interno gratuito.',
-    },
+  campi: [
+    { nome: 'Campo 1', superficie: 'Cemento', misure: '23,77 × 10,97 m', luce: 'Sì', uso: 'Singolare e doppio' },
+    { nome: 'Campo 2', superficie: 'Cemento', misure: '23,77 × 10,97 m', luce: 'Sì', uso: 'Singolare, doppio e corsi' },
   ],
 
   sponsor: {
@@ -122,7 +176,6 @@ export const metadata: Metadata = {
   },
 };
 
-/** Segno per un dato che il Circolo non ha ancora confermato. */
 function DaConfermare() {
   return <span className="cir-daconfermare">da confermare</span>;
 }
@@ -131,293 +184,202 @@ export default function PaginaCircoloSantAgata() {
   return (
     <div className="cir-pagina">
 
-      {/* ---------------- Testata ---------------- */}
       <nav className="cir-nav">
-        <a className="cir-nav-marchio" href="#top" aria-label={`${CIRCOLO.nome} — inizio pagina`}>
+        <a href="#top" aria-label={`${CIRCOLO.nome} — inizio pagina`}>
           <img src={CIRCOLO.logo} alt={CIRCOLO.nome} width={465} height={154} />
         </a>
         <div className="cir-nav-voci">
-          <a href="#circolo">Il circolo</a>
-          <a href="#campi">Campi</a>
-          <a href="#scuola">Scuola tennis</a>
-          <a href="#servizi">Servizi</a>
+          <a href="#giornata">La giornata</a>
+          <a href="#campi">I campi</a>
+          <a href="#incordatura">Incordatura</a>
           <a href="#sponsor">Sponsor</a>
           <a href="#contatti">Contatti</a>
         </div>
-        <a className="cir-btn" href="#prenotazioni">Prenota un campo</a>
+        <a className="cir-btn" href="#prenotazioni">Prenota</a>
       </nav>
 
-      {/* ---------------- Apertura ---------------- */}
+      {/* ---------------- Apertura ----------------
+          Due metà e non una fascia unica: la foto del campo è larga
+          595 px, e stirata a tutto schermo si vedrebbe sfocata. */}
       <header className="cir-apertura" id="top">
-        <div className="cir-dentro">
-          <p className="cir-occhiello">
-            {CIRCOLO.comune} ({CIRCOLO.provincia}) &middot; Associazione sportiva dilettantistica
-          </p>
-          <h1 className="cir-titolo" style={{ marginTop: '.8rem' }}>{CIRCOLO.nome}</h1>
-          <p className="cir-testo">{CIRCOLO.apertura}</p>
-          <div className="cir-azioni">
-            <a className="cir-btn" href="#prenotazioni">Prenota un campo</a>
-            <a className="cir-btn cir-btn-vuoto" href="#contatti">Contatti e orari</a>
+        <div className="cir-dentro cir-apertura-griglia">
+          <div>
+            <p className="cir-mono">{CIRCOLO.comune} ({CIRCOLO.provincia}) &middot; dal 1986<DaConfermare /></p>
+            <h1 className="cir-display">Circolo Tennis<br />Sant&rsquo;Agata</h1>
+            <p>{CIRCOLO.apertura}</p>
+            <div className="cir-apertura-azioni">
+              <a className="cir-btn" href="#prenotazioni">Prenota un campo</a>
+              <a className="cir-btn cir-btn-chiaro" href="#contatti">Contatti e orari</a>
+            </div>
           </div>
-
-          <dl className="cir-prospetto">
-            {CIRCOLO.prospetto.map((r) => (
-              <div key={r.voce}>
-                <dt>{r.voce}</dt>
-                <dd>{r.valore}</dd>
-              </div>
-            ))}
-          </dl>
+          <div className="cir-apertura-foto">
+            <img src={`${BASE}/campo.jpg`} alt="Uno dei due campi in cemento" width={595} height={321} />
+          </div>
         </div>
       </header>
 
-      {/* ---------------- Il circolo ---------------- */}
-      <section id="circolo">
-        <div className="cir-dentro">
-          <hr className="cir-filetto" />
-          <div className="cir-intestazione" style={{ marginTop: '1.6rem' }}>
-            <p className="cir-occhiello">Il circolo</p>
-            <h2 className="cir-sezione-titolo">Struttura e attivit&agrave;</h2>
-          </div>
-          <div className="cir-coppia-larga">
-            <div>
-              <p className="cir-testo">
-                Il Circolo Tennis Sant&rsquo;Agata &egrave; un&rsquo;associazione sportiva
-                dilettantistica con sede a {CIRCOLO.comune}, in provincia di Messina.
-                Dispone di due campi in cemento con illuminazione, spogliatoi con
-                docce, spazio bar e servizio di incordatura.
-              </p>
-              <p className="cir-testo">
-                L&rsquo;attivit&agrave; comprende il gioco libero su prenotazione, le lezioni
-                individuali e collettive, i corsi per ragazzi durante l&rsquo;anno
-                sportivo e i campus estivi nei mesi di giugno e luglio. Il circolo
-                organizza inoltre un torneo sociale nel periodo estivo.<DaConfermare />
-              </p>
+      <div className="cir-fascia">
+        <dl className="cir-dentro cir-fascia-griglia">
+          {CIRCOLO.fascia.map((r) => (
+            <div key={r.voce}>
+              <dt className="cir-mono">{r.voce}</dt>
+              <dd>{r.valore}</dd>
             </div>
-            <dl className="cir-dati" style={{ marginTop: 0 }}>
-              <dt>Costituzione</dt><dd>1986<DaConfermare /></dd>
-              <dt>Soci</dt><dd>circa 180<DaConfermare /></dd>
-              <dt>Affiliazione</dt><dd>FITP, CONI</dd>
-              <dt>Accesso</dt><dd>Soci e non soci</dd>
-              <dt>Superficie campi</dt><dd>Cemento</dd>
-            </dl>
-          </div>
-        </div>
-      </section>
+          ))}
+        </dl>
+      </div>
 
-      {/* ---------------- I campi ---------------- */}
-      <section id="campi" style={{ background: 'var(--cir-carta-2)', borderTop: '1px solid var(--cir-linea)', borderBottom: '1px solid var(--cir-linea)' }}>
+      {/* ---------------- La giornata ---------------- */}
+      <section id="giornata">
         <div className="cir-dentro">
-          <div className="cir-intestazione">
-            <p className="cir-occhiello">I campi</p>
-            <h2 className="cir-sezione-titolo">Due campi in cemento, misure regolamentari</h2>
+          <div className="cir-testata-sezione">
+            <p className="cir-mono">Una giornata al circolo</p>
+            <h2 className="cir-display cir-titolo-sezione">Dalle otto a mezzanotte</h2>
           </div>
-          <div className="cir-coppia">
-            {CIRCOLO.campi.map((c) => (
-              <figure className="cir-figura" key={c.nome}>
-                <img src={c.foto} alt={`${c.nome} — campo in cemento`} width={595} height={321} />
-                <figcaption>
-                  <p className="cir-nome-campo">{c.nome}</p>
-                  <dl className="cir-dati">
-                    {c.dati.map(([k, v]) => (
-                      <Fragment key={k}>
-                        <dt>{k}</dt><dd>{v}</dd>
-                      </Fragment>
+
+          <div className="cir-giornata">
+            {CIRCOLO.giornata.map((m) => (
+              <article className={m.foto ? 'cir-momento' : 'cir-momento cir-momento-senzafoto'} key={m.ora}>
+                <p className="cir-momento-ora">{m.ora}</p>
+                <div>
+                  <h3 className="cir-display">{m.titolo}</h3>
+                  {m.testi.map((t) => <p className="cir-testo" key={t.slice(0, 24)}>{t}</p>)}
+                  <dl className="cir-scheda">
+                    {m.scheda.map(([k, v]) => (
+                      <div key={k} style={{ display: 'contents' }}>
+                        <dt>{k}</dt>
+                        <dd>{v}{m.daConfermare ? <DaConfermare /> : null}</dd>
+                      </div>
                     ))}
                   </dl>
-                </figcaption>
-              </figure>
+                </div>
+                {m.foto && (
+                  <img src={m.foto} alt={m.alt} width={660} height={440} />
+                )}
+              </article>
             ))}
           </div>
-          <p className="cir-testo" style={{ marginTop: '2rem' }}>
-            I campi si prenotano a mezz&rsquo;ore tramite l&rsquo;applicazione Racket Fever,
-            che mostra in tempo reale le fasce ancora libere.
-          </p>
         </div>
       </section>
 
-      {/* ---------------- Scuola tennis: lezioni ---------------- */}
-      <section id="scuola">
+      {/* ---------------- I campi: scheda tecnica ---------------- */}
+      <section className="cir-campi" id="campi">
         <div className="cir-dentro">
-          <div className="cir-intestazione">
-            <p className="cir-occhiello">Scuola tennis</p>
-            <h2 className="cir-sezione-titolo">Lezioni individuali e collettive</h2>
+          <div className="cir-testata-sezione">
+            <p className="cir-mono">Scheda tecnica</p>
+            <h2 className="cir-display cir-titolo-sezione">I due campi</h2>
           </div>
-          <div className="cir-coppia">
+          <div className="cir-campi-griglia">
+            <img src={`${BASE}/campo.jpg`} alt="Campo in cemento" width={595} height={321} />
             <div>
-              <p className="cir-testo">
-                Le lezioni si svolgono su prenotazione, in forma individuale, a
-                coppie o in piccoli gruppi, dal mattino alla sera. La richiesta si
-                inoltra dall&rsquo;applicazione: si propone un orario, il maestro lo
-                conferma oppure ne propone un altro.
+              <table className="cir-tabella">
+                <thead>
+                  <tr>
+                    <th scope="col">Campo</th>
+                    <th scope="col">Superficie</th>
+                    <th scope="col">Misure</th>
+                    <th scope="col">Luce</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {CIRCOLO.campi.map((c) => (
+                    <tr key={c.nome}>
+                      <th scope="row">{c.nome}</th>
+                      <td>{c.superficie}</td>
+                      <td>{c.misure}</td>
+                      <td>{c.luce}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="cir-nota-campi">
+                I due campi sono identici e intercambiabili: il Campo 2 ospita
+                anche i corsi, quindi nei pomeriggi da ottobre a maggio è meno
+                disponibile. Prenotazione a mezz&rsquo;ore dall&rsquo;applicazione.
               </p>
-              <p className="cir-testo">
-                Le lezioni sono rivolte anche a chi inizia da adulto. Il circolo
-                mette a disposizione le racchette per le prime lezioni.
-              </p>
-              <dl className="cir-dati" style={{ marginTop: '1.4rem' }}>
-                <dt>Individuale</dt><dd>60 minuti, un allievo</dd>
-                <dt>A coppie</dt><dd>60 minuti, due allievi</dd>
-                <dt>Gruppo</dt><dd>Fino a 4 allievi, su richiesta</dd>
-                <dt>Tariffe</dt><dd>Presso il circolo<DaConfermare /></dd>
-              </dl>
-            </div>
-            <figure className="cir-figura">
-              <img src={`${BASE}/lezioni.jpg`} alt="Lezione individuale con il maestro" width={661} height={438} />
-            </figure>
-          </div>
-        </div>
-      </section>
-
-      {/* ---------------- Corsi ragazzi e campus ---------------- */}
-      <section id="ragazzi" style={{ background: 'var(--cir-carta-2)', borderTop: '1px solid var(--cir-linea)', borderBottom: '1px solid var(--cir-linea)' }}>
-        <div className="cir-dentro">
-          <div className="cir-intestazione">
-            <p className="cir-occhiello">Corsi ragazzi e campus estivi</p>
-            <h2 className="cir-sezione-titolo">Attivit&agrave; giovanile</h2>
-          </div>
-          <div className="cir-coppia">
-            <figure className="cir-figura">
-              <img src={`${BASE}/corsi-ragazzi.jpg`} alt="Corso per ragazzi sul campo" width={666} height={443} />
-            </figure>
-            <div>
-              <p className="cir-testo">
-                I corsi per ragazzi si svolgono da ottobre a maggio, nei pomeriggi
-                infrasettimanali, con gruppi divisi per et&agrave; e livello.
-                L&rsquo;avviamento utilizza palline depressurizzate e campo ridotto.
-              </p>
-              <p className="cir-testo">
-                Nei mesi di giugno e luglio il circolo organizza i campus estivi,
-                dal luned&igrave; al venerd&igrave; in fascia mattutina. La partecipazione
-                &egrave; ammessa anche per singole settimane e non richiede esperienza
-                pregressa.
-              </p>
-              <dl className="cir-dati" style={{ marginTop: '1.4rem' }}>
-                <dt>Corsi</dt><dd>Ottobre &ndash; Maggio, pomeriggio<DaConfermare /></dd>
-                <dt>Campus</dt><dd>Giugno &ndash; Luglio, 8:30 &ndash; 13:00<DaConfermare /></dd>
-                <dt>Et&agrave;</dt><dd>Da 5 a 14 anni<DaConfermare /></dd>
-                <dt>Gruppi</dt><dd>Massimo 6 allievi per campo<DaConfermare /></dd>
-              </dl>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ---------------- Servizi ---------------- */}
-      <section id="servizi">
+      {/* ---------------- Incordatura ---------------- */}
+      <section id="incordatura">
         <div className="cir-dentro">
-          <div className="cir-intestazione">
-            <p className="cir-occhiello">Servizi</p>
-            <h2 className="cir-sezione-titolo">Spazio bar e incordatura</h2>
+          <div className="cir-testata-sezione">
+            <p className="cir-mono">Servizio interno</p>
+            <h2 className="cir-display cir-titolo-sezione">Incordatura</h2>
           </div>
-          <div className="cir-coppia">
-            <figure className="cir-figura cir-figura-pari">
-              <img src={`${BASE}/bar.jpg`} alt="Lo spazio bar del circolo" width={667} height={442} />
-              <figcaption>
-                <p className="cir-nome-campo">Spazio bar</p>
-                <p className="cir-testo" style={{ fontSize: '.94rem', marginTop: '.4rem' }}>
-                  Servizio bar con tavoli all&rsquo;aperto affacciati sui campi, aperto
-                  negli orari del circolo.
-                </p>
-              </figcaption>
-            </figure>
-            <figure className="cir-figura cir-figura-pari">
-              <img src={`${BASE}/incordatura.jpg`} alt="Macchina incordatrice del circolo" width={591} height={442} />
-              <figcaption>
-                <p className="cir-nome-campo">Servizio incordatura</p>
-                <p className="cir-testo" style={{ fontSize: '.94rem', marginTop: '.4rem' }}>
-                  Incordatura eseguita presso il circolo, con corde disponibili in
-                  sede. Tensione a richiesta, indicativamente fra 20 e 26 kg.<DaConfermare />
-                </p>
-              </figcaption>
-            </figure>
+          <div className="cir-officina">
+            <img src={`${BASE}/incordatura.jpg`} alt="Macchina incordatrice del circolo" width={591} height={442} />
+            <div>
+              <p className="cir-testo">
+                L&rsquo;incordatura si esegue in sede, con macchina elettronica e corde
+                disponibili al circolo. Si lascia la racchetta e si ritira
+                incordata, indicando la tensione desiderata.
+              </p>
+              <div style={{ marginTop: '1.1rem' }}>
+                <span className="cir-chip">Tensione 20 – 26 kg</span>
+                <span className="cir-chip">Corde in sede</span>
+                <span className="cir-chip">Riconsegna in giornata</span>
+              </div>
+              <p className="cir-testo" style={{ fontSize: '.85rem', marginTop: '.9rem' }}>
+                Tempi e tariffe si concordano al circolo.<DaConfermare />
+              </p>
+            </div>
           </div>
-
-          <ul className="cir-elenco">
-            {CIRCOLO.servizi.map((s) => (
-              <li key={s.titolo}>
-                <h3>{s.titolo}</h3>
-                <p>{s.testo}</p>
-              </li>
-            ))}
-          </ul>
         </div>
       </section>
 
-      {/* ============================================================
-          PRENOTAZIONI — l'unico blocco nero della pagina, ed e' nero
-          perche' e' il nostro: qui parla Racket Fever, non il Circolo.
-          Il resto della pagina resta bianco, come chiesto.
-          ============================================================ */}
+      {/* ---------------- Prenotazioni ---------------- */}
       <section className="cir-rf" id="prenotazioni">
         <div className="cir-dentro">
           <img className="cir-rf-logo" src="/logo-rf-esteso-bianco.png" alt="Racket Fever" width={1200} height={400} />
-          <div className="cir-coppia-larga">
+          <div className="cir-rf-griglia">
             <div>
-              <p className="cir-occhiello">Prenotazioni</p>
-              <h2 className="cir-sezione-titolo">I campi si prenotano dall&rsquo;app</h2>
-              <p className="cir-testo" style={{ marginTop: '1rem' }}>
+              <div className="cir-testata-sezione">
+                <p className="cir-mono">Prenotazioni</p>
+                <h2 className="cir-display cir-titolo-sezione">I campi si prenotano dall&rsquo;app</h2>
+              </div>
+              <p className="cir-testo">
                 Il circolo utilizza Racket Fever per la gestione delle prenotazioni.
-                L&rsquo;applicazione &egrave; gratuita e mostra la disponibilit&agrave; dei due campi
+                L&rsquo;applicazione è gratuita e mostra la disponibilità dei due campi
                 mezz&rsquo;ora per mezz&rsquo;ora. Si possono indicare i compagni di gioco: il
-                costo viene ripartito e la prenotazione &egrave; visibile anche a loro.
+                costo viene ripartito e la prenotazione è visibile anche a loro.
               </p>
               <div className="cir-store">
                 {LINK_APP_STORE ? (
-                  <a className="cir-distintivo" href={LINK_APP_STORE}>
-                    <small>Scarica su</small><strong>App Store</strong>
-                  </a>
+                  <a className="cir-distintivo" href={LINK_APP_STORE}><small>Scarica su</small><strong>App Store</strong></a>
                 ) : (
-                  <span className="cir-distintivo" aria-disabled="true">
-                    <small>Scarica su</small><strong>App Store</strong>
-                  </span>
+                  <span className="cir-distintivo" aria-disabled="true"><small>Scarica su</small><strong>App Store</strong></span>
                 )}
                 {LINK_GOOGLE_PLAY ? (
-                  <a className="cir-distintivo" href={LINK_GOOGLE_PLAY}>
-                    <small>Disponibile su</small><strong>Google Play</strong>
-                  </a>
+                  <a className="cir-distintivo" href={LINK_GOOGLE_PLAY}><small>Disponibile su</small><strong>Google Play</strong></a>
                 ) : (
-                  <span className="cir-distintivo" aria-disabled="true">
-                    <small>Disponibile su</small><strong>Google Play</strong>
-                  </span>
+                  <span className="cir-distintivo" aria-disabled="true"><small>Disponibile su</small><strong>Google Play</strong></span>
                 )}
               </div>
               {(!LINK_APP_STORE || !LINK_GOOGLE_PLAY) && (
-                <p className="cir-nota">
-                  I collegamenti agli store si attivano alla pubblicazione dell&rsquo;applicazione.
-                </p>
+                <p className="cir-nota">I collegamenti agli store si attivano alla pubblicazione dell&rsquo;applicazione.</p>
               )}
             </div>
             <ol className="cir-passi">
-              <li>
-                <span className="cir-n">1</span>
-                <span>Si scarica l&rsquo;app e si seleziona {CIRCOLO.nome} dall&rsquo;elenco dei circoli.</span>
-              </li>
-              <li>
-                <span className="cir-n">2</span>
-                <span>Si accede con la password fornita dal circolo.</span>
-              </li>
-              <li>
-                <span className="cir-n">3</span>
-                <span>Si consulta la griglia dei campi e si prenota la fascia desiderata.</span>
-              </li>
-              <li>
-                <span className="cir-n">4</span>
-                <span>Si aggiungono i compagni di gioco: il costo viene ripartito fra i partecipanti.</span>
-              </li>
+              <li><span>1</span><span>Si scarica l&rsquo;app e si seleziona {CIRCOLO.nome} dall&rsquo;elenco dei circoli.</span></li>
+              <li><span>2</span><span>Si accede con la password fornita dal circolo.</span></li>
+              <li><span>3</span><span>Si consulta la griglia dei campi e si prenota la fascia desiderata.</span></li>
+              <li><span>4</span><span>Si aggiungono i compagni di gioco: il costo viene ripartito fra i partecipanti.</span></li>
             </ol>
           </div>
         </div>
       </section>
 
       {/* ---------------- Sponsor ---------------- */}
-      <section id="sponsor">
+      <section id="sponsor" style={{ background: 'var(--cir-carta-2)' }}>
         <div className="cir-dentro">
-          <div className="cir-intestazione">
-            <p className="cir-occhiello">Sponsor</p>
-            <h2 className="cir-sezione-titolo">Chi sostiene il circolo</h2>
+          <div className="cir-testata-sezione">
+            <p className="cir-mono">Chi sostiene il circolo</p>
+            <h2 className="cir-display cir-titolo-sezione">Sponsor</h2>
           </div>
-          <div className="cir-sponsor-principale">
+          <div className="cir-sponsor-uno">
             <img
               src={CIRCOLO.sponsor.principale.file}
               alt={`Main sponsor: ${CIRCOLO.sponsor.principale.nome}`}
@@ -425,7 +387,7 @@ export default function PaginaCircoloSantAgata() {
               height={400}
             />
           </div>
-          <div className="cir-sponsor-riga">
+          <div className="cir-sponsor-due">
             {CIRCOLO.sponsor.altri.map((s) => (
               <div key={s.nome}>
                 <img src={s.file} alt={`Sponsor: ${s.nome}`} width={1200} height={400} />
@@ -436,11 +398,11 @@ export default function PaginaCircoloSantAgata() {
       </section>
 
       {/* ---------------- Contatti ---------------- */}
-      <section id="contatti" style={{ background: 'var(--cir-carta-2)', borderTop: '1px solid var(--cir-linea)' }}>
+      <section id="contatti">
         <div className="cir-dentro">
-          <div className="cir-intestazione">
-            <p className="cir-occhiello">Contatti</p>
-            <h2 className="cir-sezione-titolo">Sede e orari</h2>
+          <div className="cir-testata-sezione">
+            <p className="cir-mono">Dove e quando</p>
+            <h2 className="cir-display cir-titolo-sezione">Sede e orari</h2>
           </div>
           <div className="cir-contatti">
             <div>
@@ -465,27 +427,22 @@ export default function PaginaCircoloSantAgata() {
                   <li key={giorno}><span>{giorno}</span><span>{ore}</span></li>
                 ))}
               </ul>
-              <p style={{ marginTop: '.5rem' }}><DaConfermare /></p>
+              <p style={{ marginTop: '.45rem' }}><DaConfermare /></p>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ---------------- Piede ---------------- */}
       <footer>
-        <div className="cir-dentro cir-piede-dentro">
+        <div className="cir-dentro cir-piede">
           <img
-            className="cir-affiliazioni"
             src={CIRCOLO.affiliazioni}
             alt="Affiliazioni: CONI e Federazione Italiana Tennis e Padel"
             width={465}
             height={118}
           />
           <p>&copy; {new Date().getFullYear()} {CIRCOLO.nome}</p>
-          <p>
-            Spazio web e piattaforma di prenotazione:{' '}
-            <Link href="/">Racket Fever</Link>
-          </p>
+          <p>Spazio web e piattaforma di prenotazione: <Link href="/">Racket Fever</Link></p>
         </div>
       </footer>
 
