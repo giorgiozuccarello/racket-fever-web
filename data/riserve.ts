@@ -24,7 +24,14 @@
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 
-export type StatoRiserva = 'aperta' | 'estinta';
+// ⚠️ TRE STATI, E IL TERZO È NUOVO (2 settembre 2026). Prima erano
+// due, e una riserva che nessuno riprendeva restava «aperta» PER
+// SEMPRE: il documento non si chiudeva mai, la card in Home spariva
+// solo perché il telefono la nascondeva al momento di disegnare, e la
+// collezione cresceva senza fine. `scaduta` la scrive
+// `riconciliaRiserve` sul server quando il termine passa senza che
+// nessuno abbia ripreso l'ora.
+export type StatoRiserva = 'aperta' | 'estinta' | 'scaduta';
 
 export interface BeneficiarioRiserva {
   uid: string;
@@ -63,6 +70,10 @@ export interface Riserva {
   // servirebbe solo a cancellare la penale di qualcun altro.
   scadeIlMs: number;
   estintaIlMs?: number;
+  // L'istante in cui la riserva si è chiusa, comunque si sia chiusa:
+  // ripresa da qualcuno o scaduta. Lo scrive il server, e il
+  // riconciliatore lo usa per la pulizia.
+  chiusaIlMs?: number;
   estintaDa?: string | null;
   estintaDaNome?: string | null;
 }
@@ -84,28 +95,48 @@ function daDocumento(id: string, d: any): Riserva {
     utenteId: d?.utenteId ?? null,
     utenteNome: d?.utenteNome ?? null,
     beneficiari: Array.isArray(d?.beneficiari) ? d.beneficiari : [],
-    stato: d?.stato === 'estinta' ? 'estinta' : 'aperta',
+    stato: d?.stato === 'estinta' ? 'estinta'
+      : d?.stato === 'scaduta' ? 'scaduta'
+        : 'aperta',
     liberataIlMs: Number(d?.liberataIlMs ?? 0),
     scadeIlMs: Number(d?.scadeIlMs ?? 0),
     estintaIlMs: d?.estintaIlMs,
+    chiusaIlMs: d?.chiusaIlMs,
     estintaDa: d?.estintaDa ?? null,
     estintaDaNome: d?.estintaDaNome ?? null,
   };
 }
 
-// ⚠️ UNA RISERVA È SCADUTA QUANDO L'ORA È COMINCIATA, e lo si calcola
-// invece di scriverlo. Nessun lavoro notturno la chiude: non serve,
-// perché il denaro non si muove alla scadenza — è già stato preso alla
-// prenotazione, e «resta addebitato» vuol dire soltanto «non si
-// rimborsa». Un giro notturno che passasse a marcarle sarebbe lavoro
-// per non cambiare niente, con l'unico effetto di poter saltare.
+// ⚠️ SCADUTA SI CALCOLA E SI SCRIVE, TUTTE E DUE. Sul server
+// `riconciliaRiserve` marca `stato: 'scaduta'` entro un minuto dal
+// termine; qui lo si calcola comunque dall'orario, perché fra il
+// termine e il passaggio del riconciliatore c'è un minuto in cui il
+// documento dice ancora «aperta» e la verità è un'altra. Chi legge
+// deve vedere subito il fatto giusto, e chi scrive deve lasciarne
+// traccia: le due cose non si escludono.
 export function riservaScaduta(r: Riserva, adessoMs: number = Date.now()): boolean {
   return r.scadeIlMs > 0 && adessoMs > r.scadeIlMs;
 }
 
-// Ancora prendibile da un altro socio: aperta e dentro il termine.
-export function riservaViva(r: Riserva, adessoMs: number = Date.now()): boolean {
-  return r.stato === 'aperta' && !riservaScaduta(r, adessoMs);
+// ============================================================
+// COM'È FINITA, IN UNA PAROLA SOLA.
+//
+// ⚠️ SERVE PERCHÉ UNA CARD NON DEVE SPARIRE IN SILENZIO. Prima la Home
+// mostrava solo le riserve vive: passato il termine la card svaniva
+// senza dire niente, e chi aveva liberato l'ora restava con l'addebito
+// e nessuna spiegazione. Adesso la card resta e cambia frase: «nessuno
+// l'ha ripresa, l'addebito resta». È un fatto concluso, non una
+// promessa appesa.
+//
+// `estinta` invece non si mostra: il credito è tornato e la partita non
+// esiste più: una card che dice «tutto a posto» è rumore.
+// ============================================================
+export type EsitoRiserva = 'viva' | 'scaduta' | 'estinta';
+
+export function esitoRiserva(r: Riserva, adessoMs: number = Date.now()): EsitoRiserva {
+  if (r.stato === 'estinta') return 'estinta';
+  if (r.stato === 'scaduta' || riservaScaduta(r, adessoMs)) return 'scaduta';
+  return 'viva';
 }
 
 // ============================================================
