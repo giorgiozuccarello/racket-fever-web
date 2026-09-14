@@ -1707,3 +1707,311 @@ footer li a:hover{color:var(--giallo)}
   .cir-nav-voci{display:none}
   .cir-sponsor-due{grid-template-columns:1fr}
 }
+
+/* ============================================================
+   SPAZIO WEB DI COMPETITION TENNIS GMBH — /competitiontennis,
+   /competitiontennis/it, /competitiontennis/en. Prefisso `ct-`.
+
+   ⚠️ IL PREFISSO E' `ct-` E NON PUO' ESSERE NE' `cir-` NE' `pc-`.
+   `cir-` e' lo spazio web del Circolo Sant'Agata qui sopra e ha una
+   palette sua; `pc-` e' la griglia delle prenotazioni dell'area
+   Admin. Tre famiglie in un foglio solo convivono finche' i prefissi
+   restano distinti.
+
+   ⚠️ PAGINA CHIARA DENTRO UN SITO NERO, di nuovo. `body` e' nero, e
+   `nav`, `section` e `footer` hanno regole di ELEMENTO che dipingono
+   di nero e mettono un padding orizzontale. Vanno scavalcati per nome
+   — `.ct-pagina nav.ct-nav`, `.ct-pagina section`, `.ct-pagina
+   footer` — e una sezione con fondo proprio si scrive `.ct-pagina
+   section.ct-scura`, NON `.ct-scura`: una classe sola (0,1,0) non
+   batte `.ct-pagina section` (0,1,1). Nello spazio web del Circolo
+   costo' una sezione bianca su bianco.
+
+   ⚠️ IL ROSSO E' DEL CLIENTE, IL GIALLO E' NOSTRO. Questa pagina sta
+   dentro racketfever.it ma e' di un'altra azienda: nero, bianco e
+   rosso #E2001A, e il nostro giallo-pallina non compare. Il marchio
+   Racket Fever sta in fondo, una volta, nel piede.
+
+   ⚠️ TERZA VOCE DELLO STESSO CARATTERE, NESSUN FONT NUOVO. Archivo e'
+   variabile anche in larghezza: il sito pubblico usa l'estremo largo
+   (`wdth 118`), il Circolo lo stretto maiuscolo (`wdth 62`), qui la
+   larghezza normale (`wdth 100`) a peso 820 e in minuscolo. Costa
+   zero download in piu'.
+
+   ⚠️ LE FOTO SONO STATE RIDOTTE PRIMA DI ENTRARE (ritratto 1200 px,
+   Basilea 1100, Stansstad convertita da PNG a JPG): erano 1,7 MB in
+   quattro file. Le misure vere stanno in contenuti.ts e finiscono in
+   `width`/`height` sull'`img`, che e' cio' che impedisce alla pagina
+   di saltare mentre le immagini arrivano. I loghi dei partner hanno
+   il fondo BIANCO, non trasparente: per questo stanno in riquadri
+   bianchi e non appoggiati sul fondo tenue.
+   ============================================================ */
+.ct-pagina{
+  --ct-inchiostro:#101315;
+  --ct-carta:#FFFFFF;
+  --ct-tenue:#F6F5F2;
+  --ct-linea:#E3E2DC;
+  --ct-grigio:#646967;
+  --ct-rosso:#E2001A;
+  --ct-linea-scura:#24282A;
+  --ct-fumo-scuro:#A9AFAC;
+
+  background:var(--ct-carta);
+  color:var(--ct-inchiostro);
+  min-height:100vh;
+  line-height:1.6;
+}
+.ct-pagina section{background:transparent;padding:clamp(3.2rem,6.5vw,5.75rem) 0}
+.ct-pagina section.ct-tenue{background:var(--ct-tenue)}
+.ct-pagina section.ct-scura{background:var(--ct-inchiostro);color:#fff}
+.ct-pagina footer{
+  background:var(--ct-inchiostro);color:var(--ct-fumo-scuro);
+  border-top:1px solid var(--ct-linea-scura);padding:2.2rem 0;
+}
+.ct-dentro{max-width:1120px;margin:0 auto;padding:0 clamp(1rem,4vw,1.75rem)}
+
+/* ---------- Voce tipografica ---------- */
+.ct-display{
+  font-variation-settings:'wdth' 100,'wght' 820;
+  font-weight:820;line-height:1.04;letter-spacing:-.03em;
+  font-size:clamp(1.85rem,4.2vw,2.75rem);
+  text-wrap:balance;margin-top:.55rem;
+}
+.ct-display-piccolo{font-size:clamp(1.4rem,2.6vw,1.9rem)}
+.ct-apertura .ct-display{font-size:clamp(2.35rem,6.4vw,4.25rem);letter-spacing:-.035em}
+.ct-occhiello{
+  display:flex;align-items:center;gap:.55rem;
+  font-size:.7rem;font-variation-settings:'wght' 700;font-weight:700;
+  letter-spacing:.16em;text-transform:uppercase;color:var(--ct-grigio);
+}
+.ct-occhiello::before{content:'';width:22px;height:2px;background:var(--ct-rosso);flex-shrink:0}
+h2.ct-occhiello{font-size:.7rem;margin:0}
+.ct-scura .ct-occhiello{color:#9AA09D}
+.ct-guida{font-size:1.03rem;line-height:1.62;color:var(--ct-grigio);margin-top:1.15rem;max-width:34em}
+.ct-scura .ct-guida{color:var(--ct-fumo-scuro)}
+.ct-testo{color:var(--ct-grigio);line-height:1.7;max-width:60ch}
+.ct-testo + .ct-testo{margin-top:.95rem}
+.ct-sotto{font-size:.82rem;font-weight:600;color:var(--ct-grigio);margin-top:1.25rem}
+
+/* ---------- Testata ---------- */
+.ct-pagina nav.ct-nav{
+  position:sticky;top:0;z-index:50;height:auto;min-height:66px;
+  display:flex;align-items:center;gap:1.4rem;justify-content:flex-start;
+  padding:.7rem clamp(1rem,4vw,1.75rem);
+  background:rgba(255,255,255,.95);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  color:var(--ct-inchiostro);
+  border-bottom:1px solid var(--ct-linea);
+}
+.ct-marchio{
+  font-variation-settings:'wdth' 100,'wght' 820;font-weight:820;
+  font-size:1.02rem;letter-spacing:-.02em;line-height:1;color:var(--ct-inchiostro);
+}
+.ct-marchio span{
+  display:block;font-size:.6rem;font-weight:600;letter-spacing:.18em;
+  text-transform:uppercase;color:var(--ct-grigio);margin-top:.25rem;white-space:nowrap;
+}
+.ct-nav-voci{display:flex;gap:1.25rem;margin-left:auto;align-items:center}
+.ct-nav-voci a{font-size:.85rem;font-weight:600;color:var(--ct-inchiostro)}
+.ct-nav-voci a:hover{color:var(--ct-rosso)}
+.ct-lingue{
+  display:flex;gap:.1rem;align-items:center;
+  border:1px solid var(--ct-linea);border-radius:999px;padding:.18rem;
+}
+.ct-lingue a,.ct-lingue span{
+  font-size:.66rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;
+  padding:.32rem .55rem;border-radius:999px;color:var(--ct-grigio);
+}
+.ct-lingue a:hover{color:var(--ct-inchiostro)}
+.ct-lingue .ct-lingua-attiva{background:var(--ct-inchiostro);color:#fff}
+.ct-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  background:var(--ct-rosso);color:#fff;border-radius:999px;
+  font-size:.85rem;font-weight:700;padding:.68rem 1.15rem;white-space:nowrap;
+}
+.ct-btn:hover{background:#B90016}
+.ct-btn-vuoto{background:none;color:var(--ct-inchiostro);border:1.5px solid var(--ct-inchiostro)}
+.ct-btn-vuoto:hover{background:var(--ct-inchiostro);color:#fff}
+.ct-azioni{display:flex;gap:.7rem;margin-top:1.6rem;flex-wrap:wrap}
+.ct-pagina a:focus-visible,.ct-pagina :focus-visible{
+  outline:2px solid var(--ct-rosso);outline-offset:3px;
+}
+
+/* ⚠️ `html{scroll-behavior:smooth}` e una testata appiccicosa alta 66
+   px: senza questo, chi clicca «Training» si ritrova il titolo sotto
+   la barra. */
+.ct-pagina [id]{scroll-margin-top:84px}
+
+/* Didascalia della tabella: la legge la sintesi vocale, non lo schermo. */
+.ct-invisibile{
+  position:absolute;width:1px;height:1px;margin:-1px;padding:0;
+  overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0;
+}
+
+/* ---------- Apertura ---------- */
+.ct-apertura{padding:clamp(2.5rem,5vw,4.5rem) 0 0}
+.ct-apertura-griglia{
+  display:grid;grid-template-columns:1.12fr .88fr;
+  gap:clamp(1.75rem,4vw,3.25rem);align-items:center;
+}
+.ct-apertura-foto img{display:block;width:100%;height:auto;aspect-ratio:4/5;object-fit:cover}
+.ct-dati{
+  display:grid;grid-template-columns:repeat(4,1fr);gap:1px;
+  background:var(--ct-linea);border-top:1px solid var(--ct-linea);
+  border-bottom:1px solid var(--ct-linea);margin-top:clamp(2.25rem,5vw,3.75rem);
+}
+.ct-dati > div{background:var(--ct-carta);padding:1.15rem .35rem 1.25rem}
+.ct-dati dt{font-size:1.2rem;font-variation-settings:'wght' 820;font-weight:820;letter-spacing:-.02em}
+.ct-dati dd{font-size:.78rem;color:var(--ct-grigio);margin-top:.3rem}
+
+/* ---------- Due colonne ---------- */
+.ct-due{display:grid;grid-template-columns:.9fr 1.1fr;gap:clamp(1.75rem,4vw,3.25rem);align-items:start}
+.ct-due-fondo{align-items:end}
+.ct-due-mezzo{grid-template-columns:1.15fr .85fr;align-items:center}
+.ct-firma{
+  margin-top:1.5rem;padding-top:1.25rem;border-top:1.5px solid var(--ct-inchiostro);
+  font-size:1.12rem;font-weight:700;letter-spacing:-.015em;line-height:1.4;
+}
+.ct-firma small{
+  display:block;font-size:.7rem;font-weight:600;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--ct-grigio);margin-top:.6rem;
+}
+
+/* ---------- Lezioni ---------- */
+.ct-carte{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:2.4rem}
+.ct-carta{
+  background:var(--ct-carta);border:1px solid var(--ct-linea);border-radius:3px;
+  padding:1.5rem 1.4rem;display:flex;flex-direction:column;
+}
+.ct-carta h3{font-size:1.15rem;font-variation-settings:'wght' 820;font-weight:820;letter-spacing:-.02em}
+.ct-carta p{font-size:.9rem;line-height:1.55;color:var(--ct-grigio);margin-top:.65rem;flex:1}
+.ct-prezzo{margin-top:1.35rem;padding-top:.9rem;border-top:1px solid var(--ct-linea)}
+.ct-prezzo span{display:block;font-size:.76rem;color:var(--ct-grigio)}
+.ct-prezzo strong{
+  display:block;font-size:1.45rem;font-variation-settings:'wght' 820;font-weight:820;
+  letter-spacing:-.02em;margin-top:.2rem;
+}
+.ct-tabella{width:100%;border-collapse:collapse;margin-top:2.2rem}
+.ct-tabella th{
+  font-size:.68rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ct-grigio);text-align:left;padding:0 .75rem .6rem 0;
+  border-bottom:1.5px solid var(--ct-inchiostro);
+}
+.ct-tabella tbody th{
+  font-size:.95rem;font-weight:400;letter-spacing:0;text-transform:none;
+  color:var(--ct-inchiostro);border-bottom:1px solid var(--ct-linea);
+  padding:.75rem .75rem .75rem 0;
+}
+.ct-tabella td{font-size:.95rem;padding:.75rem .75rem .75rem 0;border-bottom:1px solid var(--ct-linea)}
+.ct-tabella th.ct-n,.ct-tabella td.ct-n{text-align:right;padding-right:0}
+.ct-tabella td.ct-n{font-weight:700;font-variant-numeric:tabular-nums}
+.ct-privata{
+  display:flex;align-items:flex-end;gap:2.25rem;flex-wrap:wrap;
+  margin-top:1.4rem;padding:1.2rem 1.4rem;border-radius:3px;
+  background:var(--ct-inchiostro);color:#fff;
+}
+.ct-privata > div:first-child{margin-right:auto}
+.ct-privata strong{
+  display:block;font-size:1.2rem;font-variation-settings:'wght' 820;font-weight:820;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums;
+}
+.ct-privata span{font-size:.8rem;color:var(--ct-fumo-scuro)}
+.ct-privata small{
+  display:block;font-size:.65rem;font-weight:700;letter-spacing:.14em;
+  text-transform:uppercase;color:#8A908D;margin-bottom:.3rem;
+}
+.ct-note{list-style:none;margin-top:1.25rem;display:flex;flex-direction:column;gap:.4rem}
+.ct-note li{font-size:.82rem;color:var(--ct-grigio);line-height:1.5;padding-left:1rem;position:relative}
+.ct-note li::before{content:'';position:absolute;left:0;top:.62rem;width:6px;height:1.5px;background:var(--ct-rosso)}
+
+/* ---------- Incordatura ---------- */
+.ct-officina img{display:block;width:100%;height:auto;aspect-ratio:3/4;object-fit:cover}
+.ct-corde{
+  list-style:none;display:grid;grid-template-columns:1fr 1fr;
+  gap:0 clamp(1.5rem,4vw,2.75rem);margin-top:2.4rem;
+}
+.ct-corde li{
+  display:flex;justify-content:space-between;gap:1rem;align-items:baseline;
+  padding:.62rem 0;border-bottom:1px solid var(--ct-linea-scura);font-size:.92rem;
+}
+.ct-corde strong{font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap}
+.ct-occhiello-marche{margin-top:1.9rem}
+.ct-marche{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:.85rem}
+.ct-marche span{
+  font-size:.75rem;font-weight:600;color:#C9CECB;
+  border:1px solid var(--ct-linea-scura);border-radius:999px;padding:.38rem .8rem;
+}
+.ct-nota-chiara{font-size:.82rem;color:var(--ct-fumo-scuro);margin-top:1rem}
+
+/* ---------- Dove ---------- */
+.ct-luoghi{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-top:2.4rem;margin-bottom:1.6rem}
+.ct-luogo{border:1px solid var(--ct-linea);border-radius:3px;overflow:hidden;background:var(--ct-carta)}
+.ct-luogo img{display:block;width:100%;height:auto;aspect-ratio:16/9;object-fit:cover}
+.ct-luogo-senzafoto{aspect-ratio:16/9;background:var(--ct-inchiostro);
+  background-image:repeating-linear-gradient(135deg,transparent 0 14px,rgba(255,255,255,.045) 14px 28px)}
+.ct-luogo > div{padding:1.15rem 1.3rem 1.35rem}
+.ct-luogo h3{font-size:1.25rem;font-variation-settings:'wght' 820;font-weight:820;letter-spacing:-.02em}
+.ct-luogo-club{font-size:.8rem;font-weight:700;color:var(--ct-rosso);margin-top:.25rem}
+.ct-luogo-nota{font-size:.87rem;color:var(--ct-grigio);margin-top:.5rem}
+
+/* ---------- Novita', voce, partner ---------- */
+.ct-news{display:grid;grid-template-columns:1fr 1fr;gap:1.75rem;margin-top:1.6rem}
+.ct-news h3{font-size:1.1rem;font-variation-settings:'wght' 820;font-weight:820;letter-spacing:-.02em}
+.ct-news p{font-size:.9rem;line-height:1.6;color:var(--ct-grigio);margin-top:.45rem}
+.ct-voce blockquote{
+  font-size:clamp(1.05rem,2.1vw,1.4rem);line-height:1.45;letter-spacing:-.02em;font-weight:600;
+}
+.ct-voce blockquote::before{content:'\201C'}
+.ct-voce blockquote::after{content:'\201D'}
+.ct-voce figcaption{
+  font-size:.7rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--ct-grigio);margin-top:1.05rem;
+}
+.ct-partner-blocco{margin-top:clamp(2.5rem,5vw,4rem)}
+.ct-partner{display:grid;grid-template-columns:repeat(5,1fr);gap:.8rem;margin-top:1.5rem}
+.ct-partner > div{
+  background:#fff;border:1px solid var(--ct-linea);border-radius:3px;
+  height:92px;display:flex;align-items:center;justify-content:center;padding:.7rem 1rem;
+}
+.ct-partner img{max-height:100%;width:auto;object-fit:contain}
+
+/* ---------- Contatti ---------- */
+.ct-occhiello-faq{margin-top:2rem;margin-bottom:.35rem}
+.ct-faq > div{padding:.95rem 0;border-bottom:1px solid var(--ct-linea-scura)}
+.ct-faq dt{font-size:.92rem;font-weight:700}
+.ct-faq dd{font-size:.88rem;color:var(--ct-fumo-scuro);margin-top:.35rem;line-height:1.55}
+.ct-recapiti{
+  display:flex;flex-direction:column;gap:1px;background:var(--ct-linea-scura);
+  border-top:1px solid var(--ct-linea-scura);border-bottom:1px solid var(--ct-linea-scura);
+}
+.ct-recapiti a{display:flex;align-items:baseline;gap:1.1rem;padding:1.1rem .15rem;background:var(--ct-inchiostro)}
+.ct-recapiti a:hover strong{color:var(--ct-rosso)}
+.ct-recapiti small{
+  font-size:.65rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;
+  color:#8A908D;width:6.5rem;flex-shrink:0;
+}
+.ct-recapiti strong{font-size:1.2rem;font-weight:700;letter-spacing:-.02em}
+.ct-piede{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:.75rem}
+.ct-piede p{font-size:.78rem}
+.ct-piede a{color:#fff;text-decoration:underline;text-underline-offset:3px}
+
+@media (max-width:900px){
+  .ct-nav-voci{display:none}
+  .ct-apertura-griglia,.ct-due,.ct-due-mezzo{grid-template-columns:1fr}
+  .ct-carte,.ct-luoghi,.ct-news,.ct-corde{grid-template-columns:1fr}
+  .ct-partner{grid-template-columns:1fr 1fr}
+  .ct-dati{grid-template-columns:1fr 1fr}
+  .ct-apertura-foto img{aspect-ratio:3/2}
+  .ct-officina img{aspect-ratio:4/3}
+  /* ⚠️ senza questo le intestazioni si toccavano e si leggeva
+     «GRUPPEDAUER»: in colonna stretta il passo va ridotto. */
+  .ct-tabella th{font-size:.6rem;letter-spacing:.07em;line-height:1.3}
+  .ct-tabella td:first-of-type{white-space:nowrap}
+  .ct-privata{gap:1.1rem}
+  .ct-recapiti small{width:5rem}
+  .ct-recapiti strong{font-size:1.05rem}
+}
+@media (max-width:560px){
+  /* Il campo e' gia' scritto nelle note: in colonna qui non ci sta. */
+  .ct-tabella .ct-campo{display:none}
+}
