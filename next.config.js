@@ -31,6 +31,41 @@
 // nessun errore.
 // ============================================================
 
+// ============================================================
+// ⚠️ E LA CACHE, CHE IL 16 SETTEMBRE HA DATO UNA PAGINA BIANCA VERA.
+//
+// Il nome del pacchetto dell'app contiene un hash e CAMBIA A OGNI
+// ESPORTAZIONE: `entry-0c3ce27….js` oggi, un altro domani. L'`index.html`
+// e' l'unico file che quel nome lo NOMINA.
+//
+// Quindi un browser che si tiene in cache un `index.html` vecchio chiede
+// un pacchetto che sul server non esiste piu'; il ripiego qui sopra
+// risponde con `index.html` al posto del JavaScript; il browser si
+// rifiuta di eseguire dell'HTML come script e resta BIANCO. Senza
+// nemmeno cambiare indirizzo — il router dell'app non parte proprio.
+//
+// ⚠️ NON E' UN CASO ISOLATO: sarebbe successo A OGNI MAESTRO A OGNI
+// RIESPORTAZIONE. Chi ha aperto il gestionale ieri, il giorno dopo si
+// prende una pagina bianca finche' non forza la ricarica — e nessun
+// maestro forza la ricarica: chiama.
+//
+// ⚠️ `no-store` SOLO SULL'HTML, E NON SUGLI ASSET, ed e' tutto il punto
+// della divisione qui sotto. I file con l'hash nel nome sono
+// IMMUTABILI per costruzione — quel nome vale per quel contenuto e per
+// nessun altro — e vanno tenuti in cache il piu' a lungo possibile: sono
+// 8 MB, e riscaricarli a ogni apertura sarebbe il difetto opposto.
+// L'`index.html` invece non deve stare in cache MAI.
+//
+// ⚠️ IL PERCORSO `no-store` ESCLUDE `_expo` E `assets` NELLA PROPRIA
+// ESPRESSIONE, e non conta sull'ordine delle regole: due regole che
+// scrivono la stessa intestazione sullo stesso indirizzo si risolvono
+// con una precedenza che non e' scritta da nessuna parte nel nostro
+// codice — e una difesa che dipende da un dettaglio non documentato non
+// e' una difesa. Qui i due insiemi non si sovrappongono affatto.
+// ============================================================
+const UN_ANNO = 'public, max-age=31536000, immutable';
+const MAI = 'no-store, must-revalidate';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   async rewrites() {
@@ -40,6 +75,21 @@ const nextConfig = {
         { source: '/rfcoach/admin/:percorso*', destination: '/rfcoach/admin/index.html' },
       ],
     };
+  },
+
+  async headers() {
+    return [
+      // I file con l'hash nel nome: immutabili.
+      { source: '/rfcoach/admin/_expo/:percorso*', headers: [{ key: 'Cache-Control', value: UN_ANNO }] },
+      { source: '/rfcoach/admin/assets/:percorso*', headers: [{ key: 'Cache-Control', value: UN_ANNO }] },
+      // Tutto il resto sotto il confine e' l'`index.html` servito dal
+      // ripiego: non si conserva mai.
+      { source: '/rfcoach/admin', headers: [{ key: 'Cache-Control', value: MAI }] },
+      {
+        source: '/rfcoach/admin/:percorso((?!_expo/|assets/).*)',
+        headers: [{ key: 'Cache-Control', value: MAI }],
+      },
+    ];
   },
 };
 

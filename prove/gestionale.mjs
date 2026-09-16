@@ -55,6 +55,93 @@ prova('il ripiego sta in afterFiles', /afterFiles\s*:/.test(config));
 prova('il ripiego NON sta in beforeFiles', !/beforeFiles\s*:/.test(config));
 
 // ------------------------------------------------------------
+// 1-bis. ⚠️ LA CACHE — il guasto del 16 settembre sera.
+//
+// Il nome del pacchetto dell'app contiene un hash e CAMBIA A OGNI
+// ESPORTAZIONE. L'`index.html` e' l'unico file che quel nome lo nomina.
+// Un browser che si tiene un `index.html` vecchio chiede un pacchetto
+// che non esiste piu', il ripiego gli risponde con dell'HTML al posto
+// del JavaScript, e la pagina resta BIANCA — senza nemmeno cambiare
+// indirizzo, perche' il router dell'app non parte proprio. Successo
+// davvero, su Edge, e si sarebbe ripetuto a ogni maestro a ogni
+// riesportazione.
+//
+// ⚠️ E LA META' DIFFICILE E' L'ALTRA: gli asset con l'hash nel nome
+// sono immutabili per costruzione e devono restare in cache a lungo.
+// Sono 8 MB. Una regola che mettesse `no-store` anche su di loro
+// risolverebbe la pagina bianca creando il difetto opposto — il
+// gestionale che riscarica tutto a ogni apertura.
+// ------------------------------------------------------------
+prova('next.config.js dichiara delle intestazioni', /async headers\s*\(/.test(config));
+
+// ⚠️ I VALORI SONO SCRITTI COME COSTANTI, non come stringhe in linea:
+// nella regola c'e' `value: MAI`, non `value: 'no-store…'`. La prima
+// stesura di queste prove cercava la parola `no-store` subito dopo la
+// `source` e cadeva su codice giusto — un falso allarme — E, peggio,
+// restava rossa allo stesso modo quando il difetto c'era davvero:
+// cioe' non distingueva. Quindi le costanti si risolvono prima.
+const valore = {};
+for (const m of config.matchAll(/const ([A-Z_]+)\s*=\s*'([^']+)'/g)) valore[m[1]] = m[2];
+
+// source → valore vero dell'intestazione Cache-Control
+const regole = new Map();
+for (const m of config.matchAll(
+  /source:\s*'([^']+)',\s*headers:\s*\[\{\s*key:\s*'Cache-Control',\s*value:\s*([A-Za-z_]+|'[^']*')\s*\}\]/g,
+)) {
+  const grezzo = m[2];
+  regole.set(m[1], grezzo.startsWith("'") ? grezzo.slice(1, -1) : (valore[grezzo] ?? `??${grezzo}`));
+}
+
+prova(`si leggono le regole di cache (${regole.size})`, regole.size >= 4);
+
+const radice = regole.get(CONFINE_APP);
+prova(`${CONFINE_APP} (la radice) ha una regola`, typeof radice === 'string');
+prova(`${CONFINE_APP} (la radice) e no-store`, /no-store/.test(radice || ''));
+
+const perPrefisso = (p) => [...regole.entries()].find(([s]) => s.startsWith(`${CONFINE_APP}/${p}`));
+for (const cartella of ['_expo', 'assets']) {
+  const trovata = perPrefisso(cartella);
+  prova(`gli asset di ${cartella} hanno la loro regola`, !!trovata);
+  if (!trovata) continue;
+  prova(`gli asset di ${cartella} sono immutabili`, /immutable/.test(trovata[1]));
+  prova(`gli asset di ${cartella} NON sono no-store`, !/no-store/.test(trovata[1]));
+}
+
+// Le regole profonde che portano `no-store` devono essere quelle
+// dell'HTML, e nessun'altra.
+const profondeNoStore = [...regole.entries()]
+  .filter(([s, v]) => s.startsWith(`${CONFINE_APP}/:`) && /no-store/.test(v));
+prova('c e una regola profonda con no-store', profondeNoStore.length === 1);
+
+// ⚠️ E QUI NON SI GUARDA CHE LA STRINGA «_expo» COMPAIA: si PRENDE
+// l'espressione scritta nella regola e la si ESEGUE sui percorsi veri.
+// Una prova che si accontenta di vedere un pezzo di testo sarebbe
+// passata anche con l'esclusione scritta al contrario.
+const regolaProfonda = config.match(
+  new RegExp(`source:\\s*'${CONFINE_APP}/:[A-Za-z]+\\(([\\s\\S]*?)\\)',`),
+);
+prova('la regola profonda ha un espressione da esaminare', !!regolaProfonda);
+if (regolaProfonda) {
+  let espressione = null;
+  try { espressione = new RegExp(`^${regolaProfonda[1]}$`); } catch { espressione = null; }
+  prova('l espressione della regola profonda e valida', espressione !== null);
+  if (espressione) {
+    for (const coda of ['allievi', 'accesso', 'allievo/AbC123xYz', 'corsi/nuovo']) {
+      prova(`no-store copre ${CONFINE_APP}/${coda}`, espressione.test(coda));
+    }
+    for (const coda of [
+      '_expo/static/js/web/entry-abc123.js',
+      'assets/node_modules/@expo-google-fonts/outfit/700Bold/Outfit_700Bold.abc.ttf',
+    ]) {
+      prova(
+        `no-store NON tocca ${coda.split('/')[0]}/…`,
+        !espressione.test(coda),
+      );
+    }
+  }
+}
+
+// ------------------------------------------------------------
 // 2. ⚠️ LA ROTTA NEXT DEVE ESSERE SPARITA.
 // Una pagina dell'App Router batte i file statici: finche' esiste
 // `app/rfcoach/admin/page.tsx`, il gestionale non si vede e al suo
