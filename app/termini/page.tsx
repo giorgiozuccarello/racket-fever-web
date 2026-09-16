@@ -15,7 +15,9 @@
 // ============================================================
 
 import type { Metadata } from 'next';
-import { VERSIONE_DOCUMENTI, EMAIL_CONTATTO, SITO_NUDO, TITOLARE } from '../../data/consenso';
+import {
+  VERSIONE_DOCUMENTI, EMAIL_CONTATTO, SITO_NUDO, TITOLARE, DOMINIO_POSTA,
+} from '../../data/consenso';
 
 export const metadata: Metadata = {
   title: 'Termini di servizio — Racket Fever',
@@ -53,7 +55,11 @@ export default function Termini() {
         <strong>{TITOLARE.codiceFiscale}</strong>
         {TITOLARE.telefono ? <>, telefono <strong>{TITOLARE.telefono}</strong></> : null}. Per
         contattarci:{' '}
-        <a href={`mailto:${EMAIL_CONTATTO}`} style={{ color: '#0E3B2E' }}>{EMAIL_CONTATTO}</a>.
+        <a href={`mailto:${EMAIL_CONTATTO}`} style={{ color: '#0E3B2E' }}>{EMAIL_CONTATTO}</a>{' '}
+        <span style={{ opacity: 0.85 }}>
+          (la casella resta su <strong>{DOMINIO_POSTA}</strong>: il sito si è spostato su{' '}
+          {SITO_NUDO}, la posta no)
+        </span>.
       </p>
 
       <h2 style={H2}>Che cos’è Racket Fever</h2>

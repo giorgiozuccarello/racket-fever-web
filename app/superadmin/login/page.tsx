@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { signInWithEmailAndPassword, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../../../lib/firebase';
-import { SITO_NUDO } from '../../../data/consenso';
+import { DOMINIO_POSTA } from '../../../data/consenso';
 
 export default function SuperAdminLogin() {
   const router = useRouter();
@@ -62,11 +62,18 @@ export default function SuperAdminLogin() {
             l'indirizzo dell'account vero. Un segnaposto che suggerisce
             un account esistente regala metà credenziale a chiunque
             apra questa pagina, che è pubblica. `nome@` non indica
-            nessuno. */}
+            nessuno.
+            ⚠️ E il dominio è quello della POSTA, non quello del sito:
+            dal 16 settembre 2026 il sito sta sul `.com` ma le caselle
+            sono rimaste sul `.it`. Suggerire `nome@racketfever.com`
+            manderebbe a creare account su un dominio senza MX — che è
+            precisamente l'incidente raccontato in
+            data/sicurezzaAccesso.ts, dove il Super Admin era finito su
+            `team@racketfever.com`, «nessuna casella dietro». */}
         <input
           id="email" type="email" value={email} autoComplete="username"
           onChange={(e) => { setEmail(e.target.value); setErrore(''); }}
-          placeholder={`nome@${SITO_NUDO}`}
+          placeholder={`nome@${DOMINIO_POSTA}`}
         />
 
         <label htmlFor="password">Password</label>

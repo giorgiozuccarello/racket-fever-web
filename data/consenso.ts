@@ -20,7 +20,13 @@
 // File gemello, identico nei due progetti, senza import.
 // ============================================================
 
-export const VERSIONE_DOCUMENTI = '2026-08-20';
+// ⚠️ ALZATA IL 16 SETTEMBRE 2026 perche' il sito ha cambiato indirizzo:
+// informativa e termini NOMINANO il dominio, quindi il loro testo e'
+// cambiato davvero e chi aveva accettato la versione di agosto ha
+// accettato una frase che a quell'indirizzo non c'e' piu'. E' poco — e'
+// il nome del sito, non una clausola — ma e' esattamente il genere di
+// scostamento che questo campo esiste per non dover spiegare a voce.
+export const VERSIONE_DOCUMENTI = '2026-09-16';
 
 // L'età minima per registrarsi da soli. Sotto, la posizione la crea il
 // circolo e la collega a un genitore.
@@ -43,15 +49,27 @@ export const ETA_MINIMA_REGISTRAZIONE = 16;
 // e un link che porta a un dominio non registrato e' un rifiuto in
 // revisione.
 //
-// ⚠️ CONFERMATO IL 19 AGOSTO 2026: il dominio ufficiale e'
-// `racketfever.it`, registrato presso Register.it e collegato a
-// Firebase App Hosting. `racketfever.com` e `www.racketfever.com`
-// restano registrati e reindirizzano qui con un 301, quindi i vecchi
-// link non muoiono — ma l'indirizzo che l'utente accetta alla
-// registrazione, quello scritto nei documenti legali e quello che si
-// incolla in Play Console e App Store Connect e' questo.
+// ⚠️ RIBALTATO IL 16 SETTEMBRE 2026, e prima era `racketfever.it`.
+// Il dominio principale e' `www.racketfever.com`. Gli altri tre nomi —
+// `racketfever.com`, `racketfever.it`, `www.racketfever.it` — restano
+// registrati e ci arrivano con un 301 CONSERVANDO IL PERCORSO, cosa
+// verificata dal browser prima di scrivere questa riga e non dedotta:
+// `racketfever.it/rfcoach/superadmin` arriva su
+// `www.racketfever.com/rfcoach/superadmin`. Quindi nessun vecchio link
+// muore, nemmeno quelli profondi.
+//
+// ⚠️ I 301 NON STANNO NEL CODICE e non devono entrarci: sono domini di
+// tipo «Reindirizzamento» dentro Firebase App Hosting, cioe' al bordo.
+// Le richieste ai tre nomi vecchi non arrivano mai a Next.js —
+// scriverne una copia in `middleware.ts` vorrebbe dire due verita' sullo
+// stesso fatto, e il giorno che divergono vince quella che non si vede.
+//
+// ⚠️ E IL `www.` FA PARTE DEL VALORE. Il nome nudo qui sotto lo toglie
+// per quando va letto in una frase, ma i link devono puntare al nome
+// esatto che serve il sito: un link all'apice prende un salto in piu'
+// per niente.
 // ============================================================
-export const SITO = 'https://racketfever.it';
+export const SITO = 'https://www.racketfever.com';
 
 // ============================================================
 // ⚠️ CHI RISPONDE DEL TRATTAMENTO, scritto in un posto solo.
@@ -112,9 +130,40 @@ export const INDIRIZZO_CANCELLAZIONE = `${SITO}/cancellazione-account`;
 
 // Il nome nudo, senza schema, per quando va scritto dentro una frase
 // («Valgono per l'app e per il sito ...»).
-export const SITO_NUDO = SITO.replace(/^https?:\/\//, '');
+//
+// ⚠️ TOGLIE ANCHE IL `www.`, dal 16 settembre 2026. Prima toglieva solo
+// `https://` perche' non c'era altro da togliere. Adesso questo valore
+// finirebbe dentro l'informativa e i termini come «il sito
+// www.racketfever.com», e come segnaposto `nome@www.racketfever.com`
+// nei due moduli di accesso: nel primo caso si legge male, nel secondo
+// suggerisce un indirizzo di posta che non esiste.
+export const SITO_NUDO = SITO.replace(/^https?:\/\/(www\.)?/, '');
 
-export const EMAIL_CONTATTO = `info@${SITO_NUDO}`;
+// ============================================================
+// ⚠️ IL DOMINIO DELLA POSTA NON E' IL DOMINIO DEL SITO, e dal 16
+// settembre 2026 non coincidono piu'.
+//
+// Fino a oggi questa riga era `info@${SITO_NUDO}`, e finche' i due
+// domini erano lo stesso funzionava. Ribaltando il sito sul `.com`,
+// quella derivazione avrebbe prodotto DA SOLA `info@www.racketfever.com`
+// — una casella che non esiste, su una zona DNS che non ha i record MX
+// — e l'avrebbe stampata in nove punti fra informativa, termini,
+// cancellazione account e home. Senza nessun errore, senza nessun
+// rimbalzo: le mail degli utenti sarebbero semplicemente sparite,
+// proprio dalle pagine dove un indirizzo di contatto sbagliato costa di
+// piu'.
+//
+// ⚠️ LE CASELLE VIVONO DOVE STANNO I RECORD MX, e quelli sono rimasti
+// su `racketfever.it` in Register.it, insieme a SPF, PEC e POP. Il
+// reindirizzamento del web non li tocca: un dominio puo' benissimo
+// mandare il web altrove e continuare a ricevere la posta. Quindi
+// questo valore e' scritto a mano, con la sua ragione accanto, e NON si
+// deriva da `SITO`: il giorno che la posta si sposta davvero sul `.com`
+// si cambia questa riga, dopo aver visto i record MX del `.com`.
+// ============================================================
+export const DOMINIO_POSTA = 'racketfever.it';
+
+export const EMAIL_CONTATTO = `info@${DOMINIO_POSTA}`;
 
 // ============================================================
 // L'ETA' — DA DICHIARATA A VERIFICATA.

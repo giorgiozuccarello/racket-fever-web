@@ -29,7 +29,7 @@ import SezioneCollassabile from '../../admin/dashboard/SezioneCollassabile';
 // mettere qualunque indirizzo — ma indicare il dominio ufficiale spinge
 // verso un indirizzo aziendale invece che verso una casella personale,
 // che per l'account del titolare è la scelta giusta.
-import { SITO_NUDO } from '../../../data/consenso';
+import { DOMINIO_POSTA } from '../../../data/consenso';
 import {
   MIN_PASSWORD, problemaPassword,
   cambiaPasswordProprio, avviaCambioEmailProprio,
@@ -240,7 +240,7 @@ export default function SezioneSicurezzaAccesso({ utente }: { utente: User }) {
           <input
             id="em-nuova" className="admin-input" type="email" autoComplete="email"
             value={emNuova} onChange={(ev) => { setEmNuova(ev.target.value); setEmErrore(''); setEmFatto(''); }}
-            placeholder={`nome@${SITO_NUDO}`}
+            placeholder={`nome@${DOMINIO_POSTA}`}
           />
           {!!emErrore && <div className="admin-error-text">{emErrore}</div>}
           {!!emFatto && <div className="admin-ok-text">{emFatto}</div>}

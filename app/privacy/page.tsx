@@ -22,6 +22,7 @@
 import type { Metadata } from 'next';
 import {
   VERSIONE_DOCUMENTI, EMAIL_CONTATTO, ETA_MINIMA_REGISTRAZIONE, SITO_NUDO, TITOLARE,
+  DOMINIO_POSTA,
 } from '../../data/consenso';
 
 export const metadata: Metadata = {
@@ -223,7 +224,11 @@ export default function Privacy() {
         {TITOLARE.telefono ? <>, telefono <strong>{TITOLARE.telefono}</strong></> : null}. Per
         qualsiasi questione riguardante i tuoi
         dati puoi scrivere a{' '}
-        <a href={`mailto:${EMAIL_CONTATTO}`} style={{ color: '#0E3B2E' }}>{EMAIL_CONTATTO}</a>.
+        <a href={`mailto:${EMAIL_CONTATTO}`} style={{ color: '#0E3B2E' }}>{EMAIL_CONTATTO}</a>{' '}
+        <span style={{ opacity: 0.85 }}>
+          (la casella resta su <strong>{DOMINIO_POSTA}</strong>: il sito si è spostato su{' '}
+          {SITO_NUDO}, la posta no)
+        </span>.
       </p>
       <p>
         Il circolo a cui sei iscritto è titolare autonomo per i dati che tratta nella gestione
@@ -330,9 +335,19 @@ export default function Privacy() {
         Non vendiamo dati, non li cediamo a inserzionisti, non li usiamo per profilarti.
       </p>
       <p>
+      {/* ⚠️ QUI C'ERA SCRITTO «il sito è ospitato da Vercel Inc.», e non
+          è vero: il sito gira su Firebase App Hosting, cioè sulla
+          stessa infrastruttura Google di tutto il resto — è anche il
+          posto dove stanno i reindirizzamenti dei domini vecchi. Vercel
+          non tratta un solo dato nostro.
+          ⚠️ NON È UN REFUSO, È UN ELENCO DI DESTINATARI SBAGLIATO: due
+          paragrafi più su questa pagina dichiara «e a nessun altro»,
+          cioè si impegna a essere completa. Nominare un responsabile
+          che non esiste e omettere quello vero è la prima riga di una
+          segnalazione al Garante. Corretto il 16 settembre 2026. */}
         L’infrastruttura è <strong>Google Firebase</strong> (Google Ireland Limited), che ospita
-        autenticazione, archivio, immagini e notifiche; il sito è ospitato da{' '}
-        <strong>Vercel Inc.</strong>; le notifiche passano dal servizio di consegna di{' '}
+        autenticazione, archivio, immagini, notifiche e il sito stesso, pubblicato su{' '}
+        <strong>Firebase App Hosting</strong>; le notifiche passano dal servizio di consegna di{' '}
         <strong>Expo</strong>. Tutti trattano i dati come responsabili, su nostre istruzioni, e
         sono tenuti alle stesse garanzie che ti diamo noi. Alcuni di loro hanno server anche
         fuori dall’Unione Europea: i trasferimenti avvengono sulla base delle clausole

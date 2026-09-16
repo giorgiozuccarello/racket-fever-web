@@ -118,8 +118,23 @@ export default function CancellazioneAccount() {
       <p>
         Dall’app è immediato: quando la schermata si chiude, l’account non c’è più. Per le richieste
         via email rispondiamo entro pochi giorni lavorativi e completiamo la cancellazione entro
-        trenta giorni. Le copie di sicurezza dei nostri archivi si sovrascrivono da sole entro lo
-        stesso periodo.
+        trenta giorni.
+      </p>
+      {/* ⚠️ QUI C'ERA LA STESSA PROMESSA FALSA GIA' TOLTA DALL'INFORMATIVA:
+          «le copie di sicurezza dei nostri archivi si sovrascrivono da
+          sole entro lo stesso periodo». Non c'e' nessun backup
+          programmato di Firestore, e il ripristino a un istante
+          precedente, se acceso, ha una finestra di sette giorni, non
+          trenta.
+          ⚠️ LA CORREZIONE ERA STATA FATTA SU UNA PAGINA SOLA — in
+          app/privacy/page.tsx — e dimenticata qui. Le due pagine
+          portano la STESSA `VERSIONE_DOCUMENTI` e si contraddicevano:
+          e' questa, non l'altra, la pagina che il revisore di Play apre
+          per prima. Se un giorno una copia di sicurezza esistera'
+          davvero, le due frasi si cambiano INSIEME. */}
+      <p>
+        Quando una copia di sicurezza dei nostri archivi sarà attiva, la conserveremo per un
+        tempo limitato e lo scriveremo qui, con la durata esatta.
       </p>
 
       <h2 style={{ fontSize: '1.25rem', marginTop: '2.5rem' }}>Prima di cancellare</h2>

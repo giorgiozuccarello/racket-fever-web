@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "prova-dominio": "node prove/dominio.mjs",
+    "prove": "npm run prova-dominio",
+    "controlla": "tsc --noEmit"
   },
   "dependencies": {
     "next": "^15.1.0",
