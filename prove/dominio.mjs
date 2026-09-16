@@ -195,6 +195,13 @@ for (const pagina of ['privacy', 'termini', 'cancellazione-account']) {
 // chi «aiuta», o un `Sitemap:` in `robots.txt` rimasto sul dominio
 // vecchio.
 // ------------------------------------------------------------
+// ⚠️ `public/rfcoach/admin` NON si guarda, ed e' l'unica esclusione con
+// una ragione e non una comodita': li' dentro non c'e' codice scritto
+// qui, c'e' l'APP EXPO COMPILATA, generata da un altro repository. Un
+// dominio che comparisse in quel pacchetto non si correggerebbe in
+// questo repository ma in `rf-coach`, e farlo cadere qui vorrebbe dire
+// un allarme che nessuno puo' spegnere dove suona.
+const SALTA_PERCORSI = ['public/rfcoach/admin'];
 const SALTA_CARTELLE = new Set(['node_modules', '.next', '.git', 'prove', '.expo']);
 const SALTA_FILE = new Set(['package-lock.json', 'tsconfig.tsbuildinfo']);
 const GUARDATI = /\.(ts|tsx|js|jsx|mjs|cjs|json|css|txt|xml|webmanifest|html)$/;
@@ -208,6 +215,8 @@ function percorri(cartella) {
     if (statSync(pieno).isDirectory()) { percorri(pieno); continue; }
     if (!GUARDATI.test(voce)) continue;
     if (pieno === CONSENSO) continue;
+    const relativo = relative(RADICE, pieno).split(sep).join('/');
+    if (SALTA_PERCORSI.some((p) => relativo.startsWith(p + '/'))) continue;
     const grezzo = readFileSync(pieno, 'utf8');
     const testo = CON_COMMENTI.test(voce) ? senzaCommenti(grezzo) : grezzo;
     if (/racketfever\.(it|com)/i.test(testo)) sospetti.push(relative(RADICE, pieno).split(sep).join('/'));

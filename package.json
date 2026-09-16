@@ -8,8 +8,9 @@
     "start": "next start",
     "lint": "next lint",
     "prova-dominio": "node prove/dominio.mjs",
-    "prove": "npm run prova-dominio",
-    "controlla": "tsc --noEmit"
+    "prove": "npm run prova-dominio && npm run prova-gestionale",
+    "controlla": "tsc --noEmit",
+    "prova-gestionale": "node --experimental-strip-types prove/gestionale.mjs"
   },
   "dependencies": {
     "next": "^15.1.0",

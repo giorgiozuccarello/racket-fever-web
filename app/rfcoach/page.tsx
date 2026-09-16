@@ -25,8 +25,15 @@ export default function PorteRfCoach() {
           <p className="aiuto">
             Il gestionale del proprio spazio: agenda, allievi, corsi, pacchetti, conto.
           </p>
+          {/* ⚠️ QUESTO È UN `<a>`, NON UN `<Link>`, e non è una svista.
+              Dietro `/rfcoach/admin` non c'è una pagina di questo sito:
+              c'è l'app Expo esportata, un'altra applicazione servita
+              come file statici. `<Link>` farebbe una navigazione
+              INTERNA a Next — nessun caricamento vero, nessun
+              `index.html` dell'app, schermo bianco. Serve che il
+              browser lasci davvero il sito ed entri nell'app. */}
           <div className="azioni">
-            <Link className="bottone acceso" href="/rfcoach/admin">Entra</Link>
+            <a className="bottone acceso" href="/rfcoach/admin">Entra</a>
           </div>
         </div>
 

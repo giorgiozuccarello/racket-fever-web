@@ -20,25 +20,28 @@
 // richiesta che gli passa, e il sito non ha bisogno di niente del
 // genere. Limitato a `/rfcoach/...`, il resto delle pagine non lo
 // incontra nemmeno.
+//
+// ⚠️ E LA REGOLA NON STA QUI, sta in `lib/indirizzi.ts`. Non è pignoleria
+// di ordine: questo file importa `next/server` e non si può eseguire in
+// una prova senza tirarsi dietro mezzo Next. Là dentro non c'è nessun
+// import, e la prova esegue la funzione VERA — compreso il motivo, che
+// è scritto per esteso, per cui dal confine di `/rfcoach/admin` in giù
+// gli indirizzi non si toccano: sette caratteri con le maiuscole nel
+// nome e gli identificativi di Firestore.
 // ============================================================
 
 import { NextRequest, NextResponse } from 'next/server';
+import { daReindirizzare } from './lib/indirizzi';
 
 export function middleware(richiesta: NextRequest) {
-  const { pathname } = richiesta.nextUrl;
-  const minuscolo = pathname.toLowerCase();
+  const dove = daReindirizzare(richiesta.nextUrl.pathname);
+  if (dove === null) return NextResponse.next();
 
-  // ⚠️ Si reindirizza SOLO se cambia qualcosa: senza questo confronto,
-  // ogni indirizzo già minuscolo verrebbe rimandato a se stesso — un
-  // anello infinito, e il browser direbbe soltanto «troppi
-  // reindirizzamenti».
-  if (minuscolo === pathname) return NextResponse.next();
-
-  const dove = richiesta.nextUrl.clone();
-  dove.pathname = minuscolo;
+  const destinazione = richiesta.nextUrl.clone();
+  destinazione.pathname = dove;
   // ⚠️ 308 e non 307: è permanente, quindi i browser e i motori di
   // ricerca imparano l'indirizzo giusto invece di chiederlo ogni volta.
-  return NextResponse.redirect(dove, 308);
+  return NextResponse.redirect(destinazione, 308);
 }
 
 export const config = {
