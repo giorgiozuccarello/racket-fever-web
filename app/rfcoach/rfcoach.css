@@ -1,0 +1,351 @@
+/* ============================================================
+   ⚠️ TUTTO E' RACCHIUSO SOTTO `.rfcoach`, E NON E' UNO STILE: E' UNA
+   DIFESA, misurata prima di scrivere una riga.
+
+   Dal 16 settembre questo pannello vive DENTRO `racket-fever-web`, e in
+   Next un foglio di stile importato da un layout annidato e' comunque
+   GLOBALE una volta caricato. Confrontando i due fogli ho trovato due
+   collisioni vere:
+
+     • la variabile `--riga` esiste in tutti e due. Dichiarata su
+       `:root`, avrebbe cambiato il colore dei bordi del SITO INTERO;
+     • questo file ridefiniva `html, body` — sfondo, colore, carattere —
+       e il sito ha il suo `body`: glielo avrebbe riscritto da sotto,
+       senza nessun errore e su ogni pagina.
+
+   Quindi: niente `:root`, niente `html`, niente `body`, niente `*`
+   globale. Le variabili vivono su `.rfcoach` e ogni regola e' figlia di
+   quel contenitore, che il layout di `/rfcoach` mette attorno a tutto.
+   I nomi di classe invece non collidono: venti qui, trecentoventisette
+   nel sito, nessuno in comune. Verificato.
+   ============================================================ */
+
+/* ============================================================
+   IL VESTITO DEL PANNELLO — un file solo, come in racket-fever-web.
+   Nessun Tailwind: e' la stessa scelta gia' in esercizio sul sito dei
+   circoli, e due modi di scrivere gli stili nello stesso dominio sono
+   due modi di dimenticarsene uno.
+
+   ⚠️ I COLORI SONO QUELLI DI RF COACH: nero e l'arancio `#D98A2B` che
+   e' l'accento di sette temi su otto in `data/temi.ts` dell'app. Non e'
+   una scelta estetica libera — chi apre questo pannello e chi apre
+   l'app devono vedere lo stesso prodotto.
+   ============================================================ */
+
+.rfcoach {
+  --nero: #1a1a1a;
+  --nero-fondo: #000000;
+  --accento: #d98a2b;
+  --accento-tenue: rgba(217, 138, 43, 0.14);
+  --foglio: #ffffff;
+  --sfondo: #f4f4f2;
+  --riga: #e4e4e0;
+  --testo: #16160f;
+  --testo-tenue: #6d6d64;
+  --verde: #1f7a4d;
+  --rosso: #a62b1f;
+  --giallo: #8a6a12;
+
+  /* ============================================================
+     ⚠️ VENTI E OTTANTA, dal 16 settembre. La prima stesura diceva
+     15/85; Giorgio l'ha corretta guardando il pannello vero, ed e' il
+     genere di misura che si decide cosi' e non a tavolino.
+
+     ⚠️ I DUE MURI RESTANO, e non sono pignoleria: il 20% di un
+     portatile da 1280 fa 256 punti, che va bene, ma il 20% di un 27
+     pollici ne farebbe 512 — una colonna di bottoni larga come una
+     pagina. E sotto i 240 «Gestione maestri» andrebbe a capo.
+     ============================================================ */
+  --menu: clamp(240px, 20%, 360px);
+  --testata: 64px;
+  /* ============================================================
+     ⚠️ E IL CONTENUTO PRENDE TUTTO L'OTTANTA PER CENTO.
+     Qui c'era un tetto di 1180 punti, messo perché una riga di tabella
+     molto larga si perde fra la prima colonna e l'ultima. Ma Giorgio ha
+     chiesto «80% larghezza contenuto», e un tetto che morde già a 1480
+     punti di finestra avrebbe risposto «no» in silenzio a una cosa
+     chiesta a voce alta: su un portatile da 1440 il contenuto sarebbe
+     rimasto a 1180 invece di 1152... cioè quasi uguale, ma su uno
+     schermo grande la differenza si vede e la percentuale non sarebbe
+     più stata quella scritta.
+     Il tetto resta solo come muro di sicurezza molto in alto: oltre i
+     2200 punti di contenuto nessuna tabella si legge più.
+     ============================================================ */
+  --contenuto: 2200px;
+  --raggio: 12px;
+}
+
+.rfcoach *, .rfcoach *::before, .rfcoach *::after { box-sizing: border-box; }
+
+.rfcoach {
+  /* ⚠️ ALTEZZA PIENA: `.rfcoach` e' un `div` dentro il `body` del sito, e
+     senza questa riga il suo sfondo finiva dove finiva il contenuto —
+     sotto ricompariva il crema del sito, con una linea netta a meta'
+     pagina. Trovato guardando lo scatto, non leggendo il codice. */
+  min-height: 100vh;
+  background: var(--sfondo);
+  color: var(--testo);
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: inherit; text-decoration: none; }
+
+/* ---------- LA TESTATA ---------- */
+
+.rfcoach .testata {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: var(--testata);
+  background: linear-gradient(180deg, var(--nero) 0%, var(--nero-fondo) 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  z-index: 20;
+}
+
+.marchio { display: flex; align-items: baseline; gap: 8px; }
+.marchio b { font-size: 18px; letter-spacing: 0.5px; }
+.marchio span { color: var(--accento); font-size: 18px; font-weight: 800; letter-spacing: 1.5px; }
+.rfcoach .testata .ruolo {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: rgba(255, 255, 255, 0.55);
+  border-left: 1px solid rgba(255, 255, 255, 0.2);
+  padding-left: 16px;
+}
+.testata .spinta { margin-left: auto; }
+.testata .chi { font-size: 13px; color: rgba(255, 255, 255, 0.75); }
+
+.rfcoach .esci {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #fff;
+  border-radius: 999px;
+  padding: 7px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.esci:hover { background: rgba(255, 255, 255, 0.18); }
+
+/* ---------- IL MENU A SINISTRA ---------- */
+
+.rfcoach .impalcatura {
+  display: grid;
+  grid-template-columns: var(--menu) 1fr;
+  min-height: 100vh;
+  padding-top: var(--testata);
+}
+
+.rfcoach .menu {
+  border-right: 1px solid var(--riga);
+  background: var(--foglio);
+  padding: 18px 12px 40px;
+  position: sticky;
+  top: var(--testata);
+  height: calc(100vh - var(--testata));
+  overflow-y: auto;
+}
+
+.rfcoach .famiglia {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 1.2px;
+  color: var(--testo-tenue);
+  margin: 18px 10px 8px;
+}
+.famiglia:first-child { margin-top: 4px; }
+
+.rfcoach .bottone-menu {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  border-radius: var(--raggio);
+  padding: 10px 12px;
+  margin-bottom: 2px;
+  cursor: pointer;
+  font: inherit;
+  color: var(--testo);
+}
+.bottone-menu:hover { background: var(--sfondo); }
+.bottone-menu b { display: block; font-size: 14.5px; font-weight: 700; }
+.bottone-menu small { display: block; color: var(--testo-tenue); font-size: 12px; line-height: 1.35; }
+
+/* ⚠️ LA SEZIONE APERTA SI VEDE DA UN COLORE PIENO, non da un grassetto:
+   in un menu dove ogni voce e' gia' in grassetto, il grassetto non dice
+   niente. */
+.bottone-menu.acceso { background: var(--accento-tenue); box-shadow: inset 3px 0 0 var(--accento); }
+.bottone-menu.acceso b { color: #8a5310; }
+
+/* ---------- IL CONTENUTO ---------- */
+
+.contenuto { padding: 26px 28px 60px; }
+.dentro { max-width: var(--contenuto); margin: 0 auto; }
+
+h1.titolo { font-size: 24px; margin: 0 0 4px; letter-spacing: -0.3px; }
+p.sottotitolo { margin: 0 0 22px; color: var(--testo-tenue); }
+
+.rfcoach .foglio {
+  background: var(--foglio);
+  border: 1px solid var(--riga);
+  border-radius: var(--raggio);
+  padding: 20px;
+  margin-bottom: 18px;
+}
+.foglio h2 { font-size: 16px; margin: 0 0 14px; }
+
+/* ---------- MODULI ---------- */
+
+.campi { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.campo { display: flex; flex-direction: column; gap: 5px; }
+.campo.largo { grid-column: 1 / -1; }
+.campo label { font-size: 12.5px; font-weight: 700; color: var(--testo-tenue); }
+.rfcoach .campo input, .rfcoach .campo select {
+  border: 1px solid var(--riga);
+  border-radius: 9px;
+  padding: 9px 11px;
+  font: inherit;
+  background: #fff;
+  color: var(--testo);
+}
+.campo input:focus, .campo select:focus { outline: 2px solid var(--accento); outline-offset: -1px; }
+.campo .aiuto { font-size: 12px; color: var(--testo-tenue); }
+
+.interruttore { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; }
+.interruttore input { margin-top: 3px; }
+.interruttore b { display: block; font-size: 14px; }
+.interruttore small { color: var(--testo-tenue); }
+
+.azioni { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+
+.rfcoach .bottone {
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 22px;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+  background: var(--nero);
+  color: #fff;
+}
+.bottone:disabled { opacity: 0.45; cursor: default; }
+.bottone.acceso { background: var(--accento); color: #201200; }
+.bottone.leggero { background: #fff; color: var(--testo); border: 1px solid var(--riga); }
+.bottone.rosso { background: var(--rosso); color: #fff; }
+
+/* ---------- TABELLE ---------- */
+
+table.elenco { width: 100%; border-collapse: collapse; }
+.rfcoach table.elenco th {
+  text-align: left;
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--testo-tenue);
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--riga);
+}
+table.elenco td { padding: 11px 10px; border-bottom: 1px solid var(--riga); vertical-align: top; }
+table.elenco tr:last-child td { border-bottom: 0; }
+table.elenco tr.tocca:hover { background: var(--sfondo); cursor: pointer; }
+
+.rfcoach .pillola {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 10px;
+  font-size: 12px;
+  font-weight: 800;
+  border: 1px solid;
+}
+.pillola.attivo { color: var(--verde); border-color: rgba(31, 122, 77, 0.35); background: rgba(31, 122, 77, 0.08); }
+.pillola.sospeso { color: var(--giallo); border-color: rgba(138, 106, 18, 0.35); background: rgba(138, 106, 18, 0.08); }
+.pillola.chiuso { color: var(--testo-tenue); border-color: var(--riga); background: var(--sfondo); }
+.pillola.nascosto { color: var(--rosso); border-color: rgba(166, 43, 31, 0.3); background: rgba(166, 43, 31, 0.07); }
+
+/* ---------- AVVISI ---------- */
+
+.avviso { border-radius: var(--raggio); padding: 13px 15px; margin-bottom: 14px; font-size: 14px; }
+.avviso.male { background: rgba(166, 43, 31, 0.08); border: 1px solid rgba(166, 43, 31, 0.3); color: #7c2016; }
+.avviso.bene { background: rgba(31, 122, 77, 0.08); border: 1px solid rgba(31, 122, 77, 0.3); color: #145737; }
+.avviso.attenzione { background: rgba(217, 138, 43, 0.12); border: 1px solid rgba(217, 138, 43, 0.4); color: #6d4409; }
+.avviso b { display: block; margin-bottom: 3px; }
+
+.rfcoach .link-consegna {
+  display: block;
+  width: 100%;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  background: #fff;
+  border: 1px solid var(--riga);
+  border-radius: 9px;
+  padding: 9px;
+  margin-top: 8px;
+  word-break: break-all;
+}
+
+.vuoto { text-align: center; color: var(--testo-tenue); padding: 40px 10px; }
+
+/* ---------- LA SOGLIA DEL MENU ---------- */
+
+/* ============================================================
+   ⚠️ SOTTO I 900 PUNTI IL MENU VA IN CIMA, e non si stringe.
+   Una colonna di 220 punti su uno schermo da 800 si mangia un quarto
+   della pagina e lascia il contenuto in un canale; e nasconderla dietro
+   un bottone vorrebbe dire scrivere un pannello a scomparsa — cioe' un
+   pezzo nuovo da mantenere per un caso che, su un pannello da scrivania,
+   e' l'eccezione. In riga in cima funziona e non aggiunge niente.
+   ============================================================ */
+@media (max-width: 900px) {
+  .impalcatura { grid-template-columns: 1fr; }
+  .rfcoach .menu {
+    position: static;
+    height: auto;
+    display: flex;
+    /* ⚠️ `align-items: center` o i bottoni si stirano per tutta l'altezza
+       della riga — che resta quella del bottone piu' alto anche dopo aver
+       nascosto la riga piccola — e la striscia dell'accento finisce a
+       due centimetri dal testo. Si vede solo qui: in colonna il difetto
+       non esiste. */
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    border-right: 0;
+    border-bottom: 1px solid var(--riga);
+    padding: 10px;
+  }
+  .famiglia { display: none; }
+  .bottone-menu { width: auto; white-space: nowrap; margin: 0; }
+  .bottone-menu small { display: none; }
+  .bottone-menu.acceso { box-shadow: inset 0 -3px 0 var(--accento); }
+  .campi { grid-template-columns: 1fr; }
+  .contenuto { padding: 18px 14px 50px; }
+}
+
+/* ---------- L'INGRESSO ---------- */
+
+.rfcoach .ingresso {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(180deg, var(--nero) 0%, var(--nero-fondo) 100%);
+}
+.rfcoach .ingresso .scheda {
+  background: var(--foglio);
+  border-radius: 18px;
+  padding: 30px;
+  width: 100%;
+  max-width: 420px;
+}
+.ingresso .marchio { justify-content: center; margin-bottom: 4px; }
+.ingresso .marchio b { color: var(--testo); }
+.ingresso p.sottotitolo { text-align: center; }

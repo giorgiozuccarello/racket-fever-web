@@ -11,7 +11,7 @@
 // È un dettaglio tecnico invisibile, non riguarda il brand.
 // ============================================================
 
-import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeApp, getApp } from 'firebase/app';
 import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
@@ -26,7 +26,48 @@ const firebaseConfig = {
   appId: '1:855486484632:web:dd84b4e27e2a5525f980ed',
 };
 
-const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+// ============================================================
+// ⚠️ «ESISTE L'APP PREDEFINITA?» E NON «ESISTE QUALCHE APP?»
+//
+// Qui c'era scritto:
+//
+//     const app = getApps().length ? getApp() : initializeApp(firebaseConfig);
+//
+// Sembra corretto e non lo è, per un motivo che non si vede leggendo:
+// `getApps()` restituisce TUTTE le app, comprese quelle con un NOME.
+// Basta che un altro modulo nello stesso processo ne abbia registrata
+// una — e dal 16 settembre il pannello RF Coach in `app/rfcoach/` ne
+// registra una sua, di proposito, per non mescolarsi con questa —
+// perché quel conteggio non sia più zero: il `if` non fa niente,
+// `getApp()` va a cercare l'app PREDEFINITA che nessuno ha creato, e
+// tutto cade con `app/no-app`.
+//
+// ⚠️ È SUCCESSO DAVVERO, e si è visto in build: «Error occurred
+// prerendering page /admin/login — No Firebase App '[DEFAULT]' has been
+// created». Una pagina del sito, rotta da un modulo che non c'entrava
+// niente con lei.
+//
+// ⚠️ ED È LA STESSA IDENTICA TRAPPOLA GIÀ COSTATA UN POMERIGGIO l'11
+// settembre 2026 dall'altra parte, in `functions/src/db.ts` di RF
+// Coach, dove `firebase-functions` registrava un'app sua
+// (`__FIREBASE_FUNCTIONS_SDK__`) e ogni notifica falliva. La domanda era
+// sbagliata nello stesso modo, e la cura è la stessa: chiedere
+// dell'app predefinita, che è una domanda che si può porre in un modo
+// solo — provando a prenderla.
+//
+// ⚠️ Il difetto era qui da prima, latente: il pannello l'ha soltanto
+// fatto emergere. Con questa riga, chiunque registri un'app con un nome
+// non può più rompere il sito.
+// ============================================================
+function appPredefinita() {
+  try {
+    return getApp();
+  } catch {
+    return initializeApp(firebaseConfig);
+  }
+}
+
+const app = appPredefinita();
 
 export const auth = getAuth(app);
 
