@@ -141,6 +141,30 @@ if (regolaProfonda) {
   }
 }
 
+// ============================================================
+// ⚠️ LA PROPORZIONE DEL MENU, GEMELLA DI QUELLA DELL'APP — 17 settembre.
+//
+// Il pannello Super Admin e il gestionale del maestro sono due
+// schermate che si somigliano: il menu vale il 20% in tutte e due, fra
+// un minimo di 240 punti e un massimo di 360. Due proporzioni diverse si
+// notano subito passando dall'una all'altra, e non danno nessun errore.
+//
+// ⚠️ L'ALTRA META' STA IN UN ALTRO REPOSITORY: `rf-coach`, in
+// `theme/misureScrivania.ts`, come QUOTA_MENU / MENU_MINIMO /
+// MENU_MASSIMO. Nessuna delle due prove puo' vedere l'altra — ci hanno
+// gia' provato, e il 17 settembre quella dell'app e' caduta perche'
+// leggeva un file archiviato. Quindi ognuna sorveglia il proprio lato e
+// nomina l'altro per nome e cognome.
+// ============================================================
+const cssRfcoach = readFileSync(join(RADICE, 'app', 'rfcoach', 'rfcoach.css'), 'utf8');
+const misura = cssRfcoach.match(/--menu:\s*clamp\((\d+)px,\s*(\d+)%,\s*(\d+)px\)/);
+prova('la larghezza del menu si legge nel css', !!misura);
+if (misura) {
+  prova(`menu: la quota e il 20% (trovato ${misura[2]}%)`, misura[2] === '20');
+  prova(`menu: il minimo e 240 (trovato ${misura[1]})`, misura[1] === '240');
+  prova(`menu: il massimo e 360 (trovato ${misura[3]})`, misura[3] === '360');
+}
+
 // ------------------------------------------------------------
 // 2. ⚠️ LA ROTTA NEXT DEVE ESSERE SPARITA.
 // Una pagina dell'App Router batte i file statici: finche' esiste
