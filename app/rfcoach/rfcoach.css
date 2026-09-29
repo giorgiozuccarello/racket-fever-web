@@ -51,12 +51,24 @@
      15/85; Giorgio l'ha corretta guardando il pannello vero, ed e' il
      genere di misura che si decide cosi' e non a tavolino.
 
-     ⚠️ I DUE MURI RESTANO, e non sono pignoleria: il 20% di un
-     portatile da 1280 fa 256 punti, che va bene, ma il 20% di un 27
-     pollici ne farebbe 512 — una colonna di bottoni larga come una
-     pagina. E sotto i 240 «Gestione maestri» andrebbe a capo.
+     ⚠️ I DUE MURI RESTANO, e non sono pignoleria: la quota di un 27
+     pollici farebbe una colonna di bottoni larga come una pagina, e
+     sotto un certo punto le voci non si leggono piu'.
+
+     ⚠️ E I TRE NUMERI SONO CALATI IL 29 SETTEMBRE 2026 — richiesta di
+     Giorgio con una schermata alla mano: «riduci spazio vuoto nei menu.
+     Le voci troppo lunghe possono andare a capo». Erano 20% / 240 / 360,
+     e il muro dei 240 era giustificato proprio da cio' che Giorgio
+     adesso permette: il commento diceva «sotto i 240 Gestione maestri
+     andrebbe a capo».
+
+     ⚠️ GLI STESSI TRE NUMERI STANNO NELL'APP, in
+     `rf-coach/theme/misureScrivania.ts` (QUOTA_MENU, MENU_MINIMO,
+     MENU_MASSIMO): sono due schermate che si somigliano, e due
+     proporzioni diverse si notano subito passando dall'una all'altra.
+     Due prove gemelle le sorvegliano, una per repository.
      ============================================================ */
-  --menu: clamp(240px, 20%, 360px);
+  --menu: clamp(210px, 17%, 300px);
   --testata: 64px;
   /* ============================================================
      ⚠️ E IL CONTENUTO PRENDE TUTTO L'OTTANTA PER CENTO.
@@ -143,24 +155,36 @@ a { color: inherit; text-decoration: none; }
   padding-top: var(--testata);
 }
 
+/* ⚠️ E ANCHE I NUMERI DEL MENU SONO CALATI IL 29 SETTEMBRE 2026, insieme a quelli
+   dell'app: imbottitura, famiglia e voce. Stessa richiesta, stessa ragione — due menu
+   che si somigliano vanno calati insieme. I gemelli stanno in
+   `rf-coach/theme/Scrivania.tsx`, negli stili `menuDentro`, `famiglia` e `voceTesto`.
+   ⚠️ NESSUNA PROVA LI CONFRONTA: solo la larghezza e' gemellata. Questo commento e'
+   l'unico legame — chi tocca questi numeri va di la'. */
 .rfcoach .menu {
   border-right: 1px solid var(--riga);
   background: var(--foglio);
-  padding: 18px 12px 40px;
+  padding: 10px 8px 32px;
   position: sticky;
   top: var(--testata);
   height: calc(100vh - var(--testata));
   overflow-y: auto;
 }
 
+/* ⚠️ I QUATTRO NUMERI ALLINEATI ALL'APP il 29 settembre 2026, dopo una revisione
+   ostile: erano 12/5 di margine e nessun `font-weight` contro i 10/3 e l'800 di
+   `famiglia` in `rf-coach/theme/Scrivania.tsx`. Il commento qui sopra li dichiarava
+   gemelli, e per due giorni non lo erano — e' esattamente il difetto che una nota
+   senza prova non ferma. */
 .rfcoach .famiglia {
-  font-size: 11px;
+  font-size: 10px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 1.2px;
+  letter-spacing: 1px;
   color: var(--testo-tenue);
-  margin: 18px 10px 8px;
+  margin: 10px 6px 3px;
 }
-.famiglia:first-child { margin-top: 4px; }
+.famiglia:first-child { margin-top: 0; }
 
 .rfcoach .bottone-menu {
   display: block;
@@ -169,15 +193,15 @@ a { color: inherit; text-decoration: none; }
   border: 0;
   background: transparent;
   border-radius: var(--raggio);
-  padding: 10px 12px;
-  margin-bottom: 2px;
+  padding: 7px 8px;
+  margin-bottom: 1px;
   cursor: pointer;
   font: inherit;
   color: var(--testo);
 }
 .bottone-menu:hover { background: var(--sfondo); }
-.bottone-menu b { display: block; font-size: 14.5px; font-weight: 700; }
-.bottone-menu small { display: block; color: var(--testo-tenue); font-size: 12px; line-height: 1.35; }
+.bottone-menu b { display: block; font-size: 13px; font-weight: 700; }
+.bottone-menu small { display: block; color: var(--testo-tenue); font-size: 11px; line-height: 1.3; }
 
 /* ⚠️ LA SEZIONE APERTA SI VEDE DA UN COLORE PIENO, non da un grassetto:
    in un menu dove ogni voce e' gia' in grassetto, il grassetto non dice

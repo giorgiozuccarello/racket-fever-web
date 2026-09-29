@@ -160,9 +160,51 @@ const cssRfcoach = readFileSync(join(RADICE, 'app', 'rfcoach', 'rfcoach.css'), '
 const misura = cssRfcoach.match(/--menu:\s*clamp\((\d+)px,\s*(\d+)%,\s*(\d+)px\)/);
 prova('la larghezza del menu si legge nel css', !!misura);
 if (misura) {
-  prova(`menu: la quota e il 20% (trovato ${misura[2]}%)`, misura[2] === '20');
-  prova(`menu: il minimo e 240 (trovato ${misura[1]})`, misura[1] === '240');
-  prova(`menu: il massimo e 360 (trovato ${misura[3]})`, misura[3] === '360');
+  // ⚠️ I TRE NUMERI SONO CALATI IL 29 SETTEMBRE 2026 — richiesta di Giorgio:
+  // «riduci spazio vuoto nei menu». Erano 20 / 240 / 360. I gemelli stanno nell'app,
+  // in `rf-coach/theme/misureScrivania.ts`, e la prova gemella in
+  // `rf-coach/prove/sezioni.mjs`.
+  prova(`menu: la quota e il 17% (trovato ${misura[2]}%)`, misura[2] === '17');
+  prova(`menu: il minimo e 210 (trovato ${misura[1]})`, misura[1] === '210');
+  prova(`menu: il massimo e 300 (trovato ${misura[3]})`, misura[3] === '300');
+}
+
+// ============================================================
+// ⚠️ E I NUMERI DEL MENU, non solo la sua larghezza — 29 settembre 2026, rilievo di
+// una revisione ostile.
+//
+// Il CSS di questo pannello e gli stili di `rf-coach/theme/Scrivania.tsx` si
+// dichiarano gemelli a parola dal 16 settembre, e per due giorni NON lo sono stati:
+// margini 12/5 contro 10/3, e `.famiglia` senza nessun `font-weight` contro un 800.
+// Un commento che dichiara un gemellaggio e non lo prova e' esattamente cio' che fa
+// smettere di controllare.
+//
+// ⚠️ E OGNI LATO SORVEGLIA IL PROPRIO, nominando l'altro: e' la regola di questo
+// progetto — una prova che leggesse dentro l'altro repository cadrebbe il giorno che
+// qualcuno sposta una cartella, e su Cloud Build, dove accanto non c'e' niente, non
+// potrebbe mai girare. La gemella sta in `rf-coach/prove/gestionale.mjs`.
+// ============================================================
+{
+  const blocco = (nome) => {
+    const i = cssRfcoach.indexOf(nome);
+    return i < 0 ? '' : cssRfcoach.slice(i, cssRfcoach.indexOf('}', i));
+  };
+  const fam = blocco('.rfcoach .famiglia {');
+  prova('la famiglia del menu e di 10 punti, come nell app',
+    /font-size:\s*10px/.test(fam), fam.slice(0, 80));
+  prova('e in grassetto, come nell app', /font-weight:\s*800/.test(fam));
+  prova('e con gli stessi margini dell app (10 sopra, 3 sotto)',
+    /margin:\s*10px\s+6px\s+3px/.test(fam));
+  const bot = blocco('.rfcoach .bottone-menu {');
+  prova('la voce del menu ha l imbottitura dell app (7 e 8)',
+    /padding:\s*7px\s+8px/.test(bot));
+  prova('e le voci si staccano di un punto', /margin-bottom:\s*1px/.test(bot));
+  prova('e il testo della voce e di 13 punti, come nell app',
+    /\.bottone-menu b \{[^}]*font-size:\s*13px/.test(cssRfcoach));
+  // ⚠️ E IL PRIMO GRUPPO NON PORTA IL MARGINE SOPRA, come nell'app: e' la regola che
+  // l'app non aveva e questo CSS si', ed e' stata portata di la' nella stessa tornata.
+  prova('e il primo gruppo non porta il margine sopra',
+    /\.famiglia:first-child \{ margin-top: 0; \}/.test(cssRfcoach));
 }
 
 // ------------------------------------------------------------
