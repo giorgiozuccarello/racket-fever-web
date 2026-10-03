@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "prova-dominio": "node prove/dominio.mjs",
-    "prove": "npm run prova-dominio && npm run prova-gestionale",
+    "prova-forme": "node prove/forme.mjs",
+    "prove": "npm run prova-dominio && npm run prova-gestionale && npm run prova-forme",
     "controlla": "tsc --noEmit",
     "prova-gestionale": "node --experimental-strip-types prove/gestionale.mjs"
   },
