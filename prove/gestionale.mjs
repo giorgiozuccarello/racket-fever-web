@@ -193,8 +193,16 @@ if (misura) {
   prova('la famiglia del menu e di 10 punti, come nell app',
     /font-size:\s*10px/.test(fam), fam.slice(0, 80));
   prova('e in grassetto, come nell app', /font-weight:\s*800/.test(fam));
-  prova('e con gli stessi margini dell app (10 sopra, 3 sotto)',
-    /margin:\s*10px\s+6px\s+3px/.test(fam));
+  // ⚠️ DAL 12 OTTOBRE 2026 LE FAMIGLIE SONO RIQUADRI CON LA BARRA DEL TITOLO, come
+  // nel gestionale dal 9 ottobre: il titolo sta dentro la barra (`titoloSezione` di
+  // `rf-coach/theme/Scrivania.tsx`) e non porta piu' margini sopra e sotto, solo i sei
+  // punti a sinistra di `famiglia`. Prima di oggi questa riga pretendeva il 10/6/3
+  // dell'elenco piatto, che l'app non aveva piu' da tre giorni.
+  prova('e con gli stessi margini dell app (sei a sinistra, niente sopra e sotto)',
+    /margin:\s*0\s+0\s+0\s+6px/.test(fam));
+  const tit = blocco('.rfcoach .titolo-gruppo {');
+  prova('la barra del titolo della famiglia ha bordo e imbottitura dell app (5 sopra e sotto)',
+    /padding:\s*5px\s+6px\s+5px\s+0/.test(tit) && /border:\s*1px solid var\(--bordo\)/.test(tit));
   const bot = blocco('.rfcoach .bottone-menu {');
   prova('la voce del menu ha l imbottitura dell app (7 e 8)',
     /padding:\s*7px\s+8px/.test(bot));

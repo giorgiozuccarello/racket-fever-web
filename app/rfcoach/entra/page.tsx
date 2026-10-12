@@ -71,7 +71,7 @@ export default function Entra() {
   if (sessione.stato === 'guardo' || sessione.stato === 'dentro') {
     return (
       <>
-        <Testata ruolo="Super Admin" />
+        <Testata />
         <div className="ingresso"><div className="scheda"><div className="vuoto">Un momento…</div></div></div>
       </>
     );
@@ -79,11 +79,11 @@ export default function Entra() {
 
   return (
     <>
-      <Testata ruolo="Super Admin" />
+      <Testata />
       <div className="ingresso">
         <form className="scheda" onSubmit={prova}>
-          <div className="marchio"><b>RACKET FEVER</b><span>COACH</span></div>
-          <p className="sottotitolo">Pannello di gestione</p>
+          <h1 className="titolo">Entra</h1>
+          <p className="sottotitolo">Pannello Super Admin di RF Coach</p>
 
           {guasto ? <div className="avviso male">{guasto}</div> : null}
           {detto ? <div className="avviso bene">{detto}</div> : null}

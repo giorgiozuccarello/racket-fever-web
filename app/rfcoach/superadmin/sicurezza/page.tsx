@@ -21,6 +21,7 @@ import React, { useState } from 'react';
 import { sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../../_lib/firebase';
 import { useSessione } from '../../_lib/sessione';
+import { Capitoli, Capitolo, Dati, Pagina } from '../../_pezzi/Pezzi';
 
 export default function Sicurezza() {
   const sessione = useSessione();
@@ -41,22 +42,18 @@ export default function Sicurezza() {
   }
 
   return (
-    <>
-      <h1 className="titolo">Il mio accesso</h1>
-      <p className="sottotitolo">L’account con cui stai guardando questo pannello.</p>
-
-      <div className="foglio">
-        <h2>Chi sei</h2>
-        <p><b>{email || '—'}</b></p>
+    <Pagina titolo="Il mio accesso" sotto="L’account con cui stai guardando questo pannello.">
+      <Capitoli>
+      <Capitolo titolo="Chi sei">
+        <Dati righe={[['Indirizzo', email || '—']]} />
         <p className="aiuto">
           E’ lo stesso account che useresti nell’app: l’anagrafica degli accessi e’ una
           sola per RF Coach e Racket Fever. Il ruolo di Super Admin, invece, vale solo
           qui dentro.
         </p>
-      </div>
+      </Capitolo>
 
-      <div className="foglio">
-        <h2>Cambiare password</h2>
+      <Capitolo titolo="Cambiare password">
         {detto ? <div className="avviso bene">{detto}</div> : null}
         {guasto ? <div className="avviso male">{guasto}</div> : null}
         <p className="aiuto">
@@ -68,7 +65,8 @@ export default function Sicurezza() {
             Mandami il link
           </button>
         </div>
-      </div>
-    </>
+      </Capitolo>
+      </Capitoli>
+    </Pagina>
   );
 }

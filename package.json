@@ -9,9 +9,10 @@
     "lint": "next lint",
     "prova-dominio": "node prove/dominio.mjs",
     "prova-forme": "node prove/forme.mjs",
-    "prove": "npm run prova-dominio && npm run prova-gestionale && npm run prova-forme",
+    "prove": "npm run prova-dominio && npm run prova-gestionale && npm run prova-forme && npm run prova-superadmin",
     "controlla": "tsc --noEmit",
-    "prova-gestionale": "node --experimental-strip-types prove/gestionale.mjs"
+    "prova-gestionale": "node --experimental-strip-types prove/gestionale.mjs",
+    "prova-superadmin": "node --experimental-strip-types prove/superadmin.mjs"
   },
   "dependencies": {
     "next": "^15.1.0",

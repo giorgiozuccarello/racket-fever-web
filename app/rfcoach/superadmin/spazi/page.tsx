@@ -1,50 +1,60 @@
 'use client';
 
 // ============================================================
-// SPAZI — chi c'e', e com'e' messo.
+// SPAZI — l'elenco a sinistra, la scheda a destra. 12 ottobre 2026.
 //
-// ⚠️ DUE PILLOLE E NON UNA, perche' `attivo` e `visibile` sono due cose
-// diverse e confonderle costa un pomeriggio: `attivo` e' l'abbonamento
-// in corso, `visibile` e' la scelta del maestro di farsi trovare. Uno
-// spazio attivo e invisibile e' legittimo — chi lavora solo su
-// presentazione — ma uno spazio che il cliente giura di aver acceso e
-// che gli allievi non trovano e' quasi sempre questo, e la schermata
-// deve dirlo senza che nessuno debba aprire la console.
+// ⚠️ COME IL GESTIONALE (`rf-coach/sezioni/GestionaleIncordature.tsx`): in
+// alto la fascia con cerca e filtri, sotto l'elenco raggruppato e la scheda
+// accanto. Prima la scheda era un'altra pagina, e per confrontare due clienti
+// si andava avanti e indietro.
 //
-// ⚠️ E LO STATO SI ASCOLTA, non si legge una volta: dopo aver sospeso
-// uno spazio, la riga cambia da sola. Senza, si preme «sospendi», non
-// succede niente di visibile, e si preme di nuovo.
+// ⚠️ LO SPAZIO APERTO STA NELL'INDIRIZZO (`?id=…`), non in uno stato: si
+// manda a qualcuno, sopravvive a una ricarica, e «indietro» torna allo spazio
+// di prima.
+//
+// ⚠️ E L'ELENCO SI ASCOLTA, non si legge una volta: dopo aver sospeso uno
+// spazio, la riga cambia da sola.
 // ============================================================
 
-import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { ascoltaSpazi, SpazioRiga, statoDi } from '../../_dati/spazi';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { ascoltaSpazi, SpazioRiga, statoDi, StatoSpazio } from '../../_dati/spazi';
+import {
+  Affiancati, Fascia, GruppoElenco, Invito, Pillola, RigaElenco,
+} from '../../_pezzi/Pezzi';
+import SchedaSpazio from '../../_pezzi/SchedaSpazio';
 
-const DETTO: Record<string, string> = {
-  attivo: 'Attivo',
-  sospeso: 'Sospeso',
-  chiuso: 'Chiuso',
-};
+const GRUPPI: { stato: StatoSpazio; titolo: string }[] = [
+  { stato: 'attivo', titolo: 'Attivi' },
+  { stato: 'sospeso', titolo: 'Sospesi' },
+  { stato: 'chiuso', titolo: 'Chiusi' },
+];
 
-function quando(ms: number): string {
-  if (!ms) return '—';
-  return new Date(ms).toLocaleDateString('it-CH', {
-    day: '2-digit', month: '2-digit', year: 'numeric',
-  });
+const FILTRI = [
+  { chiave: 'tutti', detto: 'Tutti' },
+  { chiave: 'attivo', detto: 'Attivi' },
+  { chiave: 'sospeso', detto: 'Sospesi' },
+  { chiave: 'chiuso', detto: 'Chiusi' },
+  { chiave: 'prova', detto: 'Di prova' },
+];
+
+function passa(s: SpazioRiga, filtro: string, cerca: string): boolean {
+  if (filtro === 'prova' && !s.diProva) return false;
+  if (filtro !== 'tutti' && filtro !== 'prova' && statoDi(s) !== filtro) return false;
+  const t = cerca.trim().toLowerCase();
+  if (!t) return true;
+  return [s.nome, s.citta, s.zona].some((v) => v.toLowerCase().includes(t));
 }
 
-export default function Spazi() {
+function Elenco() {
   const router = useRouter();
+  const parametri = useSearchParams();
+  const scelto = parametri.get('id') ?? '';
   const [spazi, setSpazi] = useState<SpazioRiga[] | null>(null);
   const [guasto, setGuasto] = useState('');
+  const [cerca, setCerca] = useState('');
+  const [filtro, setFiltro] = useState('tutti');
 
-  // ⚠️ IL GUASTO LO DICE FIRESTORE, non un orologio. La prima stesura
-  // metteva un `setTimeout` di dodici secondi che accendeva l'allarme se
-  // l'elenco non era ancora arrivato — e la closure leggeva lo stato del
-  // PRIMO render, dove l'elenco e' sempre vuoto. Risultato: il riquadro
-  // rosso «l'elenco non arriva» compariva SEMPRE, sopra una tabella
-  // piena di spazi, dodici secondi dopo l'apertura. Rilievo della
-  // revisione del 16 settembre.
   useEffect(() => {
     let vivo = true;
     const basta = ascoltaSpazi(
@@ -54,79 +64,70 @@ export default function Spazi() {
     return () => { vivo = false; basta(); };
   }, []);
 
+  const visti = useMemo(() => (spazi ?? []).filter((s) => passa(s, filtro, cerca)), [spazi, filtro, cerca]);
+  const scegli = (id: string) => router.replace(`/rfcoach/superadmin/spazi?id=${id}`);
+
+  const elenco = (
+    <>
+      {guasto ? <div className="avviso male">{guasto}</div> : null}
+      {spazi === null ? <div className="vuoto">Un momento…</div> : null}
+      {spazi !== null && visti.length === 0 ? (
+        <div className="vuoto">{spazi.length === 0 ? 'Non c’e’ ancora nessuno spazio. Si comincia da «Nuovo spazio».' : 'Nessuno spazio con questi filtri.'}</div>
+      ) : null}
+      {GRUPPI.map((g) => {
+        const qui = visti.filter((s) => statoDi(s) === g.stato);
+        if (qui.length === 0) return null;
+        return (
+          <React.Fragment key={g.stato}>
+            <GruppoElenco titolo={g.titolo} quanti={qui.length} />
+            {qui.map((s) => (
+              <RigaElenco
+                key={s.id}
+                acceso={s.id === scelto}
+                nome={s.nome || '(senza nome)'}
+                sotto={[s.citta, s.tipo === 'scuola' ? 'Scuola' : 'Maestro', s.valuta].filter(Boolean).join('  ·  ')}
+                pastiglie={(s.diProva || (g.stato === 'attivo' && !s.visibile)) ? (
+                  <>
+                    {g.stato === 'attivo' && !s.visibile ? <Pillola tinta="nascosto">Non si trova</Pillola> : null}
+                    {s.diProva ? <Pillola tinta="accento">Di prova</Pillola> : null}
+                  </>
+                ) : undefined}
+                onClick={() => scegli(s.id)}
+              />
+            ))}
+          </React.Fragment>
+        );
+      })}
+    </>
+  );
+
   return (
     <>
-      <h1 className="titolo">Spazi</h1>
-      <p className="sottotitolo">
-        Tutti i clienti di RF Coach. Tocca una riga per aprirne la scheda.
-      </p>
-
-      {guasto ? <div className="avviso male">{guasto}</div> : null}
-
-      <div className="foglio">
-        {spazi === null ? <div className="vuoto">Un momento…</div> : null}
-        {spazi !== null && spazi.length === 0 ? (
-          <div className="vuoto">
-            Non c’e’ ancora nessuno spazio. Si comincia da «Nuovo spazio».
-          </div>
-        ) : null}
-        {spazi !== null && spazi.length > 0 ? (
-          <table className="elenco">
-            <thead>
-              <tr>
-                <th>Nome</th>
-                <th>Dove</th>
-                <th>Stato</th>
-                <th>Dal</th>
-              </tr>
-            </thead>
-            <tbody>
-              {spazi.map((s) => {
-                const stato = statoDi(s);
-                return (
-                  // ⚠️ `tabIndex` e `onKeyDown` perche' una riga cliccabile
-                  // che non risponde alla tastiera e' una riga che, per chi
-                  // non usa il mouse, non esiste: un `<tr>` non e' un
-                  // bottone e nessun browser gli da' il fuoco da solo.
-                  <tr
-                    key={s.id}
-                    className="tocca"
-                    role="button"
-                    tabIndex={0}
-                    onClick={() => router.push(`/rfcoach/superadmin/spazio/?id=${s.id}`)}
-                    onKeyDown={(e) => {
-                      if (e.key !== 'Enter' && e.key !== ' ') return;
-                      e.preventDefault();
-                      router.push(`/rfcoach/superadmin/spazio/?id=${s.id}`);
-                    }}
-                  >
-                    <td>
-                      <b>{s.nome || '(senza nome)'}</b>
-                      <div style={{ color: 'var(--testo-tenue)', fontSize: 12.5 }}>
-                        {s.tipo === 'scuola' ? 'Scuola' : 'Maestro'} · {s.valuta || '—'}
-                      </div>
-                    </td>
-                    <td>
-                      {s.citta || '—'}
-                      {s.zona ? <div style={{ color: 'var(--testo-tenue)', fontSize: 12.5 }}>{s.zona}</div> : null}
-                      <div style={{ color: 'var(--testo-tenue)', fontSize: 12.5 }}>{s.paese}</div>
-                    </td>
-                    <td>
-                      <span className={`pillola ${stato}`}>{DETTO[stato]}</span>
-                      {stato === 'attivo' && !s.visibile ? (
-                        <div style={{ marginTop: 4 }}>
-                          <span className="pillola nascosto">Non si trova</span>
-                        </div>
-                      ) : null}
-                    </td>
-                    <td>{quando(s.creatoIlMs)}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        ) : null}
-      </div>
+      <Fascia
+        cerca={cerca}
+        scriviCerca={setCerca}
+        segnaposto="Cerca per nome o citta’"
+        filtri={FILTRI.map((f) => ({
+          ...f,
+          quanti: spazi ? spazi.filter((s) => passa(s, f.chiave, '')).length : undefined,
+        }))}
+        filtro={filtro}
+        scegli={setFiltro}
+        azzera={() => { setCerca(''); setFiltro('tutti'); }}
+      />
+      <Affiancati elenco={elenco}>
+        {scelto ? <SchedaSpazio key={scelto} spazioId={scelto} /> : <Invito icona="spazi" testo="Scegli uno spazio dall’elenco." />}
+      </Affiancati>
     </>
+  );
+}
+
+// ⚠️ IL `Suspense` NON E' DECORAZIONE: `useSearchParams` obbliga a una
+// frontiera, e senza il `build` si ferma.
+export default function Spazi() {
+  return (
+    <Suspense fallback={<div className="vuoto">Un momento…</div>}>
+      <Elenco />
+    </Suspense>
   );
 }

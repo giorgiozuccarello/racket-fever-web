@@ -40,6 +40,9 @@ export type SezioneWeb = {
   // piatto di quindici bottoni e' il punto in cui qualcuno decide di
   // rifarlo. L'ordine delle famiglie e' quello in cui compaiono qui.
   famiglia: string;
+  // ⚠️ L'ICONA DELLA VOCE, come nel menu del gestionale (12 ottobre 2026).
+  // E' un nome di `_pezzi/Icona.tsx`: la prova controlla che esista.
+  icona: string;
 };
 
 export const SEZIONI_SUPERADMIN: SezioneWeb[] = [
@@ -48,18 +51,39 @@ export const SEZIONI_SUPERADMIN: SezioneWeb[] = [
     titolo: 'Spazi',
     sotto: 'Chi c’e’, e com’e’ messo',
     famiglia: 'Clienti',
+    icona: 'spazi',
+  },
+  // ⚠️ CONTRATTI E RICHIESTE, DAL 12 OTTOBRE 2026. I contratti sono il
+  // modello di business — il maestro paga un importo annuale — e fino a oggi
+  // non stavano da nessuna parte. Le richieste sono i maestri che chiedono
+  // l'attivazione da `/rfcoach/attiva`.
+  {
+    chiave: 'contratti',
+    titolo: 'Contratti',
+    sotto: 'Chi paga, quanto, fino a quando',
+    famiglia: 'Clienti',
+    icona: 'contratti',
+  },
+  {
+    chiave: 'richieste',
+    titolo: 'Richieste',
+    sotto: 'Maestri che chiedono di entrare',
+    famiglia: 'Clienti',
+    icona: 'richieste',
   },
   {
     chiave: 'nuovo',
     titolo: 'Nuovo spazio',
     sotto: 'Mettere in attivita’ un maestro o una scuola',
     famiglia: 'Clienti',
+    icona: 'nuovo',
   },
   {
     chiave: 'sicurezza',
     titolo: 'Il mio accesso',
     sotto: 'L’account con cui sei entrato',
     famiglia: 'Io',
+    icona: 'sicurezza',
   },
 ];
 
@@ -75,6 +99,9 @@ export const SEZIONI_SUPERADMIN: SezioneWeb[] = [
 // che ha un'eccezione: con l'eccezione, la prima sezione dimenticata
 // sparirebbe in silenzio insieme a questa.
 // ============================================================
+// ⚠️ DAL 12 OTTOBRE 2026 `spazio` RIMANDA A `spazi?id=…`: la scheda si apre
+// accanto all'elenco, come nel gestionale. La cartella resta perche' gli
+// indirizzi gia' mandati a qualcuno continuino ad arrivare.
 export const ROTTE_SENZA_BOTTONE = ['spazio'];
 
 // ⚠️ LA PRIMA SEZIONE E' DOVE SI ATTERRA. Scritta cosi' invece che come

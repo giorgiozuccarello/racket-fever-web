@@ -40,6 +40,10 @@ export type SpazioRiga = {
   // `coachLinkAccesso`. Assente vale falso, ed e' la direzione giusta in
   // cui sbagliare: gli spazi creati a mano non ce l'hanno.
   accountNuovo: boolean;
+  // ⚠️ «Di prova» — 12 ottobre 2026: solo uno spazio cosi' si puo' azzerare.
+  diProva: boolean;
+  telefono: string;
+  emailPubblica: string;
 };
 
 // ⚠️ OGNI CAMPO HA UN RIPIEGO, e non e' pigrizia difensiva: gli spazi
@@ -68,6 +72,9 @@ function leggiSpazio(id: string, d: Record<string, unknown>): SpazioRiga {
     sospesoIlMs: numero(d.sospesoIlMs),
     chiusoIlMs: numero(d.chiusoIlMs),
     accountNuovo: d.accountNuovo === true,
+    diProva: d.diProva === true,
+    telefono: typeof d.telefono === 'string' ? d.telefono : '',
+    emailPubblica: typeof d.emailPubblica === 'string' ? d.emailPubblica : '',
   };
 }
 

@@ -27,11 +27,13 @@
 // sceglie, noi non la sappiamo mai.
 // ============================================================
 
-import React, { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { Suspense, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   creaSpazio, DatiNuovoSpazio, EsitoNuovoSpazio, eUnRifiuto, motivo,
 } from '../../_dati/onboarding';
+import { leggiRichieste, statoRichiesta } from '../../_dati/superadmin';
+import { Capitoli, Capitolo, Pagina } from '../../_pezzi/Pezzi';
 
 const VUOTO: DatiNuovoSpazio = {
   email: '',
@@ -55,9 +57,11 @@ const VUOTO: DatiNuovoSpazio = {
   emailPubblica: '',
 };
 
-export default function NuovoSpazio() {
+function Modulo() {
   const router = useRouter();
+  const richiestaId = useSearchParams().get('richiesta') ?? '';
   const [d, setD] = useState<DatiNuovoSpazio>(VUOTO);
+  const [daRichiesta, setDaRichiesta] = useState('');
   const [tariffa, setTariffa] = useState('');
   const [guasto, setGuasto] = useState('');
   // ⚠️ Vero solo quando a rifiutare e' stata la funzione: vedi
@@ -76,6 +80,37 @@ export default function NuovoSpazio() {
   const cambiaPaese = (paese: 'CH' | 'IT') => cambia({
     paese, valuta: paese === 'CH' ? 'CHF' : 'EUR',
   });
+
+  // ============================================================
+  // ⚠️ DA UNA RICHIESTA DEL SITO — 12 ottobre 2026. «Crea lo spazio» nella
+  // pagina Richieste arriva qui con `?richiesta=…`, e i dati che il maestro
+  // ha gia' scritto entrano nel modulo: riscriverli a mano e' il modo in cui
+  // un'email si sbaglia. Il Super Admin li controlla e li corregge prima di
+  // creare.
+  // ============================================================
+  useEffect(() => {
+    if (!richiestaId) return;
+    let vivo = true;
+    leggiRichieste().then((tutte) => {
+      const r = tutte.find((x) => x.id === richiestaId);
+      if (!vivo || !r) return;
+      const paese = r.paese === 'IT' ? 'IT' : 'CH';
+      setD((v) => ({
+        ...v,
+        email: r.email,
+        nome: r.nome,
+        cognome: r.cognome,
+        nomeSpazio: r.tipo === 'scuola' ? '' : `${r.nome} ${r.cognome}`.trim(),
+        tipo: r.tipo === 'scuola' ? 'scuola' : 'persona',
+        citta: r.citta,
+        paese,
+        valuta: paese === 'CH' ? 'CHF' : 'EUR',
+        telefono: r.telefono,
+      }));
+      setDaRichiesta(`${r.nome} ${r.cognome}`.trim());
+    }).catch(() => { /* il modulo resta vuoto: si scrive a mano */ });
+    return () => { vivo = false; };
+  }, [richiestaId]);
 
   async function manda(e: React.FormEvent) {
     e.preventDefault();
@@ -99,6 +134,13 @@ export default function NuovoSpazio() {
       const cent = Math.max(0, Math.round((Number(scritto) || 0) * 100));
       const esito = await creaSpazio({ ...d, email: d.email.trim(), tariffaOraCent: cent });
       setFatto(esito);
+      // ⚠️ LA RICHIESTA PASSA DA SOLA AD «ATTIVATA», con lo spazio nato. Se
+      // questo passo cade lo spazio c'e' lo stesso: la richiesta si segna a
+      // mano dalla sua pagina, e non vale la pena di dire «non e' andata»
+      // sopra uno spazio creato.
+      if (richiestaId) {
+        statoRichiesta(richiestaId, 'attivata', esito.spazioId).catch(() => { /* si segna a mano */ });
+      }
     } catch (e2) {
       setGuasto(motivo(e2));
       setRifiutato(eUnRifiuto(e2));
@@ -114,12 +156,10 @@ export default function NuovoSpazio() {
   // ============================================================
   if (fatto) {
     return (
-      <>
-        <h1 className="titolo">Lo spazio c’e’</h1>
-        <p className="sottotitolo">{d.nomeSpazio} — {d.citta}</p>
+      <Pagina titolo="Lo spazio c’e’" sotto={`${d.nomeSpazio} — ${d.citta}`}>
 
-        <div className="foglio">
-          <h2>Cosa e’ stato scritto</h2>
+        <Capitoli>
+        <Capitolo titolo="Cosa e’ stato scritto" largo>
           <p>
             Lo spazio, la tessera del titolare e il segnale <code>titolari</code> sono
             stati scritti insieme. Identificativo dello spazio: <b>{fatto.spazioId}</b>.
@@ -162,29 +202,35 @@ export default function NuovoSpazio() {
           </div>
 
           <div className="azioni">
-            <button type="button" className="bottone acceso" onClick={() => router.push('/rfcoach/superadmin/spazi')}>
-              Vai agli spazi
+            <button type="button" className="bottone acceso" onClick={() => router.push(`/rfcoach/superadmin/spazi?id=${fatto.spazioId}`)}>
+              Apri lo spazio
             </button>
             <button
               type="button"
               className="bottone leggero"
-              onClick={() => { setFatto(null); setD(VUOTO); setTariffa(''); }}
+              onClick={() => { setFatto(null); setD(VUOTO); setTariffa(''); setDaRichiesta(''); router.replace('/rfcoach/superadmin/nuovo'); }}
             >
               Creane un altro
             </button>
           </div>
-        </div>
-      </>
+        </Capitolo>
+        </Capitoli>
+      </Pagina>
     );
   }
 
   return (
-    <>
-      <h1 className="titolo">Nuovo spazio</h1>
-      <p className="sottotitolo">
-        Mettere in attivita’ un maestro o una scuola. Tutto quello che serve sta qui:
-        non resta nessun passo da fare in console.
-      </p>
+    <Pagina
+      titolo="Nuovo spazio"
+      sotto="Mettere in attivita’ un maestro o una scuola. Tutto quello che serve sta qui: non resta nessun passo da fare in console."
+    >
+
+      {daRichiesta ? (
+        <div className="avviso attenzione">
+          <b>{`Dalla richiesta di ${daRichiesta}`}</b>
+          I dati sono quelli che ha scritto lui: controllali prima di creare.
+        </div>
+      ) : null}
 
       {guasto ? (
         <div className="avviso male">
@@ -205,8 +251,8 @@ export default function NuovoSpazio() {
       ) : null}
 
       <form onSubmit={manda}>
-        <div className="foglio">
-          <h2>La persona che comanda</h2>
+        <Capitoli>
+        <Capitolo titolo="La persona che comanda">
           <div className="campi">
             <div className="campo largo">
               <label htmlFor="email">Indirizzo di posta</label>
@@ -228,10 +274,9 @@ export default function NuovoSpazio() {
               <input id="cognome" value={d.cognome} required onChange={(e) => cambia({ cognome: e.target.value })} />
             </div>
           </div>
-        </div>
+        </Capitolo>
 
-        <div className="foglio">
-          <h2>Lo spazio</h2>
+        <Capitolo titolo="Lo spazio">
           <div className="campi">
             <div className="campo largo">
               <label htmlFor="nomeSpazio">Nome dello spazio</label>
@@ -287,10 +332,9 @@ export default function NuovoSpazio() {
               </div>
             </div>
           </div>
-        </div>
+        </Capitolo>
 
-        <div className="foglio">
-          <h2>Come lavora</h2>
+        <Capitolo titolo="Come lavora" largo>
 
           <label className="interruttore">
             <input
@@ -333,7 +377,8 @@ export default function NuovoSpazio() {
               </small>
             </span>
           </label>
-        </div>
+        </Capitolo>
+        </Capitoli>
 
         <div className="azioni">
           <button type="submit" className="bottone acceso" disabled={lavoro}>
@@ -341,6 +386,16 @@ export default function NuovoSpazio() {
           </button>
         </div>
       </form>
-    </>
+    </Pagina>
+  );
+}
+
+// ⚠️ IL `Suspense` NON E' DECORAZIONE: `useSearchParams` obbliga a una
+// frontiera, e senza il `build` si ferma.
+export default function NuovoSpazio() {
+  return (
+    <Suspense fallback={<div className="vuoto">Un momento…</div>}>
+      <Modulo />
+    </Suspense>
   );
 }

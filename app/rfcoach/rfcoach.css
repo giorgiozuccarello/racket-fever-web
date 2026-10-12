@@ -2,9 +2,9 @@
    ⚠️ TUTTO E' RACCHIUSO SOTTO `.rfcoach`, E NON E' UNO STILE: E' UNA
    DIFESA, misurata prima di scrivere una riga.
 
-   Dal 16 settembre questo pannello vive DENTRO `racket-fever-web`, e in
-   Next un foglio di stile importato da un layout annidato e' comunque
-   GLOBALE una volta caricato. Confrontando i due fogli ho trovato due
+   Dal 16 settembre questo pannello vive DENTRO il sito, e in Next un
+   foglio di stile importato da un layout annidato e' comunque GLOBALE una
+   volta caricato. Confrontando i due fogli si erano trovate due
    collisioni vere:
 
      • la variabile `--riga` esiste in tutti e due. Dichiarata su
@@ -16,113 +16,82 @@
    Quindi: niente `:root`, niente `html`, niente `body`, niente `*`
    globale. Le variabili vivono su `.rfcoach` e ogni regola e' figlia di
    quel contenitore, che il layout di `/rfcoach` mette attorno a tutto.
-   I nomi di classe invece non collidono: venti qui, trecentoventisette
-   nel sito, nessuno in comune. Verificato.
    ============================================================ */
 
 /* ============================================================
-   IL VESTITO DEL PANNELLO — un file solo, come in racket-fever-web.
-   Nessun Tailwind: e' la stessa scelta gia' in esercizio sul sito dei
-   circoli, e due modi di scrivere gli stili nello stesso dominio sono
-   due modi di dimenticarsene uno.
+   IL VESTITO DEL GESTIONALE — 12 ottobre 2026.
 
-   ⚠️ I COLORI SONO QUELLI DI RF COACH: nero e l'arancio `#D98A2B` che
-   e' l'accento di sette temi su otto in `data/temi.ts` dell'app. Non e'
-   una scelta estetica libera — chi apre questo pannello e chi apre
-   l'app devono vedere lo stesso prodotto.
+   ⚠️ RICHIESTA DI GIORGIO: «applica il layout del gestionale web maestri
+   alla Super Admin … mantieni lo stile grafico del gestionale per pagine,
+   titoli, etc.». Fino a oggi il pannello aveva una sua faccia — testata
+   nera a sfumatura, riquadri bianchi, titoli in minuscolo — e passando dal
+   gestionale del maestro al Super Admin sembrava di cambiare prodotto.
+
+   ⚠️ I NUMERI QUI SOTTO NON SONO INVENTATI: sono quelli del gestionale,
+   letti dai file dell'app e riscritti in CSS. Chi li tocca va a guardare
+   anche di la':
+     • il telaio (testata, menu, colonna destra) — `rf-coach/theme/Scrivania.tsx`;
+     • la banda col marchio — `rf-coach/theme/Marchio.tsx` (`BandaMarchio`);
+     • titolo di pagina — `rf-coach/theme/TitoloPagina.tsx`;
+     • capitoli, numeri, righe — `rf-coach/theme/PezziScheda.tsx`
+       (gli stili «del gestionale»: `sezioneGestionale`, `numeroGestionale`);
+     • elenco affiancato alla scheda — `rf-coach/sezioni/GestionaleIncordature.tsx`
+       e `LARGHEZZA_COLONNA_ELENCO` in `rf-coach/theme/misureScrivania.ts`;
+     • i colori — il tema `grigio` di `rf-coach/data/temi.ts` (TEMA_SCRIVANIA),
+       con l'accento di serie di RF Coach.
+   ⚠️ Nessuna prova confronta i due repository (una prova che guarda la
+   cartella accanto non girerebbe su Cloud Build): le prove di qui,
+   `prove/forme.mjs` e `prove/superadmin.mjs`, sorvegliano questo lato e
+   nominano l'altro per nome e cognome.
    ============================================================ */
 
 .rfcoach {
+  /* Il tema `grigio` del gestionale: `sfondoA` per testata e menu,
+     `sfondoDa` per l'area del contenuto. */
+  --testata-fondo: #ededed;
+  --contenuto-fondo: #fcfcfc;
   --nero: #1a1a1a;
-  --nero-fondo: #000000;
+  --fondo-banda: #000000;
   --accento: #d98a2b;
-  --accento-tenue: rgba(217, 138, 43, 0.14);
+  --accento-tenue: rgba(217, 138, 43, 0.13);
+  /* `pannelloDa` del gestionale: l'accento scurito, per il testo acceso. */
+  --accento-scuro: #8a5310;
+  --su-accento: #1a1a1a;
   --foglio: #ffffff;
   /* ============================================================
      ⚠️ IL 3 OTTOBRE 2026 QUESTI DUE SONO DIVENTATI FREDDI, e non e' una
-     sfumatura: erano `#f4f4f2` e `#e4e4e0`, cioe' con il rosso SOPRA il
-     blu — beige chiarissimo. Giorgio ha chiesto «colore avorio/beige
-     dello sfondo riquadro > diventa grigio chiaro», e qui l'avorio era
-     esattamente questo.
-
-     ⚠️ E `--sfondo` NON E' SOLO IL FONDO DELLA PAGINA: e' anche la
-     superficie secondaria di questo pannello — la voce del menu sotto il
-     dito (`.bottone-menu:hover`), la riga di tabella sotto il dito, la
-     pastiglia `chiuso`. E' lo stesso ruolo che nell'app ha `superficie`
-     in `rf-coach/data/temi.ts`, e il valore e' LO STESSO NUMERO:
-     `#f2f2f4`. Non per simmetria — perche' chi passa dal telefono al
-     computer guarda due volte la stessa cosa.
-     ⚠️ Nessuna prova confronta i due file (sta nell'altro repository, e
-     una prova che guarda la cartella accanto non girerebbe su Cloud
-     Build): la prova di qui, `prove/forme.mjs`, pretende solo che questi
-     due valori non tornino caldi, e nomina l'app per nome e cognome.
+     sfumatura: erano beige chiarissimo. `--sfondo` e' la superficie
+     secondaria (il riquadro dei numeri, la riga sotto il dito) e vale
+     quanto `superficie` in `rf-coach/data/temi.ts`: `#f2f2f4`.
+     `prove/forme.mjs` pretende che non tornino caldi.
      ============================================================ */
   --sfondo: #f2f2f4;
-  --riga: #e4e4e8;
-  --testo: #16160f;
-  --testo-tenue: #6d6d64;
-  --verde: #1f7a4d;
-  --rosso: #a62b1f;
-  --giallo: #8a6a12;
+  --sfondo-alto: #e8e8ec;
+  --riga: #d6d6dc;
+  --bordo: rgba(0, 0, 0, 0.18);
+  --testo: #1a1a1a;
+  --testo-tenue: #4a4f58;
+  --testo-debole: #767c86;
+  --verde: #0b7e57;
+  --rosso: #c41e1e;
+  --giallo: #9a6b00;
 
   /* ============================================================
-     ⚠️ VENTI E OTTANTA, dal 16 settembre. La prima stesura diceva
-     15/85; Giorgio l'ha corretta guardando il pannello vero, ed e' il
-     genere di misura che si decide cosi' e non a tavolino.
-
-     ⚠️ I DUE MURI RESTANO, e non sono pignoleria: la quota di un 27
-     pollici farebbe una colonna di bottoni larga come una pagina, e
-     sotto un certo punto le voci non si leggono piu'.
-
-     ⚠️ E I TRE NUMERI SONO CALATI IL 29 SETTEMBRE 2026 — richiesta di
-     Giorgio con una schermata alla mano: «riduci spazio vuoto nei menu.
-     Le voci troppo lunghe possono andare a capo». Erano 20% / 240 / 360,
-     e il muro dei 240 era giustificato proprio da cio' che Giorgio
-     adesso permette: il commento diceva «sotto i 240 Gestione maestri
-     andrebbe a capo».
-
-     ⚠️ GLI STESSI TRE NUMERI STANNO NELL'APP, in
+     ⚠️ LA LARGHEZZA DEL MENU E' GEMELLA DI QUELLA DELL'APP: 17% fra 210 e
+     300 punti, dal 29 settembre 2026. I gemelli stanno in
      `rf-coach/theme/misureScrivania.ts` (QUOTA_MENU, MENU_MINIMO,
-     MENU_MASSIMO): sono due schermate che si somigliano, e due
-     proporzioni diverse si notano subito passando dall'una all'altra.
-     Due prove gemelle le sorvegliano, una per repository.
+     MENU_MASSIMO), e due prove gemelle li sorvegliano, una per repository.
      ============================================================ */
   --menu: clamp(210px, 17%, 300px);
-  --testata: 64px;
-  /* ============================================================
-     ⚠️ E IL CONTENUTO PRENDE TUTTO L'OTTANTA PER CENTO.
-     Qui c'era un tetto di 1180 punti, messo perché una riga di tabella
-     molto larga si perde fra la prima colonna e l'ultima. Ma Giorgio ha
-     chiesto «80% larghezza contenuto», e un tetto che morde già a 1480
-     punti di finestra avrebbe risposto «no» in silenzio a una cosa
-     chiesta a voce alta: su un portatile da 1440 il contenuto sarebbe
-     rimasto a 1180 invece di 1152... cioè quasi uguale, ma su uno
-     schermo grande la differenza si vede e la percentuale non sarebbe
-     più stata quella scritta.
-     Il tetto resta solo come muro di sicurezza molto in alto: oltre i
-     2200 punti di contenuto nessuna tabella si legge più.
-     ============================================================ */
+  /* `ALTEZZA_TESTATA` di `Scrivania.tsx`. */
+  --testata: 56px;
+  /* `LARGHEZZA_COLONNA_ELENCO` di `misureScrivania.ts`. */
+  --colonna-elenco: 340px;
   --contenuto: 2200px;
   /* ============================================================
-     ⚠️ QUATTRO PUNTI, dal 3 ottobre 2026 — era 12. Giorgio ha chiesto
-     riquadri «quasi perfettamente rettangolari (arrotondamento angoli
-     minimo)», app e web insieme, e ha scelto il numero: quattro per
-     tutto.
-
-     ⚠️ QUATTRO E NON ZERO. Lo spigolo vivo, su un pannello di pannelli,
-     si legge come un difetto di disegno piu' che come una scelta; quattro
-     punti si vedono appena e bastano a dire che il bordo e' voluto.
-
-     ⚠️ IL GEMELLO STA NELL'APP: `rf-coach/theme/forme.ts`, la costante
-     `MINIMO`, da cui scendono le quattro famiglie `card`, `pillola`,
-     `box` e `piccolo`. Due numeri, uno per repository, e ognuno
-     sorvegliato in casa propria: qui da `prove/forme.mjs`, la' da
-     `rf-coach/prove/forme.mjs`.
-
-     ⚠️ E NON ESISTONO PIU' ECCEZIONI ARROTONDATE. Prima di oggi
-     convivevano quattro forme — 12 dalla variabile, 9 nei campi, 18
-     nella scheda d'ingresso e 999 su bottoni e pastiglie: tutte e tre le
-     scritte a mano sono rientrate qui, e la prova non lascia passare un
+     ⚠️ QUATTRO PUNTI, dal 3 ottobre 2026: riquadri «quasi perfettamente
+     rettangolari», app e web insieme. Il gemello e' `MINIMO` in
+     `rf-coach/theme/forme.ts`. `prove/forme.mjs` non lascia passare un
      `border-radius` numerico che non sia `0`.
      ============================================================ */
   --raggio: 4px;
@@ -132,103 +101,152 @@
 
 .rfcoach {
   /* ⚠️ ALTEZZA PIENA: `.rfcoach` e' un `div` dentro il `body` del sito, e
-     senza questa riga il suo sfondo finiva dove finiva il contenuto —
-     sotto ricompariva il crema del sito, con una linea netta a meta'
-     pagina. Trovato guardando lo scatto, non leggendo il codice. */
+     senza questa riga il suo sfondo finiva dove finiva il contenuto. */
   min-height: 100vh;
-  background: var(--sfondo);
+  background: var(--contenuto-fondo);
   color: var(--testo);
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 14.5px;
+  line-height: 1.45;
   -webkit-font-smoothing: antialiased;
 }
 
-a { color: inherit; text-decoration: none; }
+.rfcoach a { color: inherit; text-decoration: none; }
+.rfcoach svg { flex-shrink: 0; }
 
-/* ---------- LA TESTATA ---------- */
+/* ---------- LA TESTATA — `intestazione` di Scrivania.tsx ---------- */
 
 .rfcoach .testata {
   position: fixed;
   top: 0; left: 0; right: 0;
   height: var(--testata);
-  background: linear-gradient(180deg, var(--nero) 0%, var(--nero-fondo) 100%);
-  color: #fff;
+  background: var(--testata-fondo);
+  border-bottom: 1px solid var(--bordo);
   display: flex;
   align-items: center;
   gap: 16px;
-  padding: 0 20px;
+  padding: 0 0 0 24px;
   z-index: 20;
 }
-
-.marchio { display: flex; align-items: baseline; gap: 8px; }
-.marchio b { font-size: 18px; letter-spacing: 0.5px; }
-.marchio span { color: var(--accento); font-size: 18px; font-weight: 800; letter-spacing: 1.5px; }
-.rfcoach .testata .ruolo {
-  font-size: 12px;
-  text-transform: uppercase;
-  letter-spacing: 1.2px;
-  color: rgba(255, 255, 255, 0.55);
-  border-left: 1px solid rgba(255, 255, 255, 0.2);
-  padding-left: 16px;
+.rfcoach .testata-chi { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: 14px; }
+.rfcoach .testata-nome {
+  font-size: 19px; font-weight: 800; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
 }
-.testata .spinta { margin-left: auto; }
-.testata .chi { font-size: 13px; color: rgba(255, 255, 255, 0.75); }
+.rfcoach .testata-email {
+  font-size: 13px; color: var(--testo-tenue); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+
+/* ============================================================
+   ⚠️ LA BANDA — `BandaMarchio` di `rf-coach/theme/Marchio.tsx`: un
+   trapezio nero appoggiato al bordo destro, con la punta di 30 punti a
+   sinistra, e dentro il marchio COACH largo 106 (LARGHEZZA_MARCHIO_GESTIONALE).
+   Alta quanto la testata meno il filo, e attaccata in alto: e' la stessa
+   figura del gestionale, non una sua imitazione.
+   ============================================================ */
+.rfcoach .banda {
+  align-self: flex-start;
+  height: calc(var(--testata) - 1px);
+  width: 170px;
+  padding-left: 36px;
+  display: flex;
+  align-items: center;
+  background: var(--fondo-banda);
+  clip-path: polygon(30px 0, 100% 0, 100% 100%, 0 100%);
+}
+.rfcoach .banda img { width: 106px; height: auto; display: block; }
 
 .rfcoach .esci {
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  color: #fff;
+  background: var(--foglio);
+  border: 1px solid var(--bordo);
+  color: var(--testo);
   border-radius: var(--raggio);
-  padding: 7px 16px;
+  padding: 6px 14px;
+  font: inherit;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
 }
-.esci:hover { background: rgba(255, 255, 255, 0.18); }
+.rfcoach .esci:hover { background: var(--sfondo); }
 
-/* ---------- IL MENU A SINISTRA ---------- */
+/* ---------- IL TELAIO ---------- */
 
 .rfcoach .impalcatura {
   display: grid;
-  grid-template-columns: var(--menu) 1fr;
+  grid-template-columns: var(--menu) minmax(0, 1fr);
   min-height: 100vh;
   padding-top: var(--testata);
 }
 
-/* ⚠️ E ANCHE I NUMERI DEL MENU SONO CALATI IL 29 SETTEMBRE 2026, insieme a quelli
-   dell'app: imbottitura, famiglia e voce. Stessa richiesta, stessa ragione — due menu
-   che si somigliano vanno calati insieme. I gemelli stanno in
-   `rf-coach/theme/Scrivania.tsx`, negli stili `menuDentro`, `famiglia` e `voceTesto`.
-   ⚠️ NESSUNA PROVA LI CONFRONTA: solo la larghezza e' gemellata. Questo commento e'
-   l'unico legame — chi tocca questi numeri va di la'. */
+/* ---------- IL MENU A SINISTRA — `menu` di Scrivania.tsx ---------- */
+
 .rfcoach .menu {
-  border-right: 1px solid var(--riga);
-  background: var(--foglio);
-  padding: 10px 8px 32px;
+  border-right: 1px solid var(--bordo);
+  background: var(--testata-fondo);
   position: sticky;
   top: var(--testata);
   height: calc(100vh - var(--testata));
   overflow-y: auto;
 }
 
-/* ⚠️ I QUATTRO NUMERI ALLINEATI ALL'APP il 29 settembre 2026, dopo una revisione
-   ostile: erano 12/5 di margine e nessun `font-weight` contro i 10/3 e l'800 di
-   `famiglia` in `rf-coach/theme/Scrivania.tsx`. Il commento qui sopra li dichiarava
-   gemelli, e per due giorni non lo erano — e' esattamente il difetto che una nota
-   senza prova non ferma. */
+/* La targhetta in cima: nel gestionale dice «Gestionale», qui il ruolo. */
+.rfcoach .gestionale {
+  margin: 10px 8px 0;
+  padding: 8px 0;
+  border-radius: var(--raggio);
+  background: var(--accento);
+  color: var(--su-accento);
+  text-align: center;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+}
+
+.rfcoach .menu-dentro { padding: 10px 8px 32px; display: flex; flex-direction: column; gap: 4px; }
+
+/* ⚠️ LE FAMIGLIE SONO RIQUADRI che si chiudono, come nel gestionale dal 9
+   ottobre: bordo, fondo che si alterna, una barra col titolo e la freccia. */
+.rfcoach .gruppo {
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  padding: 0 4px 4px;
+  background: var(--testata-fondo);
+}
+.rfcoach .gruppo.pari { background: var(--sfondo-alto); }
+.rfcoach .titolo-gruppo {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%;
+  margin: 4px 0 3px;
+  padding: 5px 6px 5px 0;
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  background: var(--contenuto-fondo);
+  font: inherit;
+  color: var(--testo-tenue);
+  cursor: pointer;
+}
+.rfcoach .gruppo.chiuso .voci { display: none; }
+
+/* ⚠️ GEMELLO DI `famiglia` in `rf-coach/theme/Scrivania.tsx`: dieci punti,
+   800, spaziatura di uno, sei a sinistra. `prove/forme.mjs` lo controlla. */
 .rfcoach .famiglia {
   font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 1px;
-  color: var(--testo-tenue);
-  margin: 10px 6px 3px;
+  color: var(--testo);
+  margin: 0 0 0 6px;
 }
 .famiglia:first-child { margin-top: 0; }
 
+/* ⚠️ GEMELLO DI `voce` e `voceTesto` di Scrivania.tsx: 7 e 8 di imbottitura,
+   un punto fra le voci, testo da 13 in grassetto, icona da 18. */
 .rfcoach .bottone-menu {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   width: 100%;
   text-align: left;
   border: 0;
@@ -240,107 +258,286 @@ a { color: inherit; text-decoration: none; }
   font: inherit;
   color: var(--testo);
 }
-.bottone-menu:hover { background: var(--sfondo); }
-.bottone-menu b { display: block; font-size: 13px; font-weight: 700; }
-.bottone-menu small { display: block; color: var(--testo-tenue); font-size: 11px; line-height: 1.3; }
+.rfcoach .bottone-menu:hover { background: var(--sfondo); }
+.bottone-menu svg { color: var(--testo-tenue); }
+.bottone-menu b { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; }
+/* ⚠️ LA SEZIONE APERTA SI VEDE DAL FONDO D'ACCENTO e dal testo scuro
+   d'accento — `${accento}22` e `pannelloDa` del gestionale. */
+.rfcoach .bottone-menu.acceso { background: var(--accento-tenue); }
+.bottone-menu.acceso b, .bottone-menu.acceso svg { color: var(--accento-scuro); }
+.rfcoach .numerino {
+  min-width: 22px; padding: 1px 6px; border-radius: var(--raggio);
+  background: var(--accento); color: var(--su-accento);
+  font-size: 12px; font-weight: 800; text-align: center;
+}
 
-/* ⚠️ LA SEZIONE APERTA SI VEDE DA UN COLORE PIENO, non da un grassetto:
-   in un menu dove ogni voce e' gia' in grassetto, il grassetto non dice
-   niente. */
-.bottone-menu.acceso { background: var(--accento-tenue); box-shadow: inset 3px 0 0 var(--accento); }
-.bottone-menu.acceso b { color: #8a5310; }
+/* ---------- LA COLONNA DESTRA ---------- */
 
-/* ---------- IL CONTENUTO ---------- */
+.rfcoach .colonna-destra { min-width: 0; display: flex; flex-direction: column; }
 
-.contenuto { padding: 26px 28px 60px; }
-.dentro { max-width: var(--contenuto); margin: 0 auto; }
+/* ⚠️ LA FASCIA DEGLI STRUMENTI — `fascia` di Scrivania.tsx: cerca e
+   pillole dei filtri, sotto la testata, larga quanto il contenuto. */
+.rfcoach .fascia {
+  position: sticky;
+  top: var(--testata);
+  z-index: 5;
+  display: flex; align-items: center; flex-wrap: wrap; gap: 14px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--bordo);
+  background: var(--contenuto-fondo);
+}
+.rfcoach .cerca {
+  display: flex; align-items: center; gap: 8px;
+  min-width: 220px; flex-grow: 1; max-width: 360px;
+  padding: 8px 12px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  background: var(--sfondo);
+  color: var(--testo-debole);
+}
+.rfcoach .cerca input {
+  flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+  font: inherit; font-size: 14.5px; color: var(--testo);
+}
+.rfcoach .pillole { display: flex; flex-wrap: wrap; gap: 8px; }
+.rfcoach .pillola-filtro {
+  padding: 6px 12px;
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  background: var(--sfondo);
+  color: var(--testo-tenue);
+  font: inherit; font-size: 13px; font-weight: 700;
+  cursor: pointer;
+}
+.rfcoach .pillola-filtro.acceso { background: var(--accento); border-color: var(--accento); color: var(--su-accento); }
+.rfcoach .spinge { flex-grow: 1; }
+.rfcoach .azzera-filtri {
+  border: 0; background: transparent; font: inherit; font-size: 13.5px; font-weight: 700;
+  color: var(--accento-scuro); cursor: pointer;
+}
+.rfcoach .azzera-filtri:disabled { color: var(--testo-debole); cursor: default; }
+.rfcoach .fascia-dato { font-size: 13px; color: var(--testo-tenue); }
+.rfcoach .fascia-dato b { color: var(--testo); }
 
-h1.titolo { font-size: 24px; margin: 0 0 4px; letter-spacing: -0.3px; }
-p.sottotitolo { margin: 0 0 22px; color: var(--testo-tenue); }
+/* ---------- LA PAGINA DA SOLA ---------- */
+
+.contenuto { flex: 1; min-width: 0; }
+.dentro { max-width: var(--contenuto); margin: 0 auto; padding: 22px 24px 60px; }
+
+/* ⚠️ IL TITOLO DI PAGINA DEL GESTIONALE — `TitoloPagina.tsx`: 21 punti,
+   800, maiuscolo, mezza spaziatura. Era un 24 minuscolo: due pagine dello
+   stesso prodotto con due titoli diversi si leggono come due prodotti. */
+.rfcoach h1.titolo {
+  font-size: 21px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.5px; margin: 0 0 2px;
+}
+.rfcoach p.sottotitolo { margin: 0 0 18px; font-size: 14px; color: var(--testo-tenue); }
+
+/* ---------- I CAPITOLI — `sezioneGestionale` di PezziScheda.tsx ---------- */
+
+/* ⚠️ I CAPITOLI SI DISPONGONO DA SOLI su una, due o tre colonne: ognuno
+   parte da 420 punti e cresce. Nessun numero di colonne scritto da
+   nessuna parte, come nel gestionale (`guscioPelle`). */
+.rfcoach .capitoli {
+  display: flex; flex-wrap: wrap; align-items: flex-start;
+  column-gap: 28px; row-gap: 18px;
+}
+.rfcoach .capitolo {
+  flex: 1 1 420px;
+  min-width: 0;
+  border-top: 2px solid var(--accento);
+  padding-top: 12px;
+}
+.rfcoach .capitolo.largo { flex-basis: 100%; }
+.rfcoach .capitolo h2 {
+  margin: 0 0 10px;
+  font-size: 11.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 1.4px;
+  color: var(--testo-tenue);
+}
+.rfcoach .capitolo p { margin: 0 0 10px; }
+
+/* La testata della scheda: nome grande, luogo, pastiglie — `eroeGestionale`. */
+.rfcoach .eroe {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding-bottom: 14px; margin-bottom: 18px;
+  border-bottom: 1px solid var(--bordo);
+}
+.rfcoach .eroe-parole { flex: 1; min-width: 0; }
+.rfcoach .eroe-nome { font-size: 22px; font-weight: 800; margin: 0; }
+.rfcoach .eroe-sotto { font-size: 13.5px; color: var(--testo-tenue); }
+.rfcoach .sigla {
+  width: 56px; height: 56px; border-radius: var(--raggio);
+  display: flex; align-items: center; justify-content: center;
+  background: var(--accento); color: var(--su-accento);
+  font-size: 19px; font-weight: 800;
+}
+
+/* ---------- I NUMERI — `numero` e `numeroGestionale` ---------- */
+
+.rfcoach .numeri {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+  gap: 10px; margin-bottom: 18px;
+}
+.rfcoach .numero {
+  position: relative; overflow: hidden;
+  border: 1px solid var(--bordo);
+  border-radius: var(--raggio);
+  background: var(--sfondo);
+  padding: 14px 8px 12px;
+  text-align: center;
+}
+.rfcoach .numero::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+  background: var(--accento);
+}
+.rfcoach .numero.rosso::before { background: var(--rosso); }
+.rfcoach .numero.verde::before { background: var(--verde); }
+.rfcoach .numero.giallo::before { background: var(--giallo); }
+.rfcoach .numero-valore { display: block; font-size: 24px; font-weight: 800; line-height: 1.2; }
+.rfcoach .numero-etichetta {
+  display: block; font-size: 11px; font-weight: 800; text-transform: uppercase;
+  letter-spacing: 0.6px; color: var(--testo-tenue);
+}
+.rfcoach .numero-sotto { display: block; font-size: 11.5px; color: var(--testo-debole); margin-top: 2px; }
+
+/* ---------- LE RIGHE «ETICHETTA / VALORE» — `RigaDato` ---------- */
+
+.rfcoach .dati { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px; margin: 0 0 10px; }
+.rfcoach .dati dt { font-size: 13px; color: var(--testo-tenue); }
+.rfcoach .dati dd { margin: 0; font-weight: 700; overflow-wrap: anywhere; }
+
+/* ---------- ELENCO E SCHEDA AFFIANCATI — GestionaleIncordature.tsx ---------- */
+
+.rfcoach .affiancati {
+  display: grid;
+  grid-template-columns: var(--colonna-elenco) minmax(0, 1fr);
+  min-height: calc(100vh - var(--testata) - 58px);
+}
+.rfcoach .colonna-elenco {
+  border-right: 1px solid var(--bordo);
+  background: var(--testata-fondo);
+  padding: 10px;
+  display: flex; flex-direction: column; gap: 4px;
+  overflow-y: auto;
+  max-height: calc(100vh - var(--testata) - 58px);
+  position: sticky;
+  top: calc(var(--testata) + 58px);
+}
+.rfcoach .gruppo-elenco {
+  font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.6px;
+  color: var(--testo-tenue); padding: 12px 8px 4px;
+}
+.rfcoach .riga-elenco {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; text-align: left;
+  padding: 8px; border: 0; border-radius: var(--raggio);
+  background: transparent; font: inherit; color: var(--testo); cursor: pointer;
+}
+.rfcoach .riga-elenco:hover { background: var(--sfondo); }
+.rfcoach .riga-elenco.acceso { background: var(--accento-tenue); }
+.rfcoach .riga-parole { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.rfcoach .riga-nome { font-size: 14.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rfcoach .riga-elenco.acceso .riga-nome { color: var(--accento-scuro); }
+.rfcoach .riga-sotto { font-size: 12.5px; color: var(--testo-tenue); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rfcoach .riga-cifra { font-size: 13.5px; font-weight: 800; white-space: nowrap; }
+.rfcoach .pannello { min-width: 0; padding: 22px 24px 60px; }
+.rfcoach .invito {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  min-height: 50vh; color: var(--testo-debole); font-size: 15px; text-align: center; padding: 24px;
+}
+.vuoto { text-align: center; color: var(--testo-debole); padding: 24px 10px; }
+
+/* ---------- LE PASTIGLIE DI STATO ---------- */
+
+.rfcoach .pillola {
+  display: inline-block;
+  border-radius: var(--raggio);
+  padding: 1px 8px;
+  font-size: 11.5px;
+  font-weight: 800;
+  border: 1px solid;
+  white-space: nowrap;
+}
+.rfcoach .pillole-stato { display: flex; flex-wrap: wrap; gap: 6px; }
+.pillola.attivo, .pillola.bene { color: var(--verde); border-color: rgba(11, 126, 87, 0.4); background: rgba(11, 126, 87, 0.08); }
+.pillola.sospeso, .pillola.attesa { color: var(--giallo); border-color: rgba(154, 107, 0, 0.4); background: rgba(154, 107, 0, 0.08); }
+.pillola.chiuso, .pillola.spento { color: var(--testo-tenue); border-color: var(--bordo); background: var(--sfondo); }
+.pillola.nascosto, .pillola.male { color: var(--rosso); border-color: rgba(196, 30, 30, 0.35); background: rgba(196, 30, 30, 0.07); }
+.pillola.accento { color: var(--accento-scuro); border-color: rgba(217, 138, 43, 0.5); background: var(--accento-tenue); }
+
+/* ---------- MODULI ---------- */
 
 .rfcoach .foglio {
   background: var(--foglio);
   border: 1px solid var(--riga);
   border-radius: var(--raggio);
-  padding: 20px;
-  margin-bottom: 18px;
+  padding: 16px;
+  margin-bottom: 14px;
 }
-.foglio h2 { font-size: 16px; margin: 0 0 14px; }
-
-/* ---------- MODULI ---------- */
 
 .campi { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .campo { display: flex; flex-direction: column; gap: 5px; }
 .campo.largo { grid-column: 1 / -1; }
 .campo label { font-size: 12.5px; font-weight: 700; color: var(--testo-tenue); }
-.rfcoach .campo input, .rfcoach .campo select {
-  border: 1px solid var(--riga);
+.rfcoach .campo input, .rfcoach .campo select, .rfcoach .campo textarea {
+  border: 1px solid var(--bordo);
   border-radius: var(--raggio);
   padding: 9px 11px;
   font: inherit;
-  background: #fff;
+  background: var(--foglio);
   color: var(--testo);
 }
-.campo input:focus, .campo select:focus { outline: 2px solid var(--accento); outline-offset: -1px; }
-.campo .aiuto { font-size: 12px; color: var(--testo-tenue); }
+.rfcoach .campo textarea { min-height: 70px; resize: vertical; }
+.campo input:focus, .campo select:focus, .campo textarea:focus { outline: 2px solid var(--accento); outline-offset: -1px; }
+.rfcoach .aiuto { font-size: 12.5px; color: var(--testo-tenue); }
 
-.interruttore { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; }
+.interruttore { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; cursor: pointer; }
 .interruttore input { margin-top: 3px; }
 .interruttore b { display: block; font-size: 14px; }
 .interruttore small { color: var(--testo-tenue); }
 
-.azioni { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+.azioni { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
 
 .rfcoach .bottone {
-  border: 0;
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  border: 1px solid transparent;
   border-radius: var(--raggio);
-  padding: 10px 22px;
+  padding: 9px 20px;
   font: inherit;
+  font-size: 14px;
   font-weight: 800;
   cursor: pointer;
   background: var(--nero);
   color: #fff;
 }
-.bottone:disabled { opacity: 0.45; cursor: default; }
-.bottone.acceso { background: var(--accento); color: #201200; }
-.bottone.leggero { background: #fff; color: var(--testo); border: 1px solid var(--riga); }
-.bottone.rosso { background: var(--rosso); color: #fff; }
+.rfcoach .bottone:disabled { opacity: 0.45; cursor: default; }
+.rfcoach .bottone.acceso { background: var(--accento); color: var(--su-accento); }
+.rfcoach .bottone.leggero { background: var(--foglio); color: var(--testo); border-color: var(--bordo); }
+.rfcoach .bottone.rosso { background: var(--rosso); color: #fff; }
+.rfcoach .bottone.piccolo { padding: 6px 12px; font-size: 13px; }
 
 /* ---------- TABELLE ---------- */
 
 table.elenco { width: 100%; border-collapse: collapse; }
 .rfcoach table.elenco th {
   text-align: left;
-  font-size: 11.5px;
+  font-size: 11px;
+  font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.6px;
   color: var(--testo-tenue);
   padding: 0 10px 8px;
-  border-bottom: 1px solid var(--riga);
+  border-bottom: 1px solid var(--bordo);
 }
-table.elenco td { padding: 11px 10px; border-bottom: 1px solid var(--riga); vertical-align: top; }
+table.elenco td { padding: 9px 10px; border-bottom: 1px solid var(--riga); vertical-align: top; }
 table.elenco tr:last-child td { border-bottom: 0; }
-table.elenco tr.tocca:hover { background: var(--sfondo); cursor: pointer; }
 
-.rfcoach .pillola {
-  display: inline-block;
-  border-radius: var(--raggio);
-  padding: 2px 10px;
-  font-size: 12px;
-  font-weight: 800;
-  border: 1px solid;
-}
-.pillola.attivo { color: var(--verde); border-color: rgba(31, 122, 77, 0.35); background: rgba(31, 122, 77, 0.08); }
-.pillola.sospeso { color: var(--giallo); border-color: rgba(138, 106, 18, 0.35); background: rgba(138, 106, 18, 0.08); }
-.pillola.chiuso { color: var(--testo-tenue); border-color: var(--riga); background: var(--sfondo); }
-.pillola.nascosto { color: var(--rosso); border-color: rgba(166, 43, 31, 0.3); background: rgba(166, 43, 31, 0.07); }
+/* ---------- AVVISI — `AvvisoScheda` ---------- */
 
-/* ---------- AVVISI ---------- */
-
-.avviso { border-radius: var(--raggio); padding: 13px 15px; margin-bottom: 14px; font-size: 14px; }
-.avviso.male { background: rgba(166, 43, 31, 0.08); border: 1px solid rgba(166, 43, 31, 0.3); color: #7c2016; }
-.avviso.bene { background: rgba(31, 122, 77, 0.08); border: 1px solid rgba(31, 122, 77, 0.3); color: #145737; }
-.avviso.attenzione { background: rgba(217, 138, 43, 0.12); border: 1px solid rgba(217, 138, 43, 0.4); color: #6d4409; }
+.avviso { border-radius: var(--raggio); padding: 12px 14px; margin-bottom: 14px; font-size: 14px; }
+.avviso.male { background: rgba(196, 30, 30, 0.07); border: 1px solid rgba(196, 30, 30, 0.3); color: #7c1515; }
+.avviso.bene { background: rgba(11, 126, 87, 0.07); border: 1px solid rgba(11, 126, 87, 0.3); color: #0a5a3f; }
+.avviso.attenzione { background: rgba(217, 138, 43, 0.11); border: 1px solid rgba(217, 138, 43, 0.4); color: #6d4409; }
 .avviso b { display: block; margin-bottom: 3px; }
 
 .rfcoach .link-consegna {
@@ -348,69 +545,64 @@ table.elenco tr.tocca:hover { background: var(--sfondo); cursor: pointer; }
   width: 100%;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 12px;
-  background: #fff;
-  border: 1px solid var(--riga);
+  background: var(--foglio);
+  border: 1px solid var(--bordo);
   border-radius: var(--raggio);
   padding: 9px;
   margin-top: 8px;
   word-break: break-all;
 }
 
-.vuoto { text-align: center; color: var(--testo-tenue); padding: 40px 10px; }
-
 /* ---------- LA SOGLIA DEL MENU ---------- */
 
 /* ============================================================
-   ⚠️ SOTTO I 900 PUNTI IL MENU VA IN CIMA, e non si stringe.
-   Una colonna di 220 punti su uno schermo da 800 si mangia un quarto
-   della pagina e lascia il contenuto in un canale; e nasconderla dietro
-   un bottone vorrebbe dire scrivere un pannello a scomparsa — cioe' un
-   pezzo nuovo da mantenere per un caso che, su un pannello da scrivania,
-   e' l'eccezione. In riga in cima funziona e non aggiunge niente.
+   ⚠️ SOTTO I 900 PUNTI IL MENU VA IN CIMA, e non si stringe: lo stesso
+   numero del gestionale (`SOGLIA_SCRIVANIA` in misureScrivania.ts).
+   L'elenco e la scheda, affiancati, vanno uno sotto l'altra.
    ============================================================ */
 @media (max-width: 900px) {
-  .impalcatura { grid-template-columns: 1fr; }
+  .rfcoach .impalcatura { grid-template-columns: 1fr; }
   .rfcoach .menu {
     position: static;
     height: auto;
-    display: flex;
-    /* ⚠️ `align-items: center` o i bottoni si stirano per tutta l'altezza
-       della riga — che resta quella del bottone piu' alto anche dopo aver
-       nascosto la riga piccola — e la striscia dell'accento finisce a
-       due centimetri dal testo. Si vede solo qui: in colonna il difetto
-       non esiste. */
-    align-items: center;
-    gap: 8px;
-    overflow-x: auto;
     border-right: 0;
-    border-bottom: 1px solid var(--riga);
-    padding: 10px;
+    border-bottom: 1px solid var(--bordo);
   }
-  .famiglia { display: none; }
-  .bottone-menu { width: auto; white-space: nowrap; margin: 0; }
-  .bottone-menu small { display: none; }
-  .bottone-menu.acceso { box-shadow: inset 0 -3px 0 var(--accento); }
+  .rfcoach .gestionale { display: none; }
+  .rfcoach .menu-dentro { flex-direction: row; flex-wrap: wrap; padding: 8px; }
+  .rfcoach .gruppo, .rfcoach .gruppo.pari { border: 0; padding: 0; background: transparent; }
+  .rfcoach .titolo-gruppo { display: none; }
+  .rfcoach .gruppo.chiuso .voci { display: flex; }
+  .rfcoach .voci { display: flex; flex-wrap: wrap; gap: 4px; }
+  .rfcoach .bottone-menu { width: auto; white-space: nowrap; margin: 0; }
+  .rfcoach .affiancati { grid-template-columns: 1fr; }
+  .rfcoach .colonna-elenco { position: static; max-height: 45vh; border-right: 0; border-bottom: 1px solid var(--bordo); }
+  .rfcoach .fascia { position: static; }
   .campi { grid-template-columns: 1fr; }
-  .contenuto { padding: 18px 14px 50px; }
+  .dentro, .rfcoach .pannello { padding: 18px 14px 50px; }
+  .rfcoach .testata-email { display: none; }
 }
 
-/* ---------- L'INGRESSO ---------- */
+/* ---------- L'INGRESSO E LE PAGINE PUBBLICHE ---------- */
 
 .rfcoach .ingresso {
   min-height: 100vh;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  background: linear-gradient(180deg, var(--nero) 0%, var(--nero-fondo) 100%);
+  padding: calc(var(--testata) + 20px) 20px 20px;
+  background: var(--contenuto-fondo);
 }
 .rfcoach .ingresso .scheda {
   background: var(--foglio);
+  border: 1px solid var(--bordo);
+  border-top: 3px solid var(--accento);
   border-radius: var(--raggio);
-  padding: 30px;
+  padding: 28px;
   width: 100%;
-  max-width: 420px;
+  max-width: 440px;
 }
-.ingresso .marchio { justify-content: center; margin-bottom: 4px; }
-.ingresso .marchio b { color: var(--testo); }
-.ingresso p.sottotitolo { text-align: center; }
+.rfcoach .ingresso .scheda.larga { max-width: 640px; }
+.rfcoach .ingresso h1.titolo { text-align: center; }
+.rfcoach .ingresso p.sottotitolo { text-align: center; }
+.rfcoach .trappola { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }

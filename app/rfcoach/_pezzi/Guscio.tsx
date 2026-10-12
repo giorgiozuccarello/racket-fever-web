@@ -1,25 +1,21 @@
 'use client';
 
 // ============================================================
-// IL GUSCIO — testata in cima, bottoni a sinistra, contenuto a destra.
+// IL GUSCIO — il telaio del gestionale, per il Super Admin.
 //
-// ⚠️ E' LA RICHIESTA DEL 16 SETTEMBRE, alla lettera: «conserviamo la
-// testata in alto dove ci sara' il logo e le stesse informazioni che ci
-// sono adesso, ma invece che fare un elenco di sezioni al centro,
-// facciamo i bottoni sulla sinistra e il contenuto si aggiorna nella
-// parte destra». E' l'unica differenza vera rispetto ai pannelli di
-// Racket Fever, dove le sezioni sono riquadri in mezzo alla pagina
-// (`column-count: 2`) e ogni sezione aperta copre quella prima.
+// ⚠️ DAL 12 OTTOBRE 2026 E' LO STESSO TELAIO DEL GESTIONALE DEL MAESTRO
+// (`rf-coach/theme/Scrivania.tsx`), richiesta di Giorgio: testata grigia con
+// la banda nera e il marchio COACH a destra, menu a sinistra con la targhetta
+// del ruolo in cima e le famiglie in riquadri che si chiudono, voci con
+// l'icona. Il contenuto a destra, con la sua fascia degli strumenti.
 //
-// ⚠️ E LE SEZIONI SONO ROTTE VERE, non uno stato di questa pagina. Con
-// uno stato, il tasto «indietro» del browser uscirebbe dal pannello, un
-// indirizzo non si potrebbe mandare a nessuno, e una ricarica
-// riporterebbe sempre alla prima sezione — tre cose che su un pannello
-// da scrivania si notano il primo giorno.
+// ⚠️ E LE SEZIONI SONO ROTTE VERE, non uno stato di questa pagina: con uno
+// stato, il tasto «indietro» uscirebbe dal pannello, un indirizzo non si
+// potrebbe mandare a nessuno, e una ricarica riporterebbe sempre alla prima
+// sezione.
 //
 // ⚠️ I BOTTONI NON SONO SCRITTI QUI: sono `SEZIONI_SUPERADMIN` in
-// `data/sezioni.ts`, e le prove confrontano quell'elenco con le
-// cartelle vere sotto `app/superadmin/`.
+// `_dati/sezioni.ts`.
 // ============================================================
 
 import React from 'react';
@@ -27,19 +23,52 @@ import { usePathname, useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '../_lib/firebase';
 import { famiglie, SEZIONI_SUPERADMIN, SezioneWeb } from '../_dati/sezioni';
+import { leggiRichieste } from '../_dati/superadmin';
+import Icona from './Icona';
 
-export function Testata({ ruolo, chi }: { ruolo: string; chi?: string }) {
+// ⚠️ IL MARCHIO STA IN `public/rfcoach/`, FUORI da `public/rfcoach/admin/`:
+// quella cartella la svuota `aggiorna.ps1` a ogni tornata per ricopiarci
+// l'export dell'app, e un file messo li' sparirebbe alla prima consegna.
+// E' lo stesso disegno di `rf-coach/assets/images/coach-marchio-banda.png`.
+export const MARCHIO_BANDA = '/rfcoach/marchio-banda.png';
+
+export function Testata({ nome = 'Super Admin', chi, conEsci = false }: {
+  nome?: string; chi?: string; conEsci?: boolean;
+}) {
   return (
     <header className="testata">
-      <div className="marchio"><b>RACKET FEVER</b><span>COACH</span></div>
-      <div className="ruolo">{ruolo}</div>
-      <div className="spinta" />
-      {chi ? <div className="chi">{chi}</div> : null}
-      {chi ? (
+      <div className="testata-chi">
+        <span className="testata-nome">{nome}</span>
+        {chi ? <span className="testata-email">{chi}</span> : null}
+      </div>
+      {conEsci ? (
         <button type="button" className="esci" onClick={() => signOut(auth)}>Esci</button>
       ) : null}
+      <div className="banda">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={MARCHIO_BANDA} alt="RF Coach" />
+      </div>
     </header>
   );
+}
+
+// ⚠️ LE FAMIGLIE CHIUSE SI RICORDANO, come nel gestionale (`sezioniChiuse`),
+// ma nel browser di chi guarda: e' una comodita' sua, non un dato. Se il
+// browser non lascia scrivere — finestra privata — si riparte tutte aperte.
+const CHIAVE_CHIUSE = 'rfcoach.superadmin.chiuse';
+
+function leggiChiuse(): string[] {
+  try {
+    const t = window.localStorage.getItem(CHIAVE_CHIUSE);
+    const v = t ? JSON.parse(t) : [];
+    return Array.isArray(v) ? v.filter((x) => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+function scriviChiuse(v: string[]): void {
+  try { window.localStorage.setItem(CHIAVE_CHIUSE, JSON.stringify(v)); } catch { /* resta in memoria */ }
 }
 
 export default function Guscio(
@@ -47,37 +76,80 @@ export default function Guscio(
 ) {
   const router = useRouter();
   const percorso = usePathname() ?? '';
+  const [chiuse, setChiuse] = React.useState<string[]>([]);
+  const [nuove, setNuove] = React.useState(0);
 
-  // ⚠️ SI CONFRONTA IL PEZZO DI PERCORSO, non l'intero indirizzo:
-  // `trailingSlash` di Next fa arrivare qui `/rfcoach/superadmin/spazi/` con la
-  // barra in fondo, e un confronto secco lascerebbe SEMPRE spento il
-  // bottone della sezione aperta. Un menu in cui non si vede dove si e'
-  // e' un menu che si preme due volte.
-  const acceso = (s: SezioneWeb) => percorso.split('/').filter(Boolean).includes(s.chiave);
+  React.useEffect(() => { setChiuse(leggiChiuse()); }, []);
+
+  // ⚠️ IL NUMERINO DELLE RICHIESTE NUOVE, come quello della chat nel
+  // gestionale: si legge una volta all'apertura e a ogni cambio di sezione.
+  // Se la lettura cade non si dice niente: e' un numerino, non un dato.
+  React.useEffect(() => {
+    let vivo = true;
+    leggiRichieste()
+      .then((r) => { if (vivo) setNuove(r.filter((x) => x.stato === 'nuova').length); })
+      .catch(() => { /* il numerino resta quello che era */ });
+    return () => { vivo = false; };
+  }, [percorso]);
+
+  // ⚠️ SI CONFRONTA IL PEZZO DI PERCORSO, non l'intero indirizzo: con la
+  // barra in fondo un confronto secco lascerebbe SEMPRE spenta la voce della
+  // sezione aperta. E `spazio` (la vecchia scheda) accende «Spazi».
+  const pezzi = percorso.split('/').filter(Boolean);
+  const acceso = (s: SezioneWeb) => pezzi.includes(s.chiave) || (s.chiave === 'spazi' && pezzi.includes('spazio'));
+
+  const cambia = (nome: string) => {
+    setChiuse((prima) => {
+      const dopo = prima.includes(nome) ? prima.filter((n) => n !== nome) : [...prima, nome];
+      scriviChiuse(dopo);
+      return dopo;
+    });
+  };
 
   return (
     <>
-      <Testata ruolo="Super Admin" chi={chi} />
+      <Testata chi={chi} conEsci />
       <div className="impalcatura">
-        <nav className="menu">
-          {famiglie(SEZIONI_SUPERADMIN).map((f) => (
-            <React.Fragment key={f.nome}>
-              <div className="famiglia">{f.nome}</div>
-              {f.sezioni.map((s) => (
-                <button
-                  key={s.chiave}
-                  type="button"
-                  className={`bottone-menu${acceso(s) ? ' acceso' : ''}`}
-                  onClick={() => router.push(`/rfcoach/superadmin/${s.chiave}`)}
-                >
-                  <b>{s.titolo}</b>
-                  <small>{s.sotto}</small>
-                </button>
-              ))}
-            </React.Fragment>
-          ))}
-        </nav>
-        <main className="contenuto"><div className="dentro">{children}</div></main>
+        <div className="menu" role="navigation" aria-label="Sezioni del pannello">
+          <div className="gestionale">Super Admin</div>
+          <div className="menu-dentro">
+            {famiglie(SEZIONI_SUPERADMIN).map((f, i) => {
+              const chiusa = chiuse.includes(f.nome);
+              return (
+                <div key={f.nome} className={`gruppo${i % 2 === 1 ? ' pari' : ''}${chiusa ? ' chiuso' : ''}`}>
+                  <button
+                    type="button"
+                    className="titolo-gruppo"
+                    aria-expanded={!chiusa}
+                    onClick={() => cambia(f.nome)}
+                  >
+                    <span className="famiglia">{f.nome}</span>
+                    <Icona nome={chiusa ? 'giu' : 'su'} lato={14} />
+                  </button>
+                  <div className="voci">
+                    {f.sezioni.map((s) => (
+                      <button
+                        key={s.chiave}
+                        type="button"
+                        title={s.sotto}
+                        aria-current={acceso(s) ? 'page' : undefined}
+                        className={`bottone-menu${acceso(s) ? ' acceso' : ''}`}
+                        onClick={() => router.push(`/rfcoach/superadmin/${s.chiave}`)}
+                      >
+                        <Icona nome={s.icona} />
+                        <b>{s.titolo}</b>
+                        {s.chiave === 'richieste' && nuove > 0 ? (
+                          <span className="numerino">{nuove > 99 ? '99+' : nuove}</span>
+                        ) : null}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="colonna-destra">{children}</div>
       </div>
     </>
   );

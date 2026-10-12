@@ -30,7 +30,7 @@ function Fermo({ titolo, testo, azione }: {
 }) {
   return (
     <>
-      <Testata ruolo="Super Admin" />
+      <Testata />
       <div className="ingresso">
         <div className="scheda">
           <h1 className="titolo">{titolo}</h1>

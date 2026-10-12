@@ -104,6 +104,7 @@ export type Anagrafica = {
   emailPubblica: string;
   presentazione: string;
   visibile: boolean;
+  diProva: boolean;
 };
 
 // ⚠️ SERVE PERCHE' ALTRIMENTI LA CONSOLE NON SPARIVA DAVVERO: nome,
