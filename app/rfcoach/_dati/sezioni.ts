@@ -43,6 +43,10 @@ export type SezioneWeb = {
   // ⚠️ L'ICONA DELLA VOCE, come nel menu del gestionale (12 ottobre 2026).
   // E' un nome di `_pezzi/Icona.tsx`: la prova controlla che esista.
   icona: string;
+  // ⚠️ I LIVELLI CHE NON LA VEDONO — 12 ottobre 2026. Assente, la vedono
+  // tutti. E' cio' che si DISEGNA: il rifiuto vero lo da' il server
+  // (`azionePermessa` in `rf-coach/functions/src/superadminRegole.ts`).
+  nascostaA?: ('A' | 'B')[];
 };
 
 export const SEZIONI_SUPERADMIN: SezioneWeb[] = [
@@ -63,6 +67,7 @@ export const SEZIONI_SUPERADMIN: SezioneWeb[] = [
     sotto: 'Chi paga, quanto, fino a quando',
     famiglia: 'Clienti',
     icona: 'contratti',
+    nascostaA: ['B'],
   },
   {
     chiave: 'richieste',
@@ -77,6 +82,22 @@ export const SEZIONI_SUPERADMIN: SezioneWeb[] = [
     sotto: 'Mettere in attivita’ un maestro o una scuola',
     famiglia: 'Clienti',
     icona: 'nuovo',
+  },
+  // ⚠️ VIDEO ANALYSIS E COLLABORATORI, DAL 12 OTTOBRE 2026.
+  {
+    chiave: 'analisi',
+    titolo: 'Video Analysis',
+    sotto: 'I video mandati al software, e come sono messi',
+    famiglia: 'Attivita’',
+    icona: 'video',
+  },
+  {
+    chiave: 'collaboratori',
+    titolo: 'Collaboratori',
+    sotto: 'Chi entra nel pannello, e con che livello',
+    famiglia: 'Team',
+    icona: 'collaboratori',
+    nascostaA: ['A', 'B'],
   },
   {
     chiave: 'sicurezza',
@@ -117,4 +138,21 @@ export function famiglie(sezioni: SezioneWeb[]): { nome: string; sezioni: Sezion
     fuori.push({ nome: s.famiglia, sezioni: [s] });
   });
   return fuori;
+}
+
+// ============================================================
+// LE SEZIONI DI UN LIVELLO — 12 ottobre 2026.
+//
+// «A» non vede i collaboratori, «B» nemmeno i contratti. Il titolare (chi non
+// ha livello) vede tutto. Un livello che non si conosce vede il meno possibile.
+// ============================================================
+export type LivelloPannello = 'titolare' | 'A' | 'B';
+
+export function sezioniPer(livello: LivelloPannello): SezioneWeb[] {
+  if (livello === 'titolare') return SEZIONI_SUPERADMIN;
+  return SEZIONI_SUPERADMIN.filter((s) => !(s.nascostaA ?? []).includes(livello));
+}
+
+export function vedeSezione(livello: LivelloPannello, chiave: string): boolean {
+  return sezioniPer(livello).some((s) => s.chiave === chiave);
 }

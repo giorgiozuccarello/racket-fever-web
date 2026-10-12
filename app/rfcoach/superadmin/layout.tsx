@@ -87,5 +87,5 @@ export default function PortaSuperAdmin({ children }: { children: React.ReactNod
     );
   }
 
-  return <Guscio chi={sessione.email}>{children}</Guscio>;
+  return <Guscio chi={sessione.email} livello={sessione.livello}>{children}</Guscio>;
 }

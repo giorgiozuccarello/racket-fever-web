@@ -28,7 +28,8 @@ import {
   statoVisto, giorniFra, importoScritto, centDaScritto, totaleAnnuo, unAnnoDopo, dataScritta,
   ORDINE_STATI, DETTO_STATO, TINTA_STATO, GIORNI_PREAVVISO,
 } from '../app/rfcoach/_dati/contratti.ts';
-import { SEZIONI_SUPERADMIN, ROTTE_SENZA_BOTTONE } from '../app/rfcoach/_dati/sezioni.ts';
+import { SEZIONI_SUPERADMIN, ROTTE_SENZA_BOTTONE, sezioniPer, vedeSezione } from '../app/rfcoach/_dati/sezioni.ts';
+import { riepilogo, etichettaRisoluzione, durataLunga, STATI_DASHBOARD, DETTO_STATO_ANALISI } from '../app/rfcoach/_dati/analisiDashboard.ts';
 
 let passate = 0;
 const cadute = [];
@@ -190,6 +191,65 @@ for (const p of ['spazi', 'contratti', 'richieste', 'nuovo', 'spazio']) {
   const t = leggi('app', 'rfcoach', 'superadmin', p, 'page.tsx');
   if (!t.includes('useSearchParams')) continue;
   prova(`la pagina ${p} usa l indirizzo dentro un Suspense`, t.includes('<Suspense'));
+}
+
+// ------------------------------------------------------------
+// 7. I COLLABORATORI E I LIVELLI (12 ottobre)
+// ------------------------------------------------------------
+{
+  const chiavi = (l) => sezioniPer(l).map((x) => x.chiave);
+  prova('il titolare vede tutto', chiavi('titolare').length === SEZIONI_SUPERADMIN.length);
+  prova('A non vede i collaboratori ma vede i contratti', !chiavi('A').includes('collaboratori') && chiavi('A').includes('contratti'));
+  prova('B non vede collaboratori e contratti', !chiavi('B').includes('collaboratori') && !chiavi('B').includes('contratti'));
+  prova('A e B vedono tutto il resto',
+    SEZIONI_SUPERADMIN.filter((x) => !['collaboratori', 'contratti'].includes(x.chiave)).every((x) => vedeSezione('A', x.chiave) && vedeSezione('B', x.chiave)));
+  prova('le sezioni nuove sono nel menu', ['analisi', 'collaboratori'].every((k) => SEZIONI_SUPERADMIN.some((x) => x.chiave === k)));
+  const gus = senzaCommenti(leggi('app', 'rfcoach', '_pezzi', 'Guscio.tsx'));
+  prova('il menu si disegna per livello', gus.includes('famiglie(sezioniPer(livello))') && !gus.includes('famiglie(SEZIONI_SUPERADMIN)'));
+  prova('la porta passa il livello al guscio', leggi('app', 'rfcoach', 'superadmin', 'layout.tsx').includes('livello={sessione.livello}'));
+  const ses = senzaCommenti(leggi('app', 'rfcoach', '_lib', 'sessione.ts'));
+  prova('chi non ha livello e il titolare, uno sconosciuto vale B (come il server)',
+    ses.includes("if (dato === undefined || dato === null || dato === '') return 'titolare';") && ses.includes("if (dato === 'A') return 'A';\n  return 'B';"));
+  for (const sez of SEZIONI_SUPERADMIN.filter((x) => (x.nascostaA ?? []).length > 0)) {
+    prova(`la pagina ${sez.chiave} si rifiuta anche digitando l indirizzo`,
+      leggi('app', 'rfcoach', 'superadmin', sez.chiave, 'page.tsx').includes(`<Riservata chiave="${sez.chiave}">`));
+  }
+  const sch = senzaCommenti(leggi('app', 'rfcoach', '_pezzi', 'SchedaSpazio.tsx'));
+  prova('la scheda dello spazio non mostra il contratto a chi non lo vede',
+    sch.includes("const conContratti = vedeSezione(useLivello(), 'contratti');") && sch.includes('{conContratti ? (') && sch.includes('if (conContratti) void rileggiContratto();'));
+  const sic = senzaCommenti(leggi('app', 'rfcoach', 'superadmin', 'sicurezza', 'page.tsx'));
+  prova('il collaboratore non cambia la propria password', sic.includes("sessione.livello !== 'titolare' ? (") && sic.indexOf("sessione.livello !== 'titolare'") < sic.indexOf('Mandami il link'));
+  const col = senzaCommenti(leggi('app', 'rfcoach', 'superadmin', 'collaboratori', 'page.tsx'));
+  prova('la password chiede almeno dieci caratteri, come il server', col.includes('minLength={10}') && col.includes('password.length < 10'));
+  prova('il titolare non si revoca e non si declassa dal pannello', col.includes("c.livello === 'titolare' ? null : (") && col.includes("c.livello === 'titolare' ? (\n                        <Pillola"));
+  prova('revocare chiede conferma', col.includes('window.confirm(`Revoco l’accesso'));
+}
+
+// ------------------------------------------------------------
+// 8. LA DASHBOARD DI VIDEO ANALYSIS (12 ottobre)
+// ------------------------------------------------------------
+{
+  const r = (x) => ({ stato: 'daAnalizzare', byte: 0, byteAnalizzato: 0, altezza: 1080, fps: 60, durataSec: 60, spazioId: 's1', nomeSpazio: 'Mario', ...x });
+  // ⚠️ Luca viene PRIMA nei dati: l'ordine «dal piu' attivo» si vede solo se
+  // non coincide con quello di arrivo.
+  const c = riepilogo([
+    r({ stato: 'errore', spazioId: 's2', nomeSpazio: 'Luca', durataSec: 30 }),
+    r({ byte: 100 }), r({ stato: 'analizzato', byte: 200, byteAnalizzato: 50, altezza: 2160, fps: 120 }),
+    r({ stato: 'inviato', byte: -1 }),
+  ]);
+  prova('conta i video', c.totale === 4);
+  prova('conta per stato, anche quelli a zero', c.perStato.daAnalizzare === 1 && c.perStato.analizzato === 1 && c.perStato.errore === 1 && c.perStato.inCoda === 0);
+  prova('somma il peso, senza i numeri sbagliati', c.byte === 300 && c.byteAnalizzati === 50);
+  prova('somma la durata', c.durataSec === 210);
+  prova('distribuisce per risoluzione e FPS', c.perRisoluzione['1080p'] === 3 && c.perRisoluzione['4K'] === 1 && c.perFps['60 FPS'] === 3 && c.perFps['120 FPS'] === 1);
+  prova('e per maestro, dal piu attivo', c.perSpazio[0].spazioId === 's1' && c.perSpazio[0].quanti === 3 && c.perSpazio[1].nome === 'Luca');
+  prova('le risoluzioni si chiamano come nel gestionale', etichettaRisoluzione(1080) === '1080p' && etichettaRisoluzione(2160) === '4K' && etichettaRisoluzione(0) === '—');
+  prova('la durata lunga si legge', durataLunga(45) === '45 s' && durataLunga(720) === '12 min' && durataLunga(3900) === '1 h 05 min');
+  prova('gli stati sono quelli dell app, con un nome ciascuno',
+    STATI_DASHBOARD.join() === 'daAnalizzare,inCoda,inAnalisi,analizzato,inviato,errore' && STATI_DASHBOARD.every((x) => DETTO_STATO_ANALISI[x]));
+  const pag = senzaCommenti(leggi('app', 'rfcoach', 'superadmin', 'analisi', 'page.tsx'));
+  prova('la dashboard non apre video (non tocca nessun indirizzo)', !/\burl\b|<video|Lettore/i.test(pag));
+  prova('e legge dal server', pag.includes('leggiAnalisiTutte()'));
 }
 
 console.log(`\nPROVE SUPER ADMIN — ${passate} passate, ${cadute.length} cadute`);

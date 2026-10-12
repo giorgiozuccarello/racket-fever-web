@@ -53,6 +53,16 @@ export default function Sicurezza() {
         </p>
       </Capitolo>
 
+      {/* ⚠️ IL COLLABORATORE NON CAMBIA LA PROPRIA PASSWORD DA QUI (12 ottobre
+          2026, richiesta di Giorgio): gliela da' e gliela cambia il titolare,
+          dalla sezione Collaboratori. */}
+      {sessione.stato === 'dentro' && sessione.livello !== 'titolare' ? (
+      <Capitolo titolo="Password">
+        <p className="aiuto">
+          {`Sei collaboratore di livello ${sessione.livello}: la password te la da’ e te la cambia il titolare del pannello.`}
+        </p>
+      </Capitolo>
+      ) : (
       <Capitolo titolo="Cambiare password">
         {detto ? <div className="avviso bene">{detto}</div> : null}
         {guasto ? <div className="avviso male">{guasto}</div> : null}
@@ -66,6 +76,7 @@ export default function Sicurezza() {
           </button>
         </div>
       </Capitolo>
+      )}
       </Capitoli>
     </Pagina>
   );

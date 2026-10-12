@@ -531,6 +531,12 @@ table.elenco { width: 100%; border-collapse: collapse; }
 }
 table.elenco td { padding: 9px 10px; border-bottom: 1px solid var(--riga); vertical-align: top; }
 table.elenco tr:last-child td { border-bottom: 0; }
+/* I campi dentro le righe (Collaboratori): piccoli, col bordo del gestionale. */
+.rfcoach table.elenco input, .rfcoach table.elenco select {
+  border: 1px solid var(--bordo); border-radius: var(--raggio);
+  padding: 5px 8px; font: inherit; font-size: 13px; background: var(--foglio); color: var(--testo);
+  min-width: 0;
+}
 
 /* ---------- AVVISI — `AvvisoScheda` ---------- */
 

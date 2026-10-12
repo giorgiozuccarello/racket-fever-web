@@ -22,7 +22,9 @@ import React from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { signOut } from 'firebase/auth';
 import { auth } from '../_lib/firebase';
-import { famiglie, SEZIONI_SUPERADMIN, SezioneWeb } from '../_dati/sezioni';
+import {
+  famiglie, LivelloPannello, sezioniPer, SezioneWeb, vedeSezione,
+} from '../_dati/sezioni';
 import { leggiRichieste } from '../_dati/superadmin';
 import Icona from './Icona';
 
@@ -32,14 +34,40 @@ import Icona from './Icona';
 // E' lo stesso disegno di `rf-coach/assets/images/coach-marchio-banda.png`.
 export const MARCHIO_BANDA = '/rfcoach/marchio-banda.png';
 
-export function Testata({ nome = 'Super Admin', chi, conEsci = false }: {
-  nome?: string; chi?: string; conEsci?: boolean;
+// ============================================================
+// ⚠️ IL LIVELLO DI CHI GUARDA — 12 ottobre 2026. Lo mette la porta
+// (`superadmin/layout.tsx`) e lo leggono il menu e le pagine che un
+// collaboratore non deve vedere (`Riservata`). Fuori dal pannello vale
+// «titolare»: non c'e' nessuno da nascondere a nessuno.
+// ============================================================
+export const LivelloContext = React.createContext<LivelloPannello>('titolare');
+export function useLivello(): LivelloPannello { return React.useContext(LivelloContext); }
+
+// ⚠️ UNA PAGINA NASCOSTA SI PUO' COMUNQUE DIGITARE NELL'INDIRIZZO: questa la
+// rifiuta a vista. Il rifiuto vero lo da' il server, che non risponderebbe
+// comunque — ma una pagina che prova e cade e' peggio di una che dice perche'.
+export function Riservata({ chiave, children }: { chiave: string; children: React.ReactNode }) {
+  const livello = useLivello();
+  if (vedeSezione(livello, chiave)) return <>{children}</>;
+  return (
+    <main className="contenuto">
+      <div className="dentro">
+        <h1 className="titolo">Sezione riservata</h1>
+        <p className="sottotitolo">Il tuo livello di accesso non comprende questa sezione.</p>
+      </div>
+    </main>
+  );
+}
+
+export function Testata({ nome = 'Super Admin', chi, conEsci = false, livello }: {
+  nome?: string; chi?: string; conEsci?: boolean; livello?: LivelloPannello;
 }) {
   return (
     <header className="testata">
       <div className="testata-chi">
         <span className="testata-nome">{nome}</span>
         {chi ? <span className="testata-email">{chi}</span> : null}
+        {livello && livello !== 'titolare' ? <span className="pillola accento">{`Collaboratore ${livello}`}</span> : null}
       </div>
       {conEsci ? (
         <button type="button" className="esci" onClick={() => signOut(auth)}>Esci</button>
@@ -72,7 +100,7 @@ function scriviChiuse(v: string[]): void {
 }
 
 export default function Guscio(
-  { chi, children }: { chi: string; children: React.ReactNode },
+  { chi, livello = 'titolare', children }: { chi: string; livello?: LivelloPannello; children: React.ReactNode },
 ) {
   const router = useRouter();
   const percorso = usePathname() ?? '';
@@ -108,12 +136,12 @@ export default function Guscio(
 
   return (
     <>
-      <Testata chi={chi} conEsci />
+      <Testata chi={chi} conEsci livello={livello} />
       <div className="impalcatura">
         <div className="menu" role="navigation" aria-label="Sezioni del pannello">
           <div className="gestionale">Super Admin</div>
           <div className="menu-dentro">
-            {famiglie(SEZIONI_SUPERADMIN).map((f, i) => {
+            {famiglie(sezioniPer(livello)).map((f, i) => {
               const chiusa = chiuse.includes(f.nome);
               return (
                 <div key={f.nome} className={`gruppo${i % 2 === 1 ? ' pari' : ''}${chiusa ? ' chiuso' : ''}`}>
@@ -149,7 +177,9 @@ export default function Guscio(
             })}
           </div>
         </div>
-        <div className="colonna-destra">{children}</div>
+        <div className="colonna-destra">
+          <LivelloContext.Provider value={livello}>{children}</LivelloContext.Provider>
+        </div>
       </div>
     </>
   );

@@ -40,7 +40,22 @@ export type Sessione =
   // chiedersi chi gli ha tolto il ruolo.
   | { stato: 'nonAbilitato'; email: string; uid: string }
   | { stato: 'nonSiSa'; email: string; uid: string }
-  | { stato: 'dentro'; email: string; uid: string; utente: User };
+  | { stato: 'dentro'; email: string; uid: string; utente: User; livello: Livello };
+
+// ============================================================
+// ⚠️ IL LIVELLO — 12 ottobre 2026: «titolare» chi non ha il campo (i documenti
+// nati in console), «A» e «B» i collaboratori. Un valore sconosciuto vale B,
+// il meno possibile. E' la stessa regola di `livelloDi` in
+// `rf-coach/functions/src/superadminRegole.ts`, che e' quella che conta: qui
+// decide solo cosa si DISEGNA.
+// ============================================================
+export type Livello = 'titolare' | 'A' | 'B';
+
+export function livelloDa(dato: unknown): Livello {
+  if (dato === undefined || dato === null || dato === '') return 'titolare';
+  if (dato === 'A') return 'A';
+  return 'B';
+}
 
 export function useSessione(): Sessione {
   const [sessione, setSessione] = useState<Sessione>({ stato: 'guardo' });
@@ -60,7 +75,7 @@ export function useSessione(): Sessione {
           setSessione({ stato: 'nonAbilitato', email, uid: utente.uid });
           return;
         }
-        setSessione({ stato: 'dentro', email, uid: utente.uid, utente });
+        setSessione({ stato: 'dentro', email, uid: utente.uid, utente, livello: livelloDa(suo.get('livello')) });
       } catch {
         // ⚠️ UN GUASTO DI RETE NON E' UN RIFIUTO. La regola su
         // `superadmin` nega la lettura di chiunque non sia se stesso, e

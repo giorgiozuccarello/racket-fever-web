@@ -172,3 +172,63 @@ export function pesoScritto(byte: number): string {
   if (byte < 1024 ** 3) return `${(byte / 1024 ** 2).toFixed(1)} MB`;
   return `${(byte / 1024 ** 3).toFixed(2)} GB`;
 }
+
+// ---------- la dashboard di Video Analysis (12 ottobre) ----------
+
+export type AnalisiRiga = {
+  id: string;
+  spazioId: string;
+  nomeSpazio: string;
+  titolo: string;
+  stato: string;
+  origine: string;
+  byte: number;
+  byteAnalizzato: number;
+  altezza: number;
+  fps: number;
+  durataSec: number;
+  errore: string;
+  driveNome: string;
+  nomeAnalizzato: string;
+  allievo: string;
+  creatoIlMs: number;
+  inAnalisiIlMs: number;
+  analizzatoIlMs: number;
+  inviatoIlMs: number;
+};
+
+export async function leggiAnalisiTutte(): Promise<AnalisiRiga[]> {
+  const r = await chiama<{ analisi: AnalisiRiga[] }>('analisi');
+  return r.analisi;
+}
+
+// ---------- i collaboratori (12 ottobre) ----------
+
+export type Collaboratore = {
+  uid: string;
+  email: string;
+  livello: 'titolare' | 'A' | 'B';
+  creatoIlMs: number;
+  ultimoAccessoMs: number;
+};
+
+export async function leggiCollaboratori(): Promise<Collaboratore[]> {
+  const r = await chiama<{ collaboratori: Collaboratore[] }>('collaboratori');
+  return r.collaboratori;
+}
+
+export async function aggiungiCollaboratore(email: string, password: string, livello: 'A' | 'B'): Promise<void> {
+  await chiama('aggiungiCollaboratore', { email, password, livello });
+}
+
+export async function passwordCollaboratore(uid: string, password: string): Promise<void> {
+  await chiama('passwordCollaboratore', { uid, password });
+}
+
+export async function livelloCollaboratore(uid: string, livello: 'A' | 'B'): Promise<void> {
+  await chiama('livelloCollaboratore', { uid, livello });
+}
+
+export async function revocaCollaboratore(uid: string): Promise<void> {
+  await chiama('revocaCollaboratore', { uid });
+}

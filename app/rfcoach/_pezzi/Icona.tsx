@@ -20,6 +20,8 @@ export const TRATTI: Record<string, string> = {
   richieste: 'M3 6h18v12H3zM3 7l9 6 9-6',
   nuovo: 'M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 8v8M8 12h8',
   sicurezza: 'M8 11V8a4 4 0 0 1 8 0v3M6 11h12v10H6zM12 15v2',
+  video: 'M3 6h13v12H3zM16 10l5-3v10l-5-3',
+  collaboratori: 'M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM2 21v-1a7 7 0 0 1 14 0v1M16 3.5a4 4 0 0 1 0 7.5M22 21v-1a7 7 0 0 0-4-6.3',
   cerca: 'M10.5 4a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM15.5 15.5 21 21',
   su: 'M6 15l6-6 6 6',
   giu: 'M6 9l6 6 6-6',

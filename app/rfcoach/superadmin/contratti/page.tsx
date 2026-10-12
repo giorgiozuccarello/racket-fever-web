@@ -28,6 +28,7 @@ import {
 import { leggiContratti } from '../../_dati/superadmin';
 import { motivo } from '../../_dati/onboarding';
 import CapitoloContratto from '../../_pezzi/Contratto';
+import { Riservata } from '../../_pezzi/Guscio';
 import {
   Affiancati, Capitoli, Capitolo, Dati, Eroe, Fascia, GruppoElenco, Invito, Numeri, Numero, Pillola,
   RigaElenco,
@@ -184,8 +185,11 @@ function Elenco() {
 
 export default function Contratti() {
   return (
-    <Suspense fallback={<div className="vuoto">Un momento…</div>}>
-      <Elenco />
-    </Suspense>
+    // ⚠️ IL COLLABORATORE «B» NON VEDE I CONTRATTI (12 ottobre 2026).
+    <Riservata chiave="contratti">
+      <Suspense fallback={<div className="vuoto">Un momento…</div>}>
+        <Elenco />
+      </Suspense>
+    </Riservata>
   );
 }

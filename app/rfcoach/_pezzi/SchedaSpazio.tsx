@@ -33,6 +33,8 @@ import {
 } from '../_dati/superadmin';
 import { Contratto } from '../_dati/contratti';
 import CapitoloContratto from './Contratto';
+import { useLivello } from './Guscio';
+import { vedeSezione } from '../_dati/sezioni';
 import {
   Capitoli, Capitolo, Dati, Eroe, Numeri, Numero, Pillola,
 } from './Pezzi';
@@ -50,6 +52,10 @@ function conto(n: NumeriSpazio | null, chiave: string): string {
 type Link = { titolo: string; email: string; link: string } | null;
 
 export default function SchedaSpazio({ spazioId }: { spazioId: string }) {
+  // ⚠️ IL COLLABORATORE «B» NON VEDE I CONTRATTI, nemmeno nella scheda: il
+  // capitolo non si disegna e il contratto non si chiede (il server lo
+  // rifiuterebbe comunque).
+  const conContratti = vedeSezione(useLivello(), 'contratti');
   const [spazio, setSpazio] = useState<SpazioRiga | null>(null);
   const [tessere, setTessere] = useState<TesseraRiga[]>([]);
   const [contratto, setContratto] = useState<Contratto | null>(null);
@@ -94,10 +100,10 @@ export default function SchedaSpazio({ spazioId }: { spazioId: string }) {
     setSpazio(null); setNumeri(null); setAccesso(null); setContratto(null);
     setGuasto(''); setDetto(''); setLink(null); setModulo(null); setAzzerato(null); setConferma('');
     void rileggi();
-    void rileggiContratto();
+    if (conContratti) void rileggiContratto();
     numeriSpazio(spazioId).then(setNumeri).catch(() => setNumeri({ conti: {}, byte: -1, ultimoAccessoMs: 0, creatoMs: 0 }));
     accessoTitolare(spazioId).then(setAccesso).catch(() => setAccesso(null));
-  }, [spazioId, rileggi, rileggiContratto]);
+  }, [spazioId, rileggi, rileggiContratto, conContratti]);
 
   function ripulisci() {
     setGuasto('');
@@ -307,12 +313,14 @@ export default function SchedaSpazio({ spazioId }: { spazioId: string }) {
           </div>
         </Capitolo>
 
-        <CapitoloContratto
-          spazioId={spazioId}
-          contratto={contratto}
-          valutaSpazio={spazio.valuta}
-          quandoCambia={rileggiContratto}
-        />
+        {conContratti ? (
+          <CapitoloContratto
+            spazioId={spazioId}
+            contratto={contratto}
+            valutaSpazio={spazio.valuta}
+            quandoCambia={rileggiContratto}
+          />
+        ) : null}
 
         <Capitolo titolo="Chi ci lavora">
           {titolare ? (
