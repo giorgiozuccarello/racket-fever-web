@@ -29,7 +29,9 @@ import {
   ORDINE_STATI, DETTO_STATO, TINTA_STATO, GIORNI_PREAVVISO,
 } from '../app/rfcoach/_dati/contratti.ts';
 import { SEZIONI_SUPERADMIN, ROTTE_SENZA_BOTTONE, sezioniPer, vedeSezione } from '../app/rfcoach/_dati/sezioni.ts';
-import { riepilogo, etichettaRisoluzione, durataLunga, STATI_DASHBOARD, DETTO_STATO_ANALISI } from '../app/rfcoach/_dati/analisiDashboard.ts';
+import {
+  riepilogo, etichettaRisoluzione, durataLunga, STATI_DASHBOARD, DETTO_STATO_ANALISI, puoEliminareVideo, dettoMancante,
+} from '../app/rfcoach/_dati/analisiDashboard.ts';
 
 let passate = 0;
 const cadute = [];
@@ -250,6 +252,30 @@ for (const p of ['spazi', 'contratti', 'richieste', 'nuovo', 'spazio']) {
   const pag = senzaCommenti(leggi('app', 'rfcoach', 'superadmin', 'analisi', 'page.tsx'));
   prova('la dashboard non apre video (non tocca nessun indirizzo)', !/\burl\b|<video|Lettore/i.test(pag));
   prova('e legge dal server', pag.includes('leggiAnalisiTutte()'));
+}
+
+// ------------------------------------------------------------
+// 9. ELIMINARE UN VIDEO E LA SCHEDA ROSSA (13 ottobre)
+// ------------------------------------------------------------
+{
+  // ⚠️ IL GEMELLO E' `puoEliminareAnalisi` in
+  // `rf-coach/functions/src/superadminRegole.ts`, sorvegliato da
+  // `rf-coach/prove/superadmin.mjs`: titolare e A si', B no.
+  prova('il titolare e A vedono «Elimina»', puoEliminareVideo('titolare') && puoEliminareVideo('A'));
+  prova('B no, e nemmeno un livello sconosciuto', !puoEliminareVideo('B') && !puoEliminareVideo('') && !puoEliminareVideo('Z'));
+  const r = (x) => ({ stato: 'daAnalizzare', byte: 0, byteAnalizzato: 0, altezza: 0, fps: 0, durataSec: 0, spazioId: 's', nomeSpazio: 'M', ...x });
+  prova('conta le schede senza file', riepilogo([r({ fileMancante: true }), r({ analizzatoMancante: true }), r({})]).mancanti === 2);
+  prova('la scheda rossa dice che cosa manca', dettoMancante({ fileMancante: true }) === 'File mancante'
+    && dettoMancante({ analizzatoMancante: true }) === 'Analizzato mancante' && dettoMancante({}) === '');
+  const pag = senzaCommenti(leggi('app', 'rfcoach', 'superadmin', 'analisi', 'page.tsx'));
+  prova('il bottone c e solo per chi puo', pag.includes('{puoEliminareVideo(livello) ? (') && pag.includes('Elimina definitivamente'));
+  prova('e chiede conferma prima di eliminare', pag.indexOf('if (!window.confirm(domanda)) return;') >= 0
+    && pag.indexOf('if (!window.confirm(domanda)) return;') < pag.indexOf('await eliminaVideo(r.id);'));
+  prova('la domanda nomina l allievo se il video era inviato', pag.includes("(r.stato === 'inviato' && r.allievo ? ` e da quella di ${r.allievo}` : '')"));
+  prova('dopo l eliminazione l elenco si rilegge', pag.indexOf('await eliminaVideo(r.id);') < pag.indexOf('await rileggi();', pag.indexOf('await eliminaVideo(r.id);')));
+  prova('le schede senza file sono rosse nell elenco e nella scheda', (pag.match(/<Pillola tinta="male">\{dettoMancante\(/g) || []).length === 2);
+  const dati = senzaCommenti(leggi('app', 'rfcoach', '_dati', 'superadmin.ts'));
+  prova('eliminare passa dal server', dati.includes("return chiama('eliminaAnalisi', { id });"));
 }
 
 console.log(`\nPROVE SUPER ADMIN — ${passate} passate, ${cadute.length} cadute`);

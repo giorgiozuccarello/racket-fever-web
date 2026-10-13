@@ -11,6 +11,8 @@
 
 export type RigaAnalisi = {
   stato: string;
+  fileMancante?: boolean;
+  analizzatoMancante?: boolean;
   byte: number;
   byteAnalizzato: number;
   altezza: number;
@@ -51,6 +53,7 @@ export function etichettaRisoluzione(altezza: number): string {
 
 export type Riepilogo = {
   totale: number;
+  mancanti: number;
   perStato: Record<string, number>;
   byte: number;
   byteAnalizzati: number;
@@ -69,7 +72,9 @@ export function riepilogo(righe: RigaAnalisi[]): Riepilogo {
   let byte = 0;
   let byteAnalizzati = 0;
   let durataSec = 0;
+  let mancanti = 0;
   righe.forEach((r) => {
+    if (r.fileMancante || r.analizzatoMancante) mancanti += 1;
     perStato[r.stato] = (perStato[r.stato] ?? 0) + 1;
     byte += r.byte > 0 ? r.byte : 0;
     byteAnalizzati += r.byteAnalizzato > 0 ? r.byteAnalizzato : 0;
@@ -85,6 +90,7 @@ export function riepilogo(righe: RigaAnalisi[]): Riepilogo {
   });
   return {
     totale: righe.length,
+    mancanti,
     perStato,
     byte,
     byteAnalizzati,
@@ -102,4 +108,25 @@ export function durataLunga(sec: number): string {
   const min = Math.floor(s / 60);
   if (min < 60) return `${min} min`;
   return `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, '0')} min`;
+}
+
+// ============================================================
+// ELIMINARE UN VIDEO — 13 ottobre 2026. Decisione di Giorgio: il titolare e il
+// livello A, non il B.
+//
+// ⚠️ E' IL GEMELLO DI `puoEliminareAnalisi` in
+// `rf-coach/functions/src/superadminRegole.ts`, che e' quello che conta: qui
+// decide solo se disegnare il bottone. Le due prove (una per repository)
+// sorvegliano la stessa frase: titolare e A si', B no.
+// ============================================================
+export function puoEliminareVideo(livello: string): boolean {
+  return livello === 'titolare' || livello === 'A';
+}
+
+// Che cosa manca, detto come lo dice la scheda rossa.
+export function dettoMancante(r: { fileMancante?: boolean; analizzatoMancante?: boolean }): string {
+  if (r.fileMancante && r.analizzatoMancante) return 'Mancano il video e l’analizzato';
+  if (r.fileMancante) return 'File mancante';
+  if (r.analizzatoMancante) return 'Analizzato mancante';
+  return '';
 }

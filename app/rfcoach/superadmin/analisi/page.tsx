@@ -6,22 +6,32 @@
 // Richiesta di Giorgio: tutti i dati dei video mandati al software — stato,
 // analizzati, da analizzare, dimensione, risoluzione, FPS.
 //
-// ⚠️ SOLA LETTURA: da qui non si manda, non si cancella e non si guarda nessun
+// ⚠️ SOLA LETTURA, TRANNE «ELIMINA»: da qui non si manda e non si guarda nessun
 // video. Il server non restituisce nemmeno gli indirizzi dei file — solo i
 // numeri. I video sono del maestro.
 //
 // In alto i numeri e le distribuzioni; sotto l'elenco e la scheda affiancati,
 // come nel resto del pannello, con cerca e filtro per stato.
+//
+// ⚠️ DAL 13 OTTOBRE 2026 DUE COSE IN PIU' (richiesta di Giorgio):
+//   · «Elimina definitivamente», in fondo alla scheda di ogni video, per il
+//     titolare e il livello A (non il B). Sparisce dalle app del maestro e
+//     dell'allievo, e i file vanno via dal bucket e da Drive. E' l'UNICA
+//     eccezione alla sola lettura qui sotto, e passa dal server.
+//   · la scheda rossa «File mancante»: una scheda il cui video nel bucket non
+//     c'e' piu' (Giorgio ne aveva cancellati a mano dalla console, e il
+//     pannello li mostrava come se niente fosse). Si toglie con «Elimina».
 // ============================================================
 
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { AnalisiRiga, leggiAnalisiTutte, pesoScritto, quandoConOra } from '../../_dati/superadmin';
+import { AnalisiRiga, eliminaVideo, leggiAnalisiTutte, pesoScritto, quandoConOra } from '../../_dati/superadmin';
 import {
-  DETTO_STATO_ANALISI, STATI_DASHBOARD, TINTA_STATO_ANALISI, durataLunga, etichettaRisoluzione,
-  riepilogo,
+  DETTO_STATO_ANALISI, STATI_DASHBOARD, TINTA_STATO_ANALISI, dettoMancante, durataLunga,
+  etichettaRisoluzione, puoEliminareVideo, riepilogo,
 } from '../../_dati/analisiDashboard';
 import { motivo } from '../../_dati/onboarding';
+import { useLivello } from '../../_pezzi/Guscio';
 import {
   Affiancati, Capitoli, Capitolo, Dati, Eroe, Fascia, GruppoElenco, Numeri, Numero, Pillola,
   RigaElenco,
@@ -39,22 +49,56 @@ function Dashboard() {
   const [guasto, setGuasto] = useState('');
   const [cerca, setCerca] = useState('');
   const [filtro, setFiltro] = useState('tutti');
+  const [eliminando, setEliminando] = useState(false);
+  const [detto, setDetto] = useState('');
+  const livello = useLivello();
 
-  useEffect(() => {
-    leggiAnalisiTutte().then(setRighe).catch((e) => setGuasto(`Le analisi non si leggono: ${motivo(e)}`));
+  const rileggi = useCallback(async () => {
+    try {
+      setRighe(await leggiAnalisiTutte());
+    } catch (e) {
+      setGuasto(`Le analisi non si leggono: ${motivo(e)}`);
+    }
   }, []);
+  useEffect(() => { void rileggi(); }, [rileggi]);
 
   const conti = useMemo(() => riepilogo(righe ?? []), [righe]);
   const t = cerca.trim().toLowerCase();
-  const visti = (righe ?? []).filter((r) => (filtro === 'tutti' || r.stato === filtro)
+  const mancante = (r: AnalisiRiga) => r.fileMancante || r.analizzatoMancante;
+  const visti = (righe ?? []).filter((r) => (filtro === 'tutti' || r.stato === filtro || (filtro === 'mancanti' && mancante(r)))
     && (!t || [r.titolo, r.nomeSpazio, r.driveNome, r.allievo].some((v) => v.toLowerCase().includes(t))));
   const aperta = (righe ?? []).find((r) => r.id === scelta) ?? null;
   const distribuzione = (mappa: Record<string, number>) => Object.entries(mappa)
     .sort((a, b) => b[1] - a[1]).map(([k, n]) => `${k}: ${n}`).join(' · ') || '—';
 
+  // ⚠️ LA DOMANDA DICE TUTTO QUELLO CHE SI PORTA VIA: di chi e' il video e,
+  // se e' stato inviato, a quale allievo sparisce. Un'eliminazione non si
+  // disfa.
+  async function elimina(r: AnalisiRiga) {
+    const nome = r.titolo || r.driveNome || '(senza nome)';
+    const domanda = `Elimino per sempre «${nome}» di ${r.nomeSpazio || 'questo maestro'}?\n\n`
+      + 'Sparisce dall’app del maestro'
+      + (r.stato === 'inviato' && r.allievo ? ` e da quella di ${r.allievo}` : '')
+      + ', e i file vanno via dal deposito e da Drive. Non si puo’ tornare indietro.';
+    if (!window.confirm(domanda)) return;
+    setGuasto('');
+    setDetto('');
+    setEliminando(true);
+    try {
+      await eliminaVideo(r.id);
+      setDetto(`«${nome}» eliminato.`);
+      router.replace('/rfcoach/superadmin/analisi');
+      await rileggi();
+    } catch (e) {
+      setGuasto(`Il video non si elimina: ${motivo(e)}`);
+    }
+    setEliminando(false);
+  }
+
   const elenco = (
     <>
       {guasto ? <div className="avviso male">{guasto}</div> : null}
+      {detto ? <div className="avviso bene">{detto}</div> : null}
       {righe === null ? <div className="vuoto">Un momento…</div> : null}
       {righe !== null && visti.length === 0 ? <div className="vuoto">Nessun video con questi filtri.</div> : null}
       {STATI_DASHBOARD.map((st) => {
@@ -70,6 +114,7 @@ function Dashboard() {
                 nome={r.titolo || r.driveNome || '(senza nome)'}
                 sotto={[r.nomeSpazio, etichettaRisoluzione(r.altezza), r.fps ? `${r.fps} FPS` : '', durataBreve(r.durataSec)].filter(Boolean).join('  ·  ')}
                 destra={pesoScritto(r.byte)}
+                pastiglie={mancante(r) ? <Pillola tinta="male">{dettoMancante(r)}</Pillola> : undefined}
                 onClick={() => router.replace(`/rfcoach/superadmin/analisi?id=${r.id}`)}
               />
             ))}
@@ -88,6 +133,7 @@ function Dashboard() {
         filtri={[
           { chiave: 'tutti', detto: 'Tutti', quanti: conti.totale },
           ...STATI_DASHBOARD.map((s) => ({ chiave: s, detto: DETTO_STATO_ANALISI[s], quanti: conti.perStato[s] ?? 0 })),
+          ...(conti.mancanti > 0 ? [{ chiave: 'mancanti', detto: 'File mancanti', quanti: conti.mancanti }] : []),
         ]}
         filtro={filtro}
         scegli={setFiltro}
@@ -99,8 +145,20 @@ function Dashboard() {
             <Eroe
               nome={aperta.titolo || aperta.driveNome || '(senza nome)'}
               sotto={aperta.nomeSpazio}
-              pastiglie={<Pillola tinta={TINTA_STATO_ANALISI[aperta.stato] ?? 'spento'}>{DETTO_STATO_ANALISI[aperta.stato] ?? aperta.stato}</Pillola>}
+              pastiglie={(
+                <>
+                  <Pillola tinta={TINTA_STATO_ANALISI[aperta.stato] ?? 'spento'}>{DETTO_STATO_ANALISI[aperta.stato] ?? aperta.stato}</Pillola>
+                  {mancante(aperta) ? <Pillola tinta="male">{dettoMancante(aperta)}</Pillola> : null}
+                </>
+              )}
             />
+            {mancante(aperta) ? (
+              <div className="avviso male">
+                <b>{dettoMancante(aperta)}</b>
+                La scheda c’e’, ma il video nel deposito no: il maestro la vede ancora e non si apre.
+                Per toglierla dalle app, eliminala qui sotto.
+              </div>
+            ) : null}
             <Numeri>
               <Numero valore={pesoScritto(aperta.byte)} etichetta="Peso" />
               <Numero valore={etichettaRisoluzione(aperta.altezza)} etichetta="Risoluzione" />
@@ -128,6 +186,20 @@ function Dashboard() {
                 ]}
                 />
               </Capitolo>
+              {puoEliminareVideo(livello) ? (
+                <Capitolo titolo="Elimina">
+                  <p className="aiuto">
+                    Il video sparisce dall’app del maestro
+                    {aperta.stato === 'inviato' && aperta.allievo ? ` e da quella di ${aperta.allievo}` : ''}
+                    , e i file vanno via dal deposito e da Drive. Non si puo’ tornare indietro.
+                  </p>
+                  <div className="azioni">
+                    <button type="button" className="bottone rosso" disabled={eliminando} onClick={() => void elimina(aperta)}>
+                      {eliminando ? 'Elimino…' : 'Elimina definitivamente'}
+                    </button>
+                  </div>
+                </Capitolo>
+              ) : null}
             </Capitoli>
           </>
         ) : (
@@ -141,6 +213,7 @@ function Dashboard() {
               <Numero valore={conti.perStato.errore ?? 0} etichetta="In errore" tinta={(conti.perStato.errore ?? 0) > 0 ? 'rosso' : ''} />
               <Numero valore={pesoScritto(conti.byte)} etichetta="Spazio" sotto={conti.byteAnalizzati ? `+ ${pesoScritto(conti.byteAnalizzati)} analizzati` : ''} />
               <Numero valore={durataLunga(conti.durataSec)} etichetta="Durata totale" />
+              {conti.mancanti > 0 ? <Numero valore={conti.mancanti} etichetta="File mancanti" tinta="rosso" /> : null}
             </Numeri>
             <Capitoli>
               <Capitolo titolo="Risoluzione e FPS">

@@ -195,11 +195,22 @@ export type AnalisiRiga = {
   inAnalisiIlMs: number;
   analizzatoIlMs: number;
   inviatoIlMs: number;
+  // ⚠️ DAL 13 OTTOBRE 2026: la scheda c'e' ma il video nel bucket no (per
+  // esempio cancellato a mano dalla console). Il server elenca il bucket.
+  fileMancante: boolean;
+  analizzatoMancante: boolean;
 };
 
 export async function leggiAnalisiTutte(): Promise<AnalisiRiga[]> {
   const r = await chiama<{ analisi: AnalisiRiga[] }>('analisi');
   return r.analisi;
+}
+
+// ⚠️ ELIMINARE UN VIDEO PER SEMPRE (13 ottobre 2026): titolare e A. Sparisce
+// dall'app del maestro e da quella dell'allievo, e i file vanno via dal bucket
+// e da Drive. Il server ricontrolla il livello (`puoEliminareAnalisi`).
+export async function eliminaVideo(id: string): Promise<{ videoReviewTolta: boolean }> {
+  return chiama('eliminaAnalisi', { id });
 }
 
 // ---------- i collaboratori (12 ottobre) ----------
